@@ -213,8 +213,9 @@ function Drawer:refresh(node)
           type = "query",
           action = function()
             local cb = function(data)
-              local ui_results = require("db.ui.results")
-              ui_results.show(data)
+              -- local ui_results = require("db.ui.results")
+              -- ui_results.show(data)
+              self.on_result(data, "lines")
               self:refresh(node)
             end
             connection:execute_to_result(
@@ -251,8 +252,9 @@ function Drawer:refresh(node)
       text = tostring(i),
       type = "history",
       action = function()
-        local ui_results = require("db.ui.results")
-        ui_results.show_file(h.file)
+        -- local ui_results = require("db.ui.results")
+        -- ui_results.show_file(h.file)
+        self.on_result(h.file, "file")
       end,
       -- TODO remove?
       query = h.query,

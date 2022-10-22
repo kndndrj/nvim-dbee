@@ -1,10 +1,10 @@
 local Connection = require("db.connection")
-local Drawer = require("db.ui.drawer")
+local UI = require"db.ui"
 local M = {}
 
 ---@alias grid { header: string[], rows: string[][] }
 
-local drawer
+local ui
 
 M.data = {}
 
@@ -17,14 +17,14 @@ function M.setup()
 end
 
 function M.open_ui()
-  if not drawer then
-    drawer = Drawer:new { connections = M.connections }
+  if not ui then
+    ui = UI:new()
   end
-  drawer:show()
+  ui:open()
 end
 
 function M.close_ui()
-  drawer:hide()
+  ui:close()
 end
 
 return M

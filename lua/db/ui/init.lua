@@ -5,10 +5,22 @@ local Result = require("db.ui.result")
 local UI = {}
 
 function UI:new()
+
+  ---@type Result
+  local result = Result:new()
+  local editor = Editor:new()
+
+  local drawer = Drawer:new { connections = require("db").connections, on_result=function (lines, type)
+    vim.pretty_print(lines)
+    result:set(lines, type)
+    result:show()
+  end }
+
+
   local o = {
-    drawer = Drawer:new { connections = require("db").connections },
-    editor = Editor:new(),
-    result = Result:new(),
+    drawer = drawer,
+    editor = editor,
+    result = result,
   }
   setmetatable(o, self)
   self.__index = self
@@ -17,6 +29,7 @@ end
 
 function UI:open()
   self.drawer:show()
+  self.result:show()
 end
 
 function UI:close()
