@@ -20,7 +20,7 @@ function M.open_ui()
   if not ui then
     ui = UI:new()
   end
-  ui:open()
+  ui:open_drawer()
 end
 
 function M.close_ui()

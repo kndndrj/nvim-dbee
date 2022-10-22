@@ -5,33 +5,39 @@ local Result = require("db.ui.result")
 local UI = {}
 
 function UI:new()
+
   ---@type Result
   local result = Result:new()
   local editor = Editor:new()
 
-  local drawer = Drawer:new {
-    connections = require("db").connections,
-    on_result = function(lines, type)
-      vim.pretty_print(lines)
-      result:set(lines, type)
-      result:show()
-    end,
-  }
-
+  -- class object
   local o = {
-    drawer = drawer,
+    drawer = nil,
     editor = editor,
     result = result,
   }
+
+  o.drawer = Drawer:new {
+    connections = require("db").connections,
+    on_result = function(lines, type)
+      result:set(lines, type)
+      o:open_result()
+    end,
+  }
+
   setmetatable(o, self)
   self.__index = self
   return o
 end
 
-function UI:open()
+function UI:open_drawer()
   vim.cmd("to 40vsplit")
   self.drawer:render(0)
-  -- self.result:show()
+end
+
+function UI:open_result()
+  vim.cmd("bo 15split")
+  self.result:render(0)
 end
 
 function UI:close()
