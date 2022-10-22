@@ -1,5 +1,4 @@
 local NuiTree = require("nui.tree")
-local NuiSplit = require("nui.split")
 local NuiLine = require("nui.line")
 
 ---@param unexpanded_query string
@@ -14,8 +13,8 @@ local function expand_query(unexpanded_query, vars)
 end
 
 ---@class Drawer
+---@field bufnr integer number of buffer to display the tree in
 ---@field tree table NuiTree
----@field split table NuiSplit
 ---@field connections Connection[]
 ---@field on_result fun(result: string|string[], type: "file"|"lines") callback to call when results are ready
 local Drawer = {}
@@ -24,21 +23,8 @@ local Drawer = {}
 function Drawer:new(opts)
   opts = opts or {}
 
-  local split = NuiSplit {
-    relative = "win",
-    position = "left",
-    size = 40,
-  }
-
-  local event = require("nui.utils.autocmd").event
-  split:on({ event.BufWinLeave }, function()
-    vim.schedule(function()
-      split:unmount()
-    end)
-  end, { once = true })
-
   local tree = NuiTree {
-    bufnr = split.bufnr,
+    bufnr = 0, -- dummy to suppress error
     prepare_node = function(node)
       local line = NuiLine()
 
@@ -71,8 +57,8 @@ function Drawer:new(opts)
 
   -- class object
   local o = {
+    bufnr = nil,
     tree = tree,
-    split = split,
     connections = opts.connections,
     on_result = opts.on_result or function() end,
   }
@@ -136,15 +122,18 @@ end
 
 -- Map keybindings to split window
 function Drawer:map_keys()
-  local map_options = { noremap = true, nowait = true }
+
+  local bufnr = self.bufnr
+
+  local map_options = { noremap = true, nowait = true, buffer = bufnr }
 
   -- quit
-  self.split:map("n", "q", function()
-    self.split:unmount()
-  end, { noremap = true })
+  vim.keymap.set("n", "q", function()
+    vim.api.nvim_win_close(0, false)
+  end, { noremap = true, buffer = bufnr })
 
   -- confirm
-  self.split:map("n", "<CR>", function()
+  vim.keymap.set("n", "<CR>", function()
     local node = self.tree:get_node()
     if type(node.action) == "function" then
       node.action()
@@ -152,7 +141,7 @@ function Drawer:map_keys()
   end, map_options)
 
   -- collapse current node
-  self.split:map("n", "i", function()
+  vim.keymap.set("n", "i", function()
     local node = self.tree:get_node()
     if not node then
       return
@@ -164,7 +153,7 @@ function Drawer:map_keys()
   end, map_options)
 
   -- expand current node
-  self.split:map("n", "o", function()
+  vim.keymap.set("n", "o", function()
     local node = self.tree:get_node()
     if not node then
       return
@@ -283,18 +272,20 @@ function Drawer:refresh(node)
 end
 
 -- Show drawer on screen
-function Drawer:show()
-  self.split:mount()
+---@param winid integer window id to display the tree in - 0 for current
+function Drawer:render(winid)
+  -- if buffer doesn't exist, create it
+  if not self.bufnr or vim.fn.bufwinnr(self.bufnr) < 0 then
+    self.bufnr = vim.api.nvim_create_buf(false, true)
+    self:map_keys()
+  end
 
-  self:map_keys()
-  self.tree.bufnr = self.split.bufnr
+  -- set tree to this buffer
+  self.tree.bufnr = self.bufnr
+
+  vim.api.nvim_win_set_buf(winid, self.bufnr)
 
   self.tree:render()
-end
-
--- Hide drawer off screen
-function Drawer:hide()
-  self.split:unmount()
 end
 
 return Drawer
