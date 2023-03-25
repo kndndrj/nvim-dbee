@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/kndndrj/nvim-dbee/clients"
+	"github.com/kndndrj/nvim-dbee/conn"
 	"github.com/kndndrj/nvim-dbee/output"
 	"github.com/neovim/go-client/nvim"
 	"github.com/neovim/go-client/nvim/plugin"
@@ -21,7 +22,7 @@ func main() {
 	log.SetOutput(l)
 
 	// Call clients from lua via randomly generated id (string)
-	clientMap := make(map[string]clients.Client)
+	conns := make(map[string]*conn.Conn)
 
 	plugin.Main(func(p *plugin.Plugin) error {
 
@@ -54,7 +55,9 @@ func main() {
 					return fmt.Errorf("database of type \"%s\" is not supported", typ)
 				}
 
-				clientMap[id] = client
+				c := conn.New(client)
+
+				conns[id] = c
 
 				return nil
 			})
@@ -74,22 +77,15 @@ func main() {
 					return err
 				}
 
-				// TODO: register client if not found
-				// Get the right client
-				client, ok := clientMap[id]
+				// Get the right connection
+				c, ok := conns[id]
 				if !ok {
-					return fmt.Errorf("client with id %s not registered", id)
-				}
-
-				rows, err := client.Execute(query)
-				if err != nil {
-					return err
+					return fmt.Errorf("connection with id %s not registered", id)
 				}
 
 				out := output.NewBufferOutput(v, bufnr)
 
-				err = out.Set(rows)
-
+				err = c.Execute(query, out)
 				return err
 			})
 
@@ -102,14 +98,13 @@ func main() {
 
 				id := args[0]
 
-				// TODO: register client if not found
-				// Get the right client
-				client, ok := clientMap[id]
+				// Get the right connection
+				c, ok := conns[id]
 				if !ok {
-					return nil, fmt.Errorf("client with id %s not registered", id)
+					return nil, fmt.Errorf("connection with id %s not registered", id)
 				}
 
-				schema, err := client.Schema()
+				schema, err := c.Schema()
 				if err != nil {
 					return nil, err
 				}
@@ -121,7 +116,7 @@ func main() {
 	})
 
 	defer func() {
-		for _, c := range clientMap {
+		for _, c := range conns {
 			c.Close()
 		}
 	}()

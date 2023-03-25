@@ -2,12 +2,11 @@ package output
 
 import (
 	"bufio"
-	"errors"
 	"strings"
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
-	"github.com/kndndrj/nvim-dbee/clients"
+	"github.com/kndndrj/nvim-dbee/conn"
 	"github.com/neovim/go-client/nvim"
 )
 
@@ -23,33 +22,15 @@ func NewBufferOutput(vim *nvim.Nvim, bufnr nvim.Buffer) *BufferOutput {
 	}
 }
 
-func (o *BufferOutput) Set(rows clients.Rows) error {
-
-	header, err := rows.Header()
-	if err != nil {
-		return err
-	}
-
-	if len(header) < 1 {
-		return errors.New("no header provided")
-	}
+func (o *BufferOutput) Write(result conn.Result) error {
 
 	var tableHeaders []any
-	for _, k := range header {
+	for _, k := range result.Header {
 		tableHeaders = append(tableHeaders, k)
 	}
 
-	// tableRows
 	var tableRows []table.Row
-	for {
-		row, err := rows.Next()
-		if row == nil {
-			break
-		}
-		if err != nil {
-			return err
-		}
-
+	for _, row := range result.Rows {
 		tableRows = append(tableRows, table.Row(row))
 	}
 
@@ -59,10 +40,10 @@ func (o *BufferOutput) Set(rows clients.Rows) error {
 	t.AppendSeparator()
 	t.SetStyle(table.StyleLight)
 	t.Style().Format = table.FormatOptions{
-    	Footer:    text.FormatDefault,
-    	Header:    text.FormatDefault,
-    	Row:       text.FormatDefault,
-    }
+		Footer: text.FormatDefault,
+		Header: text.FormatDefault,
+		Row:    text.FormatDefault,
+	}
 	render := t.Render()
 
 	scanner := bufio.NewScanner(strings.NewReader(render))
@@ -71,6 +52,6 @@ func (o *BufferOutput) Set(rows clients.Rows) error {
 		lines = append(lines, []byte(scanner.Text()))
 	}
 
-	err = o.vim.SetBufferLines(o.bufnr, 0, -1, true, lines)
+	err := o.vim.SetBufferLines(o.bufnr, 0, -1, true, lines)
 	return err
 }
