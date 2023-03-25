@@ -35,7 +35,6 @@ function Connection:new(opts)
 
   local client = Client:new { url = opts.url }
 
-
   local o = {
     meta = {
       name = opts.name or "[empty name]",
@@ -147,10 +146,6 @@ function Connection:execute_to_result(query, format, callback)
       end
     end)
   )
-  vim.pretty_print(query)
-  vim.pretty_print(format)
-  vim.pretty_print(self.client.url)
-  vim.pretty_print(self.client.type)
 
   uv.queue_work(ctx, package.path, package.cpath, self.client.type, self.client.url, query, format)
 end

@@ -255,9 +255,9 @@ function Drawer:refresh(node)
   end
 
   local children = {
-    NuiTree.Node { id = "new_query", text = "new query" },
-    NuiTree.Node({ id = "structure", text = "structure" }, schema_nodes),
-    NuiTree.Node({ id = "history", text = "history" }, history_nodes),
+    NuiTree.Node { id = connection.meta.name .. "new_query", text = "new query" },
+    NuiTree.Node({ id = connection.meta.name .. "structure", text = "structure" }, schema_nodes),
+    NuiTree.Node({ id = connection.meta.name .. "history", text = "history" }, history_nodes),
   }
   -- expand nodes from map
   for _, n in ipairs(children) do
