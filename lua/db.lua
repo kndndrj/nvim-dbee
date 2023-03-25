@@ -1,30 +1,35 @@
 local Connection = require("db.connection")
-local UI = require"db.ui"
+local Drawer = require("db.drawer")
+local UI = require("db.ui")
 local M = {}
 
 ---@alias grid { header: string[], rows: string[][] }
 
-local ui
+local drawer
 
 M.data = {}
 
-M.connections = {}
-
 function M.setup()
+  local ui_drawer = UI:new { win_cmd = "to 40vsplit" }
+  local ui_result = UI:new { win_cmd = "bo 15split" }
+
+  local connections = {}
   for _, d in ipairs(M.data) do
-    table.insert(M.connections, Connection:new { name = d.name, type = d.type, url = d.url })
+    table.insert(connections, Connection:new { name = d.name, type = d.type, url = d.url, ui = ui_result })
   end
+
+  drawer = Drawer:new {
+    connections = connections,
+    ui = ui_drawer,
+  }
 end
 
 function M.open_ui()
-  if not ui then
-    ui = UI:new()
-  end
-  ui:open_drawer()
+  drawer:render()
 end
 
 function M.close_ui()
-  ui:close()
+  drawer:close()
 end
 
 return M

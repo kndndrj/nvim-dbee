@@ -4,9 +4,10 @@
 ---@field meta { [string]: any } Table that holds metadata
 ---@field client Client
 ---@field history { query: string, file: string }[]
+---@field ui UI
 local Connection = {}
 
----@param opts? { name: string, type: string, url: string }
+---@param opts? { name: string, type: string, url: string, ui: UI }
 function Connection:new(opts)
   opts = opts or {}
 
@@ -27,7 +28,13 @@ function Connection:new(opts)
     return
   end
 
+  if opts.ui == nil then
+    print("no UI provided to connection")
+    return
+  end
+
   local client = Client:new { url = opts.url }
+
 
   local o = {
     meta = {
@@ -36,6 +43,7 @@ function Connection:new(opts)
     },
     client = client,
     history = {},
+    ui = opts.ui,
   }
   setmetatable(o, self)
   self.__index = self
@@ -43,9 +51,9 @@ function Connection:new(opts)
 end
 
 ---@param query string
----@param callback fun(result: string[])
----@param format? "preview"|"csv"
-function Connection:execute_to_result(query, callback, format)
+---@param format? "preview"|"csv" format of the output (default: preview)
+---@param callback? fun() optional callback to execute when results are ready
+function Connection:execute_to_result(query, format, callback)
   if not format then
     format = "preview"
   end
@@ -129,9 +137,21 @@ function Connection:execute_to_result(query, callback, format)
 
       self.history[history_index].file = history_file_path
 
-      callback(result)
+      local bufnr = self.ui:open()
+      vim.api.nvim_buf_set_option(bufnr, "modifiable", true)
+      vim.api.nvim_buf_set_lines(bufnr, 0, 0, true, result)
+      vim.api.nvim_buf_set_option(bufnr, "modifiable", false)
+
+      if type(callback) == "function" then
+        callback()
+      end
     end)
   )
+  vim.pretty_print(query)
+  vim.pretty_print(format)
+  vim.pretty_print(self.client.url)
+  vim.pretty_print(self.client.type)
+
   uv.queue_work(ctx, package.path, package.cpath, self.client.type, self.client.url, query, format)
 end
 
@@ -140,9 +160,19 @@ function Connection:schemas()
   return self.client:schemas()
 end
 
----@return { string: string } helpers list of table helpers
-function Connection:table_helpers()
-  return self.client:table_helpers()
+---@return string
+function Connection:type()
+  return self.client.type
+end
+
+---@param index integer history index
+function Connection:display_history(index)
+  local file = self.history[index].file
+
+  self.ui:open()
+  local winid = self.ui.winid
+  vim.api.nvim_set_current_win(winid)
+  vim.api.nvim_command("e " .. file)
 end
 
 return Connection

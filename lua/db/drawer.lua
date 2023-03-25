@@ -1,5 +1,6 @@
 local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
+local helpers = require("db.helpers")
 
 ---@param unexpanded_query string
 ---@param vars { table: string, schema: string, dbname: string }
@@ -16,10 +17,11 @@ end
 ---@field bufnr integer number of buffer to display the tree in
 ---@field tree table NuiTree
 ---@field connections Connection[]
----@field on_result fun(result: string|string[], type: "file"|"lines") callback to call when results are ready
+---@field ui UI
+---@field last_bufnr integer last used buffer
 local Drawer = {}
 
----@param opts? { connections: Connection[], on_result: fun(result: string|string[], type: "file"|"lines") }
+---@param opts? { connections: Connection[], ui: UI }
 function Drawer:new(opts)
   opts = opts or {}
 
@@ -55,12 +57,16 @@ function Drawer:new(opts)
     end
   end
 
+  if opts.ui == nil then
+    print("no UI provided to drawer")
+    return
+  end
+
   -- class object
   local o = {
-    bufnr = nil,
     tree = tree,
     connections = opts.connections,
-    on_result = opts.on_result or function() end,
+    ui = opts.ui,
   }
   setmetatable(o, self)
   self.__index = self
@@ -70,7 +76,7 @@ end
 ---@param connection Connection
 function Drawer:add_connection(connection)
   local db =
-  NuiTree.Node { id = connection.meta.name, connection = connection, text = connection.meta.name, type = "db" }
+    NuiTree.Node { id = connection.meta.name, connection = connection, text = connection.meta.name, type = "db" }
 
   local existing_nodes = self.tree:get_nodes()
   for _, n in ipairs(existing_nodes) do
@@ -121,10 +127,7 @@ function Drawer:current_master()
 end
 
 -- Map keybindings to split window
-function Drawer:map_keys()
-
-  local bufnr = self.bufnr
-
+function Drawer:map_keys(bufnr)
   local map_options = { noremap = true, nowait = true, buffer = bufnr }
 
   -- quit
@@ -180,7 +183,11 @@ function Drawer:refresh(node)
   -- schemas
   local schemas = connection:schemas()
   -- table helpers
-  local table_helpers = connection:table_helpers()
+  local table_helpers = helpers.get(connection:type())
+  if not table_helpers then
+    print("no table_helpers")
+    return
+  end
   -- history
   local history = connection.history
 
@@ -201,16 +208,13 @@ function Drawer:refresh(node)
           text = helper_name,
           type = "query",
           action = function()
-            local cb = function(data)
-              -- local ui_results = require("db.ui.results")
-              -- ui_results.show(data)
-              self.on_result(data, "lines")
+            local cb = function()
               self:refresh(node)
             end
             connection:execute_to_result(
               expand_query(helper_query, { table = tbl_name, schema = sch_name, dbname = connection.meta.name }),
-              cb,
-              "preview"
+              "preview",
+              cb
             )
           end,
         }
@@ -235,19 +239,14 @@ function Drawer:refresh(node)
 
   -- history
   local history_nodes = {}
-  for i, h in ipairs(history) do
+  for i, _ in ipairs(history) do
     local history_node = NuiTree.Node {
       id = "history" .. tostring(i),
       text = tostring(i),
       type = "history",
       action = function()
-        -- local ui_results = require("db.ui.results")
-        -- ui_results.show_file(h.file)
-        self.on_result(h.file, "file")
+        connection:display_history(i)
       end,
-      -- TODO remove?
-      query = h.query,
-      file = h.file,
     }
     if expanded[history_node.id] then
       history_node:expand()
@@ -272,18 +271,14 @@ function Drawer:refresh(node)
 end
 
 -- Show drawer on screen
----@param winid integer window id to display the tree in - 0 for current
-function Drawer:render(winid)
-  -- if buffer doesn't exist, create it
-  if not self.bufnr or vim.fn.bufwinnr(self.bufnr) < 0 then
-    self.bufnr = vim.api.nvim_create_buf(false, true)
-    self:map_keys()
+function Drawer:render()
+  local bufnr = self.ui:open()
+
+  if bufnr ~= self.last_bufnr then
+    self:map_keys(bufnr)
+    self.tree.bufnr = bufnr
+    self.last_bufnr = bufnr
   end
-
-  -- set tree to this buffer
-  self.tree.bufnr = self.bufnr
-
-  vim.api.nvim_win_set_buf(winid, self.bufnr)
 
   self.tree:render()
 end
