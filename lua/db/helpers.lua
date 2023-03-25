@@ -15,6 +15,7 @@ local function postgres()
 
   return {
     List = 'select * from "{table}" LIMIT 500',
+    Listall = 'select * from "{table}"',
     Columns = "select * from information_schema.columns where table_name='{table}' and table_schema='{schema}'",
     Indexes = "SELECT * FROM pg_indexes where tablename='{table}' and schemaname='{schema}'",
     ["Foreign Keys"] = basic_constraint_query
@@ -26,14 +27,22 @@ local function postgres()
   }
 end
 
+---@return { string: string } helpers list of table helpers
+local function redis()
+  return {
+    List = 'KEYS *',
+  }
+end
+
 ---@param type string
 ---@return { string: string }|nil helpers list of table helpers
 function M.get(type)
   if type == "postgres" then
     return postgres()
+  elseif type == "redis" then
+    return redis()
   end
 end
-
 
 ---@param unexpanded_query string
 ---@param vars { table: string, schema: string, dbname: string }

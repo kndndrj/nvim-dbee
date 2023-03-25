@@ -40,13 +40,14 @@ function UI:open()
     self.winid = vim.api.nvim_get_current_win()
   end
 
+  vim.api.nvim_win_set_buf(self.winid, self.bufnr)
+
   vim.o.buflisted = false
   vim.o.bufhidden = "delete"
   vim.o.buftype = "nofile"
   vim.o.swapfile = false
   vim.wo.wrap = false
 
-  vim.api.nvim_win_set_buf(self.winid, self.bufnr)
   return self.bufnr
 end
 

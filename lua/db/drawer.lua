@@ -154,6 +154,16 @@ function Drawer:map_keys(bufnr)
     end
   end, map_options)
 
+  -- expand all children nodes with only one field
+  local function expand_all_single(node)
+    local children = node:get_child_ids()
+    if #children == 1 then
+      local nested_node = self.tree:get_node(children[1])
+      nested_node:expand()
+      expand_all_single(nested_node)
+    end
+  end
+
   -- expand current node
   vim.keymap.set("n", "o", function()
     local node = self.tree:get_node()
@@ -162,6 +172,8 @@ function Drawer:map_keys(bufnr)
     end
     -- TODO: clean this up
     local expanded = node:expand()
+
+    expand_all_single(node)
 
     self:refresh()
     expanded = node:expand()
@@ -183,7 +195,7 @@ function Drawer:refresh(node)
   -- schemas
   local schemas = connection:schemas()
   -- table helpers
-  local table_helpers = helpers.get(connection:type())
+  local table_helpers = helpers.get(connection.type)
   if not table_helpers then
     print("no table_helpers")
     return
@@ -211,7 +223,7 @@ function Drawer:refresh(node)
             local cb = function()
               self:refresh(node)
             end
-            connection:execute_to_result(
+            connection:execute(
               helpers.expand_query(helper_query, { table = tbl_name, schema = sch_name, dbname = connection.meta.name }),
               "preview",
               cb
