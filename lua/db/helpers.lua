@@ -34,4 +34,16 @@ function M.get(type)
   end
 end
 
+
+---@param unexpanded_query string
+---@param vars { table: string, schema: string, dbname: string }
+---@return string query with expanded vars
+function M.expand_query(unexpanded_query, vars)
+  local ret = unexpanded_query
+  for key, val in pairs(vars) do
+    ret = ret:gsub("{" .. key .. "}", val)
+  end
+  return ret
+end
+
 return M

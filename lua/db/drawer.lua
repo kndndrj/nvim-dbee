@@ -2,31 +2,41 @@ local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
 local helpers = require("db.helpers")
 
----@param unexpanded_query string
----@param vars { table: string, schema: string, dbname: string }
----@return string query with expanded vars
-local function expand_query(unexpanded_query, vars)
-  local ret = unexpanded_query
-  for key, val in pairs(vars) do
-    ret = ret:gsub("{" .. key .. "}", val)
-  end
-  return ret
-end
-
 ---@class Drawer
----@field bufnr integer number of buffer to display the tree in
----@field tree table NuiTree
----@field connections Connection[]
----@field ui UI
----@field last_bufnr integer last used buffer
+---@field private bufnr integer number of buffer to display the tree in
+---@field private tree table NuiTree
+---@field private connections Connection[]
+---@field private ui UI
+---@field private last_bufnr integer last used buffer
 local Drawer = {}
 
 ---@param opts? { connections: Connection[], ui: UI }
 function Drawer:new(opts)
   opts = opts or {}
 
+  local connections = opts.connections or {}
+
+  if opts.ui == nil then
+    print("no UI provided to drawer")
+    return
+  end
+
+  -- class object
+  local o = {
+    tree = nil,
+    connections = connections,
+    ui = opts.ui,
+  }
+  setmetatable(o, self)
+  self.__index = self
+  return o
+end
+
+---@private
+---@return table tree
+function Drawer:create_tree(bufnr)
   local tree = NuiTree {
-    bufnr = 0, -- dummy to suppress error
+    bufnr = bufnr, -- dummy to suppress error
     prepare_node = function(node)
       local line = NuiLine()
 
@@ -50,27 +60,12 @@ function Drawer:new(opts)
     end,
   }
 
-  if opts.connections then
-    for _, c in ipairs(opts.connections) do
-      local db = NuiTree.Node { id = c.meta.name, connection = c, text = c.meta.name, type = "db" }
-      tree:add_node(db)
-    end
+  for _, c in ipairs(self.connections) do
+    local db = NuiTree.Node { id = c.meta.name, connection = c, text = c.meta.name, type = "db" }
+    tree:add_node(db)
   end
 
-  if opts.ui == nil then
-    print("no UI provided to drawer")
-    return
-  end
-
-  -- class object
-  local o = {
-    tree = tree,
-    connections = opts.connections,
-    ui = opts.ui,
-  }
-  setmetatable(o, self)
-  self.__index = self
-  return o
+  return tree
 end
 
 ---@param connection Connection
@@ -88,6 +83,7 @@ function Drawer:add_connection(connection)
   self.tree:add_node(db)
 end
 
+---@private
 ---@return { string: boolean } expanded map of node ids that are expanded
 function Drawer:get_expanded_ids()
   local expanded = {}
@@ -111,6 +107,7 @@ function Drawer:get_expanded_ids()
   return expanded
 end
 
+---@private
 ---@return table node current master node
 function Drawer:current_master()
   local node = self.tree:get_node()
@@ -127,6 +124,8 @@ function Drawer:current_master()
 end
 
 -- Map keybindings to split window
+---@private
+---@param bufnr integer which buffer to map the keys in
 function Drawer:map_keys(bufnr)
   local map_options = { noremap = true, nowait = true, buffer = bufnr }
 
@@ -174,6 +173,7 @@ function Drawer:map_keys(bufnr)
 end
 
 -- Refresh parent connection tree
+---@private
 ---@param node? table currently selected node
 function Drawer:refresh(node)
   node = node or self:current_master()
@@ -212,7 +212,7 @@ function Drawer:refresh(node)
               self:refresh(node)
             end
             connection:execute_to_result(
-              expand_query(helper_query, { table = tbl_name, schema = sch_name, dbname = connection.meta.name }),
+              helpers.expand_query(helper_query, { table = tbl_name, schema = sch_name, dbname = connection.meta.name }),
               "preview",
               cb
             )
@@ -273,6 +273,10 @@ end
 -- Show drawer on screen
 function Drawer:render()
   local bufnr = self.ui:open()
+
+  if not self.tree then
+    self.tree = self:create_tree(bufnr)
+  end
 
   if bufnr ~= self.last_bufnr then
     self:map_keys(bufnr)

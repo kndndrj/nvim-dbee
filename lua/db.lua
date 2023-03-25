@@ -5,8 +5,6 @@ local M = {}
 
 ---@alias grid { header: string[], rows: string[][] }
 
-local drawer
-
 M.data = {}
 
 function M.setup()
@@ -18,18 +16,18 @@ function M.setup()
     table.insert(connections, Connection:new { name = d.name, type = d.type, url = d.url, ui = ui_result })
   end
 
-  drawer = Drawer:new {
+  M.drawer = Drawer:new {
     connections = connections,
     ui = ui_drawer,
   }
 end
 
 function M.open_ui()
-  drawer:render()
+  M.drawer:render()
 end
 
 function M.close_ui()
-  drawer:close()
+  M.drawer:close()
 end
 
 return M
