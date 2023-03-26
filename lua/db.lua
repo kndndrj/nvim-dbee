@@ -1,5 +1,5 @@
-local Connection = require("db.connection")
 local Drawer = require("db.drawer")
+local Handler = require("db.handler")
 local UI = require("db.ui")
 local M = {}
 
@@ -16,13 +16,14 @@ local function lazy_setup()
   local ui_drawer = UI:new { win_cmd = "to 40vsplit" }
   local ui_result = UI:new { win_cmd = "bo 15split" }
 
-  local connections = {}
-  for _, d in ipairs(opts.connections) do
-    table.insert(connections, Connection:new { name = d.name, type = d.type, url = d.url, ui = ui_result })
+  local handler = Handler:new { connections = opts.connections, ui = ui_result }
+  if not handler then
+    print("error in handler setup")
+    return
   end
 
   M.drawer = Drawer:new {
-    connections = connections,
+    handler = handler,
     ui = ui_drawer,
   }
 

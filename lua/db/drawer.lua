@@ -3,29 +3,31 @@ local NuiLine = require("nui.line")
 local helpers = require("db.helpers")
 
 ---@class Drawer
----@field private bufnr integer number of buffer to display the tree in
 ---@field private tree table NuiTree
----@field private connections Connection[]
+---@field private handler Handler
 ---@field private ui UI
 ---@field private last_bufnr integer last used buffer
 ---@field active_connection integer last called connection
 local Drawer = {}
 
----@param opts? { connections: Connection[], ui: UI }
+---@param opts? { handler: Handler, ui: UI }
 function Drawer:new(opts)
   opts = opts or {}
-
-  local connections = opts.connections or {}
 
   if opts.ui == nil then
     print("no UI provided to drawer")
     return
   end
 
+  if opts.handler == nil then
+    print("no Handler provided to drawer")
+    return
+  end
+
   -- class object
   local o = {
     tree = nil,
-    connections = connections,
+    handler = opts.handler,
     ui = opts.ui,
   }
   setmetatable(o, self)
@@ -61,27 +63,13 @@ function Drawer:create_tree(bufnr)
     end,
   }
 
-  for _, c in ipairs(self.connections) do
-    local db = NuiTree.Node { id = c.meta.name, connection = c, text = c.meta.name, type = "db" }
+  local cons = self.handler:list_connections()
+  for _, c in ipairs(cons) do
+    local db = NuiTree.Node { id = c.name, connection_id = c.id, text = c.name, type = "db" }
     tree:add_node(db)
   end
 
   return tree
-end
-
----@param connection Connection
-function Drawer:add_connection(connection)
-  local db =
-    NuiTree.Node { id = connection.meta.name, connection = connection, text = connection.meta.name, type = "db" }
-
-  local existing_nodes = self.tree:get_nodes()
-  for _, n in ipairs(existing_nodes) do
-    if n.text == connection.meta.name then
-      return
-    end
-  end
-
-  self.tree:add_node(db)
 end
 
 ---@private
@@ -106,22 +94,6 @@ function Drawer:get_expanded_ids()
   end
 
   return expanded
-end
-
----@private
----@return table node current master node
-function Drawer:current_master()
-  local node = self.tree:get_node()
-
-  local function process(n)
-    if not n:get_parent_id() then
-      return n
-    end
-    local parent = self.tree:get_node(n:get_parent_id())
-    return process(parent)
-  end
-
-  return process(node)
 end
 
 -- Map keybindings to split window
@@ -185,29 +157,29 @@ function Drawer:map_keys(bufnr)
   end, map_options)
 end
 
--- Refresh parent connection tree
 ---@private
----@param node? table currently selected node
-function Drawer:refresh(node)
-  node = node or self:current_master()
-  local connection = node.connection
+---@param node_id integer master node id
+function Drawer:refresh_connection(node_id)
+  local master_node = self.tree:get_node(node_id)
+
+  local con_details = self.handler:connection_details(master_node.connection_id)
   local expanded = self:get_expanded_ids() or {}
 
   -- schemas
-  local schemas = connection:schemas()
+  local schemas = self.handler:schemas(con_details.id)
   -- table helpers
-  local table_helpers = helpers.get(connection.type)
+  local table_helpers = helpers.get(con_details.type)
   if not table_helpers then
     print("no table_helpers")
     return
   end
   -- history
-  local history = connection:history()
+  local history = self.handler:list_history(con_details.id)
 
   -- structure
   local schema_nodes = {}
   for sch_name, tbls in pairs(schemas) do
-    local sch_id = connection.meta.name .. sch_name
+    local sch_id = con_details.name .. sch_name
     -- tables
     local tbl_nodes = {}
     for _, tbl_name in ipairs(tbls) do
@@ -218,17 +190,18 @@ function Drawer:refresh(node)
         local helper_id = tbl_id .. helper_name
         local h = NuiTree.Node {
           id = helper_id,
+          master_id = node_id,
           text = helper_name,
           type = "query",
           action = function()
-            -- last active connection
-            self.active_connection = connection
+            self.handler:set_active(con_details.id)
 
-            connection:execute(
-              helpers.expand_query(helper_query, { table = tbl_name, schema = sch_name, dbname = connection.meta.name })
+            self.handler:execute(
+              helpers.expand_query(helper_query, { table = tbl_name, schema = sch_name, dbname = con_details.name }),
+              con_details.id
             )
 
-            self:refresh(node)
+            self:refresh_connection(node_id)
           end,
         }
         if expanded[h.id] then
@@ -254,11 +227,14 @@ function Drawer:refresh(node)
   local history_nodes = {}
   for _, h in ipairs(history) do
     local history_node = NuiTree.Node {
-      id = "history" .. h,
+      id = "history" .. con_details.name .. h,
+      master_id = node_id,
       text = h,
       type = "history",
       action = function()
-        connection:display_history(h)
+        self.handler:set_active(con_details.id)
+        self.handler:history(h, con_details.id)
+        self:refresh_connection(node_id)
       end,
     }
     if expanded[history_node.id] then
@@ -268,9 +244,9 @@ function Drawer:refresh(node)
   end
 
   local children = {
-    NuiTree.Node { id = connection.meta.name .. "new_query", text = "new query" },
-    NuiTree.Node({ id = connection.meta.name .. "structure", text = "structure" }, schema_nodes),
-    NuiTree.Node({ id = connection.meta.name .. "history", text = "history" }, history_nodes),
+    NuiTree.Node { id = con_details.name .. "new_query", master_id = node_id, text = "new query" },
+    NuiTree.Node({ id = con_details.name .. "structure", master_id = node_id, text = "structure" }, schema_nodes),
+    NuiTree.Node({ id = con_details.name .. "history", master_id = node_id, text = "history" }, history_nodes),
   }
   -- expand nodes from map
   for _, n in ipairs(children) do
@@ -279,8 +255,37 @@ function Drawer:refresh(node)
     end
   end
 
-  self.tree:set_nodes(children, node:get_id())
+  self.tree:set_nodes(children, node_id)
   self.tree:render()
+end
+
+function Drawer:refresh()
+  local existing_nodes = self.tree:get_nodes()
+
+  local function exists(connection_id)
+    for _, n in ipairs(existing_nodes) do
+      if n.connection_id == connection_id then
+        return true
+      end
+    end
+    return false
+  end
+
+  local cons = self.handler:list_connections()
+
+  for _, con in ipairs(cons) do
+    -- add connection if it doesn't exist, refresh it if it does
+    if not exists(con.id) then
+      local db = NuiTree.Node { id = con.name, connection_id = con.id, text = con.name, type = "db" }
+      self.tree:add_node(db)
+    else
+      for _, n in ipairs(existing_nodes) do
+        if n.connection_id == con.id then
+          self:refresh_connection(n.id)
+        end
+      end
+    end
+  end
 end
 
 -- Show drawer on screen
