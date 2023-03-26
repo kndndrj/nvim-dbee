@@ -202,7 +202,7 @@ function Drawer:refresh(node)
     return
   end
   -- history
-  local history = connection.history
+  local history = connection:history()
 
   -- structure
   local schema_nodes = {}
@@ -221,18 +221,14 @@ function Drawer:refresh(node)
           text = helper_name,
           type = "query",
           action = function()
-            local cb = function()
-              self:refresh(node)
-            end
-
             -- last active connection
             self.active_connection = connection
 
             connection:execute(
-              helpers.expand_query(helper_query, { table = tbl_name, schema = sch_name, dbname = connection.meta.name }),
-              "preview",
-              cb
+              helpers.expand_query(helper_query, { table = tbl_name, schema = sch_name, dbname = connection.meta.name })
             )
+
+            self:refresh(node)
           end,
         }
         if expanded[h.id] then
@@ -256,13 +252,13 @@ function Drawer:refresh(node)
 
   -- history
   local history_nodes = {}
-  for i, _ in ipairs(history) do
+  for _, h in ipairs(history) do
     local history_node = NuiTree.Node {
-      id = "history" .. tostring(i),
-      text = tostring(i),
+      id = "history" .. h,
+      text = h,
       type = "history",
       action = function()
-        connection:display_history(i)
+        connection:display_history(h)
       end,
     }
     if expanded[history_node.id] then

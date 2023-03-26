@@ -3,7 +3,6 @@
 ---@class Connection
 ---@field meta { [string]: any } Table that holds metadata
 ---@field type string
----@field history { query: string, file: string }[]
 ---@field private ui UI
 ---@field private id string id to call the go side of the client
 ---@field private page_index integer current page
@@ -37,7 +36,6 @@ function Connection:new(opts)
       name = opts.name or "[empty name]",
       type = opts.type,
     },
-    history = {},
     ui = opts.ui,
     type = opts.type,
     id = id,
@@ -48,18 +46,7 @@ function Connection:new(opts)
 end
 
 ---@param query string
----@param format? "preview"|"csv" format of the output (default: preview)
----@param callback? fun() optional callback to execute when results are ready
-function Connection:execute(query, format, callback)
-  if not format then
-    format = "preview"
-  end
-
-  local history_index = #self.history + 1
-
-  local history_file = "/tmp/nvim-db-tmp" .. tostring(os.clock())
-  self.history[history_index] = { query = query, file = history_file }
-
+function Connection:execute(query)
   -- call Go function here
   vim.fn.Dbee_execute(self.id, query)
 
@@ -67,11 +54,6 @@ function Connection:execute(query, format, callback)
   self.page_index = 0
   local bufnr = self.ui:open()
   vim.fn.Dbee_display(self.id, tostring(self.page_index), tostring(bufnr))
-
-  -- TODO trigger this after the result is ready
-  if type(callback) == "function" then
-    callback()
-  end
 end
 
 function Connection:page_next()
@@ -89,7 +71,8 @@ function Connection:page_prev()
   self.page_index = vim.fn.Dbee_display(self.id, tostring(self.page_index - 1), tostring(bufnr))
 end
 
-function Connection:hist(id)
+---@param id string history id
+function Connection:display_history(id)
   -- call Go function here
   vim.fn.Dbee_history(self.id, id)
 
@@ -99,8 +82,12 @@ function Connection:hist(id)
   vim.fn.Dbee_display(self.id, tostring(self.page_index), tostring(bufnr))
 end
 
-function Connection:list_hist()
-  return vim.fn.Dbee_list_history(self.id)
+function Connection:history()
+  local h = vim.fn.Dbee_list_history(self.id)
+  if not h or h == vim.NIL then
+    return {}
+  end
+  return h
 end
 
 ---@return schemas
@@ -108,14 +95,13 @@ function Connection:schemas()
   return vim.fn.Dbee_get_schema(self.id)
 end
 
----@param index integer history index
-function Connection:display_history(index)
-  local file = self.history[index].file
-
-  self.ui:open()
-  local winid = self.ui.winid
-  vim.api.nvim_set_current_win(winid)
-  vim.api.nvim_command("e " .. file)
+---@param format "csv"|"json" how to format the result
+---@param file string file to write to
+function Connection:save(format, file)
+  -- TODO
+  -- open ui
+  local bufnr = self.ui:open()
+  vim.fn.Dbee_write(self.id, tostring(bufnr))
 end
 
 return Connection
