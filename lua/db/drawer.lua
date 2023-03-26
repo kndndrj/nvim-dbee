@@ -8,6 +8,7 @@ local helpers = require("db.helpers")
 ---@field private connections Connection[]
 ---@field private ui UI
 ---@field private last_bufnr integer last used buffer
+---@field active_connection integer last called connection
 local Drawer = {}
 
 ---@param opts? { connections: Connection[], ui: UI }
@@ -223,6 +224,10 @@ function Drawer:refresh(node)
             local cb = function()
               self:refresh(node)
             end
+
+            -- last active connection
+            self.active_connection = connection
+
             connection:execute(
               helpers.expand_query(helper_query, { table = tbl_name, schema = sch_name, dbname = connection.meta.name }),
               "preview",

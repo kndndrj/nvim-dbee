@@ -6,6 +6,7 @@
 ---@field history { query: string, file: string }[]
 ---@field private ui UI
 ---@field private id string id to call the go side of the client
+---@field private page_index integer current page
 local Connection = {}
 
 ---@param opts? { name: string, type: string, url: string, ui: UI }
@@ -59,16 +60,47 @@ function Connection:execute(query, format, callback)
   local history_file = "/tmp/nvim-db-tmp" .. tostring(os.clock())
   self.history[history_index] = { query = query, file = history_file }
 
-  -- open ui
-  local bufnr = self.ui:open()
-
   -- call Go function here
-  vim.fn.Dbee_execute(self.id, query, tostring(bufnr))
+  vim.fn.Dbee_execute(self.id, query)
+
+  -- open the first page
+  self.page_index = 0
+  local bufnr = self.ui:open()
+  vim.fn.Dbee_display(self.id, tostring(self.page_index), tostring(bufnr))
 
   -- TODO trigger this after the result is ready
   if type(callback) == "function" then
     callback()
   end
+end
+
+function Connection:page_next()
+  -- open ui
+  local bufnr = self.ui:open()
+
+  -- go func returns selected page
+  self.page_index = vim.fn.Dbee_display(self.id, tostring(self.page_index + 1), tostring(bufnr))
+end
+
+function Connection:page_prev()
+  -- open ui
+  local bufnr = self.ui:open()
+
+  self.page_index = vim.fn.Dbee_display(self.id, tostring(self.page_index - 1), tostring(bufnr))
+end
+
+function Connection:hist(id)
+  -- call Go function here
+  vim.fn.Dbee_history(self.id, id)
+
+  -- open the first page
+  self.page_index = 0
+  local bufnr = self.ui:open()
+  vim.fn.Dbee_display(self.id, tostring(self.page_index), tostring(bufnr))
+end
+
+function Connection:list_hist()
+  return vim.fn.Dbee_list_history(self.id)
 end
 
 ---@return schemas

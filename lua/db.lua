@@ -3,8 +3,6 @@ local Drawer = require("db.drawer")
 local UI = require("db.ui")
 local M = {}
 
----@alias grid { header: string[], rows: string[][] }
-
 ---@alias setup_opts { connections: { name: string, type: string, url: string }, lazy: boolean }
 
 -- is the plugin loaded?
