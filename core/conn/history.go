@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/kndndrj/nvim-dbee/clients"
 )
 
 type historyRecord struct {
@@ -20,11 +19,11 @@ type historyMap struct {
 	storage sync.Map
 }
 
-func (hm *historyMap) Store(key int, value historyRecord) {
+func (hm *historyMap) store(key int, value historyRecord) {
 	hm.storage.Store(key, value)
 }
 
-func (hm *historyMap) Load(key int) (historyRecord, bool) {
+func (hm *historyMap) load(key int) (historyRecord, bool) {
 	val, ok := hm.storage.Load(key)
 	if !ok {
 		return historyRecord{}, false
@@ -33,11 +32,7 @@ func (hm *historyMap) Load(key int) (historyRecord, bool) {
 	return val.(historyRecord), true
 }
 
-func (hm *historyMap) Delete(key int) {
-	hm.storage.Delete(key)
-}
-
-func (hm *historyMap) Keys() []int {
+func (hm *historyMap) keys() []int {
 	var keys []int
 	hm.storage.Range(func(key, value any) bool {
 		k := key.(int)
@@ -86,21 +81,21 @@ func (o *HistoryOutput) Write(result Result) error {
 	rec := historyRecord{
 		file: fileName,
 	}
-	o.records.Store(id, rec)
+	o.records.store(id, rec)
 
 	return nil
 }
 
 // History is also a client
-func (h *HistoryOutput) Execute(query string) (clients.Rows, error) {
+func (h *HistoryOutput) Query(historyId string) (IterResult, error) {
 	var result Result
 
-	id, err := strconv.Atoi(query)
+	id, err := strconv.Atoi(historyId)
 	if err != nil {
 		return nil, err
 	}
 
-	rec, ok := h.records.Load(id)
+	rec, ok := h.records.load(id)
 	if !ok {
 		return nil, errors.New("no such input in history")
 	}
@@ -127,12 +122,12 @@ func (h *HistoryOutput) Execute(query string) (clients.Rows, error) {
 func (h *HistoryOutput) Close() {
 }
 
-func (h *HistoryOutput) Schema() (clients.Schema, error) {
+func (h *HistoryOutput) Schema() (Schema, error) {
 	return nil, nil
 }
 
 func (h *HistoryOutput) List() []string {
-	keys := h.records.Keys()
+	keys := h.records.keys()
 
 	// sort the slice
 	sort.Slice(keys, func(i, j int) bool {
@@ -148,8 +143,8 @@ func (h *HistoryOutput) List() []string {
 }
 
 type HistoryRows struct {
-	iter   func() clients.Row
-	header clients.Header
+	iter   func() Row
+	header Header
 }
 
 func newHistoryRows(result Result) *HistoryRows {
@@ -161,14 +156,14 @@ func newHistoryRows(result Result) *HistoryRows {
 	}
 }
 
-func (r *HistoryRows) Header() (clients.Header, error) {
+func (r *HistoryRows) Header() (Header, error) {
 	return r.header, nil
 }
 
-func getIter(result Result) func() clients.Row {
+func getIter(result Result) func() Row {
 	max := len(result.Rows) - 1
 	i := 0
-	return func() clients.Row {
+	return func() Row {
 		if i > max {
 			return nil
 		}
@@ -178,7 +173,7 @@ func getIter(result Result) func() clients.Row {
 	}
 }
 
-func (r *HistoryRows) Next() (clients.Row, error) {
+func (r *HistoryRows) Next() (Row, error) {
 	return r.iter(), nil
 }
 

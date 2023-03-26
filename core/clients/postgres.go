@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/kndndrj/nvim-dbee/conn"
 )
 
 type PostgresClient struct {
@@ -25,7 +26,7 @@ func NewPostgres(url string) (*PostgresClient, error) {
 	}, nil
 }
 
-func (c *PostgresClient) Execute(query string) (Rows, error) {
+func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
 
 	dbRows, err := c.db.Query(context.Background(), query) // Note: Ignoring errors for brevity
 	if err != nil {
@@ -37,18 +38,18 @@ func (c *PostgresClient) Execute(query string) (Rows, error) {
 	return pgRows, nil
 }
 
-func (c *PostgresClient) Schema() (Schema, error) {
+func (c *PostgresClient) Schema() (conn.Schema, error) {
 	query := `
     SELECT table_schema, table_name FROM information_schema.tables UNION ALL
     SELECT schemaname, matviewname FROM pg_matviews;
 	`
 
-	rows, err := c.Execute(query)
+	rows, err := c.Query(query)
 	if err != nil {
 		return nil, err
 	}
 
-	var schema = make(Schema)
+	var schema = make(conn.Schema)
 
 	for {
 		row, err := rows.Next()
@@ -82,17 +83,17 @@ func NewPGRows(pgRows pgx.Rows) *PGRows {
 	}
 }
 
-func (r *PGRows) Header() (Header, error) {
+func (r *PGRows) Header() (conn.Header, error) {
 	dbCols := r.dbRows.FieldDescriptions()
 
-	var header Header
+	var header conn.Header
 	for _, col := range dbCols {
 		header = append(header, col.Name)
 	}
 	return header, nil
 }
 
-func (r *PGRows) Next() (Row, error) {
+func (r *PGRows) Next() (conn.Row, error) {
 	dbCols := r.dbRows.FieldDescriptions()
 
 	if !r.dbRows.Next() {
@@ -114,7 +115,7 @@ func (r *PGRows) Next() (Row, error) {
 
 	// Create our map, and retrieve the value for each column from the pointers slice,
 	// storing it in the map with the name of the column as the key.
-	var row = make(Row, len(dbCols))
+	var row = make(conn.Row, len(dbCols))
 	for i := range dbCols {
 		val := columnPointers[i].(*any)
 		row[i] = *val

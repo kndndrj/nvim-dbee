@@ -38,7 +38,7 @@ func main() {
 				typ := args[2]
 
 				// Get the right client
-				var client clients.Client
+				var client conn.Client
 				var err error
 				switch typ {
 				case "postgres":

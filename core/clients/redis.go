@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kndndrj/nvim-dbee/conn"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -25,7 +26,7 @@ func NewRedis(url string) (*RedisClient, error) {
 	}, nil
 }
 
-func (c *RedisClient) Execute(query string) (Rows, error) {
+func (c *RedisClient) Query(query string) (conn.IterResult, error) {
 
 	q := strings.Split(query, " ")
 
@@ -44,8 +45,8 @@ func (c *RedisClient) Execute(query string) (Rows, error) {
 	return redisRows, err
 }
 
-func (c *RedisClient) Schema() (Schema, error) {
-	return Schema{
+func (c *RedisClient) Schema() (conn.Schema, error) {
+	return conn.Schema{
 		"DB": []string{"DB"},
 	}, nil
 }
@@ -55,7 +56,7 @@ func (c *RedisClient) Close() {
 }
 
 type RedisRows struct {
-	iter func() Row
+	iter func() conn.Row
 }
 
 func NewRedisRows(reply any) (*RedisRows, error) {
@@ -69,12 +70,12 @@ func NewRedisRows(reply any) (*RedisRows, error) {
 	}, nil
 }
 
-func (r *RedisRows) Header() (Header, error) {
-	return Header{"Reply"}, nil
+func (r *RedisRows) Header() (conn.Header, error) {
+	return conn.Header{"Reply"}, nil
 }
 
-func sliceToRows(slice []any, level int) []Row {
-	var rows []Row
+func sliceToRows(slice []any, level int) []conn.Row {
+	var rows []conn.Row
 
 	var prefix []any
 	for i := 0; i < level; i++ {
@@ -93,19 +94,19 @@ func sliceToRows(slice []any, level int) []Row {
 	return rows
 }
 
-func getIter(redisReply any) (func() Row, error) {
+func getIter(redisReply any) (func() conn.Row, error) {
 
-	var rows []Row
+	var rows []conn.Row
 	switch rpl := redisReply.(type) {
 	case int64:
-		rows = []Row{{rpl}}
+		rows = []conn.Row{{rpl}}
 	case string:
-		rows = []Row{{rpl}}
+		rows = []conn.Row{{rpl}}
 	case []any:
 		rows = sliceToRows(rpl, -1)
 	case map[any]any:
 		for k, v := range rpl {
-			rows = append(rows, Row{k, v})
+			rows = append(rows, conn.Row{k, v})
 		}
 	case nil:
 		return nil, errors.New("no reponse from redis")
@@ -115,7 +116,7 @@ func getIter(redisReply any) (func() Row, error) {
 
 	max := len(rows) - 1
 	i := 0
-	return func() Row {
+	return func() conn.Row {
 		if i > max {
 			return nil
 		}
@@ -125,7 +126,7 @@ func getIter(redisReply any) (func() Row, error) {
 	}, nil
 }
 
-func (r *RedisRows) Next() (Row, error) {
+func (r *RedisRows) Next() (conn.Row, error) {
 	return r.iter(), nil
 }
 
