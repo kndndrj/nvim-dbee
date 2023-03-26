@@ -128,3 +128,6 @@ func getIter(redisReply any) (func() Row, error) {
 func (r *RedisRows) Next() (Row, error) {
 	return r.iter(), nil
 }
+
+func (r *RedisRows) Close() {
+}

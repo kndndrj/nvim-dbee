@@ -8,6 +8,7 @@ type Schema map[string][]string
 type Rows interface {
 	Header() (Header, error)
 	Next() (Row, error)
+	Close()
 }
 
 type Client interface {

@@ -55,7 +55,7 @@ func main() {
 					return fmt.Errorf("database of type \"%s\" is not supported", typ)
 				}
 
-				c := conn.New(client)
+				c := conn.New(client, 100)
 
 				conns[id] = c
 
@@ -71,11 +71,6 @@ func main() {
 
 				id := args[0]
 				query := args[1]
-				b, err := strconv.Atoi(args[2])
-				bufnr := nvim.Buffer(b)
-				if err != nil {
-					return err
-				}
 
 				// Get the right connection
 				c, ok := conns[id]
@@ -83,10 +78,73 @@ func main() {
 					return fmt.Errorf("connection with id %s not registered", id)
 				}
 
+				return c.Execute(query)
+			})
+
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_history"},
+			func(v *nvim.Nvim, args []string) error {
+				log.Print("calling Dbee_history")
+				if len(args) < 2 {
+					return errors.New("not enough arguments passed to Dbee_history")
+				}
+
+				id := args[0]
+				historyId := args[1]
+
+				// Get the right connection
+				c, ok := conns[id]
+				if !ok {
+					return fmt.Errorf("connection with id %s not registered", id)
+				}
+
+				return c.History(historyId)
+			})
+
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_list_history"},
+			func(v *nvim.Nvim, args []string) ([]string, error) {
+				log.Print("calling Dbee_list_history")
+				if len(args) < 1 {
+					return nil, errors.New("not enough arguments passed to Dbee_list_history")
+				}
+
+				id := args[0]
+
+				// Get the right connection
+				c, ok := conns[id]
+				if !ok {
+					return nil, fmt.Errorf("connection with id %s not registered", id)
+				}
+
+				return c.ListHistory(), nil
+			})
+
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_display"},
+			func(v *nvim.Nvim, args []string) (int, error) {
+				log.Print("calling Dbee_display")
+				if len(args) < 3 {
+					return 0, errors.New("not enough arguments passed to Dbee_display")
+				}
+
+				id := args[0]
+				page, err := strconv.Atoi(args[1])
+				if err != nil {
+					return 0, err
+				}
+				b, err := strconv.Atoi(args[2])
+				if err != nil {
+					return 0, err
+				}
+				bufnr := nvim.Buffer(b)
+
+				// Get the right connection
+				c, ok := conns[id]
+				if !ok {
+					return 0, fmt.Errorf("connection with id %s not registered", id)
+				}
+
 				out := output.NewBufferOutput(v, bufnr)
 
-				err = c.Execute(query, out)
-				return err
+				return c.Display(page, out)
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_get_schema"},

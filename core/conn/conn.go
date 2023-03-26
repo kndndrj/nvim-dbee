@@ -2,6 +2,8 @@ package conn
 
 import (
 	"errors"
+	"fmt"
+	"log"
 
 	"github.com/kndndrj/nvim-dbee/clients"
 )
@@ -12,78 +14,102 @@ type Result struct {
 }
 
 type Span struct {
-	From int64
-	To   int64
+	From int
+	To   int
 }
 
 type Output interface {
 	Write(result Result) error
 }
 
-type Conn struct {
-	// output Output
-	driver clients.Client
-	// cache holds the current result
-	cache Result
-	// currentRows holds the current iterator from the driver
-	currentRows clients.Rows
+type History interface {
+	Output
+	clients.Client
 }
 
-func New(driver clients.Client) *Conn {
+type Conn struct {
+	driver       clients.Client
+	currentPager *pager
+	pageSize     int
+	history      map[string]History
+}
+
+func New(driver clients.Client, pageSize int) *Conn {
 
 	return &Conn{
-		// output: output,
-		driver: driver,
-		cache:  Result{},
+		pageSize: pageSize,
+		driver:   driver,
+		history:  make(map[string]History),
 	}
 }
 
-func (c *Conn) pager(rows clients.Rows, span Span) (Result, error) {
-
-	header, err := rows.Header()
-	if err != nil {
-		return Result{}, err
-	}
-	if len(header) < 1 {
-		return Result{}, errors.New("no headers provided")
-	}
-
-	var result Result
-	result.Header = header
-
-	for {
-		row, err := rows.Next()
-		if row == nil {
-			break
-		}
-		if err != nil {
-			return Result{}, err
-		}
-
-		result.Rows = append(result.Rows, row)
-	}
-
-	return result, nil
-}
-
-func (c *Conn) Execute(query string, output Output) error {
+func (c *Conn) Execute(query string) error {
 
 	rows, err := c.driver.Execute(query)
 	if err != nil {
 		return err
 	}
 
-	result, err := c.pager(rows, Span{From: 0, To: 100})
+	// create new history record
+	h := newHistory()
+	// TODO: use some sort of id instead of query
+	c.history[query] = h
+
+	// create a new pager and set it as the active one
+	pager := newPager(c.pageSize, h)
+	c.currentPager = pager
+
+	return pager.set(rows)
+}
+
+func (c *Conn) History(query string) error {
+
+	h, ok := c.history[query]
+	if !ok {
+		return errors.New("no such input in history")
+	}
+
+	rows, err := h.Execute("")
 	if err != nil {
 		return err
 	}
 
-	c.cache.Header = result.Header
-	c.cache.Rows = append(c.cache.Rows, result.Rows...)
+	// TODO make history optional in pager
+	hi := newHistory()
 
-	err = output.Write(result)
+	// create a new pager and set it as the active one
+	pager := newPager(c.pageSize, hi)
+	c.currentPager = pager
 
-	return err
+	return pager.set(rows)
+}
+
+func (c *Conn) ListHistory() []string {
+
+	var keys []string
+	for k := range c.history {
+		keys = append(keys, k)
+	}
+
+	return keys
+}
+
+func (c *Conn) Display(page int, outputs ...Output) (int, error) {
+
+	result, currentPage, err := c.currentPager.get(page)
+	if err != nil {
+		return 0, err
+	}
+
+	// write result to all outputs
+	for _, out := range outputs {
+		err = out.Write(result)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	return currentPage, nil
 }
 
 func (c *Conn) Schema() (clients.Schema, error) {
@@ -92,4 +118,109 @@ func (c *Conn) Schema() (clients.Schema, error) {
 
 func (c *Conn) Close() {
 	c.driver.Close()
+}
+
+// pager is used to "page" through results
+// not thread-safe!
+type pager struct {
+	cache    Result
+	history  Output
+	pageSize int
+}
+
+func newPager(pageSize int, history Output) *pager {
+	return &pager{
+		cache:    Result{},
+		history:  history,
+		pageSize: pageSize,
+	}
+}
+
+func (p *pager) set(iter clients.Rows) error {
+	header, err := iter.Header()
+	if err != nil {
+		return err
+	}
+	if len(header) < 1 {
+		return errors.New("no headers provided")
+	}
+
+	// fill the cache
+	p.cache = Result{}
+	p.cache.Header = header
+
+	// produce the first page
+	for i := 0; i < p.pageSize; i++ {
+		row, err := iter.Next()
+		if row == nil {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		p.cache.Rows = append(p.cache.Rows, row)
+	}
+
+	// process everything else in a seperate goroutine
+	go func() {
+		for {
+			row, err := iter.Next()
+			if err != nil {
+				log.Print(err)
+				return
+			}
+			if row == nil {
+				log.Print("successfully exhausted iterator")
+				log.Print(len(p.cache.Rows))
+				break
+			}
+			p.cache.Rows = append(p.cache.Rows, row)
+		}
+		err = p.history.Write(p.cache)
+		if err != nil {
+			log.Print(err)
+		}
+		log.Print("successfully written history")
+	}()
+
+	return nil
+}
+
+// page - zero based index of page
+// returns current page
+func (p *pager) get(page int) (Result, int, error) {
+	if p.cache.Header == nil {
+		return Result{}, 0, errors.New("no results to page")
+	}
+
+	var result Result
+	result.Header = p.cache.Header
+
+	if page < 0 {
+		page = 0
+	}
+
+	start := p.pageSize * page
+	end := p.pageSize * (page + 1)
+
+	l := len(p.cache.Rows)
+	if start >= l {
+		lastPage := l / p.pageSize
+		if l%p.pageSize == 0 && lastPage != 0 {
+			lastPage -= 1
+		}
+		start = lastPage * p.pageSize
+	}
+	if end > l {
+		end = l
+	}
+
+	fmt.Printf("start: %d", start)
+	fmt.Printf("end: %d", end)
+
+	result.Rows = p.cache.Rows[start:end]
+
+	currentPage := start / p.pageSize
+	return result, currentPage, nil
 }

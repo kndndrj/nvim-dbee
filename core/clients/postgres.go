@@ -6,14 +6,15 @@ import (
 	"os"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type PostgresClient struct {
-	db *pgx.Conn
+	db *pgxpool.Pool
 }
 
 func NewPostgres(url string) (*PostgresClient, error) {
-	conn, err := pgx.Connect(context.Background(), url)
+	conn, err := pgxpool.New(context.Background(), url)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 		return nil, err
@@ -68,7 +69,7 @@ func (c *PostgresClient) Schema() (Schema, error) {
 }
 
 func (c *PostgresClient) Close() {
-	c.db.Close(context.Background())
+	c.db.Close()
 }
 
 type PGRows struct {
@@ -120,4 +121,8 @@ func (r *PGRows) Next() (Row, error) {
 	}
 
 	return row, nil
+}
+
+func (r *PGRows) Close() {
+	r.dbRows.Close()
 }
