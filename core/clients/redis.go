@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/kndndrj/nvim-dbee/conn"
 	"github.com/redis/go-redis/v9"
@@ -40,7 +41,12 @@ func (c *RedisClient) Query(query string) (conn.IterResult, error) {
 		return nil, err
 	}
 
-	redisRows, err := NewRedisRows(resp)
+	meta := conn.Meta{
+		Query:     query,
+		Timestamp: time.Now(),
+	}
+
+	redisRows, err := newRedisRows(resp, meta)
 
 	return redisRows, err
 }
@@ -57,9 +63,10 @@ func (c *RedisClient) Close() {
 
 type RedisRows struct {
 	iter func() conn.Row
+	meta conn.Meta
 }
 
-func NewRedisRows(reply any) (*RedisRows, error) {
+func newRedisRows(reply any, meta conn.Meta) (*RedisRows, error) {
 	iter, err := getIter(reply)
 	if err != nil {
 		return nil, err
@@ -67,7 +74,12 @@ func NewRedisRows(reply any) (*RedisRows, error) {
 
 	return &RedisRows{
 		iter: iter,
+		meta: meta,
 	}, nil
+}
+
+func (r *RedisRows) Meta() (conn.Meta, error) {
+	return r.meta, nil
 }
 
 func (r *RedisRows) Header() (conn.Header, error) {

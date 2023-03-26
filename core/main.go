@@ -146,7 +146,32 @@ func main() {
 
 				out := output.NewBufferOutput(v, bufnr)
 
-				return c.Display(page, out)
+				return c.PageCurrent(page, out)
+			})
+
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_write"},
+			func(v *nvim.Nvim, args []string) error {
+				log.Print("calling Dbee_write")
+				if len(args) < 2 {
+					return errors.New("not enough arguments passed to Dbee_write")
+				}
+
+				id := args[0]
+				b, err := strconv.Atoi(args[1])
+				if err != nil {
+					return err
+				}
+				bufnr := nvim.Buffer(b)
+
+				// Get the right connection
+				c, ok := conns[id]
+				if !ok {
+					return fmt.Errorf("connection with id %s not registered", id)
+				}
+
+				out := output.NewBufferOutput(v, bufnr)
+
+				return c.WriteCurrent(out)
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_get_schema"},

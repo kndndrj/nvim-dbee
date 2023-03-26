@@ -2,6 +2,7 @@ package conn
 
 import (
 	"log"
+	"time"
 )
 
 // types and interfaces
@@ -18,8 +19,15 @@ type (
 )
 
 type (
+	// Meta holds metadata
+	Meta struct {
+		Query     string
+		Timestamp time.Time
+	}
+
 	// IterResult is an iterator which provides rows and headers from the Input
 	IterResult interface {
+		Meta() (Meta, error)
 		Header() (Header, error)
 		Next() (Row, error)
 		Close()
@@ -29,6 +37,7 @@ type (
 	Result struct {
 		Header Header
 		Rows   []Row
+		Meta   Meta
 	}
 )
 
@@ -64,6 +73,8 @@ type Conn struct {
 	cache    *cache
 	pageSize int
 	history  History
+	// is the result fresh (e.g. is it not history?)
+	fresh bool
 }
 
 func New(driver Client, pageSize int, history History) *Conn {
@@ -85,7 +96,11 @@ func (c *Conn) Execute(query string) error {
 		return err
 	}
 
-	c.cache.flush(c.history)
+	if c.fresh {
+		c.cache.flush(true, c.history)
+	}
+
+	c.fresh = true
 
 	return c.cache.set(rows)
 }
@@ -97,7 +112,11 @@ func (c *Conn) History(historyId string) error {
 		return err
 	}
 
-	c.cache.flush(c.history)
+	if c.fresh {
+		c.cache.flush(true, c.history)
+	}
+
+	c.fresh = false
 
 	return c.cache.set(rows)
 }
@@ -106,8 +125,13 @@ func (c *Conn) ListHistory() []string {
 	return c.history.List()
 }
 
-func (c *Conn) Display(page int, outputs ...Output) (int, error) {
+func (c *Conn) PageCurrent(page int, outputs ...Output) (int, error) {
 	return c.cache.page(page, outputs...)
+}
+
+func (c *Conn) WriteCurrent(outputs ...Output) error {
+	c.cache.flush(false, outputs...)
+	return nil
 }
 
 func (c *Conn) Schema() (Schema, error) {

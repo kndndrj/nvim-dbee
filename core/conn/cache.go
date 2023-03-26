@@ -61,9 +61,15 @@ func (c *cache) set(iter IterResult) error {
 		return errors.New("no headers provided")
 	}
 
+	meta, err := iter.Meta()
+	if err != nil {
+		return err
+	}
+
 	// create a new result
 	result := Result{}
 	result.Header = header
+	result.Meta = meta
 
 	// produce the first page
 	drained := false
@@ -100,8 +106,6 @@ func (c *cache) set(iter IterResult) error {
 				}
 				if row == nil {
 					log.Print("successfully exhausted iterator")
-					rcs, _ := c.records.load(id)
-					log.Print(len(rcs.result.Rows))
 					break
 				}
 				result.Rows = append(result.Rows, row)
@@ -132,6 +136,7 @@ func (c *cache) page(page int, outputs ...Output) (int, error) {
 
 	var result Result
 	result.Header = cachedResult.Header
+	result.Meta = cachedResult.Meta
 
 	if page < 0 {
 		page = 0
@@ -166,8 +171,9 @@ func (c *cache) page(page int, outputs ...Output) (int, error) {
 	return currentPage, nil
 }
 
-// writes the whole current cache to outputs
-func (p *cache) flush(outputs ...Output) {
+// flush writes the whole current cache to outputs
+// purge controls wheather to wipe the record from cache
+func (p *cache) flush(wipe bool, outputs ...Output) {
 	id := p.active
 
 	// wait until the currently active record is drained,
@@ -203,8 +209,11 @@ func (p *cache) flush(outputs ...Output) {
 			}
 		}
 
-		// delete the record
-		p.records.delete(id)
+		if wipe {
+			// delete the record
+			p.records.delete(id)
+			log.Print("successfully wiped record from cache")
+		}
 		log.Print("successfully flushed cache")
 	}()
 }

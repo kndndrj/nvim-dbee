@@ -13,6 +13,7 @@ import (
 
 type historyRecord struct {
 	file string
+	meta Meta
 }
 
 type historyMap struct {
@@ -80,6 +81,7 @@ func (o *HistoryOutput) Write(result Result) error {
 
 	rec := historyRecord{
 		file: fileName,
+		meta: result.Meta,
 	}
 	o.records.store(id, rec)
 
@@ -119,13 +121,6 @@ func (h *HistoryOutput) Query(historyId string) (IterResult, error) {
 	return rows, nil
 }
 
-func (h *HistoryOutput) Close() {
-}
-
-func (h *HistoryOutput) Schema() (Schema, error) {
-	return nil, nil
-}
-
 func (h *HistoryOutput) List() []string {
 	keys := h.records.keys()
 
@@ -134,6 +129,7 @@ func (h *HistoryOutput) List() []string {
 		return keys[i] < keys[j]
 	})
 
+	// TODO: add metadata to the response
 	var strKeys []string
 	for _, k := range keys {
 		strKeys = append(strKeys, strconv.Itoa(k))
@@ -145,6 +141,7 @@ func (h *HistoryOutput) List() []string {
 type HistoryRows struct {
 	iter   func() Row
 	header Header
+	meta   Meta
 }
 
 func newHistoryRows(result Result) *HistoryRows {
@@ -153,7 +150,12 @@ func newHistoryRows(result Result) *HistoryRows {
 	return &HistoryRows{
 		iter:   iter,
 		header: result.Header,
+		meta:   result.Meta,
 	}
+}
+
+func (r *HistoryRows) Meta() (Meta, error) {
+	return r.meta, nil
 }
 
 func (r *HistoryRows) Header() (Header, error) {

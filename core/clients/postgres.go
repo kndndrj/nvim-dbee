@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,7 +34,12 @@ func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
 		return nil, err
 	}
 
-	pgRows := NewPGRows(dbRows)
+	meta := conn.Meta{
+		Query:     query,
+		Timestamp: time.Now(),
+	}
+
+	pgRows := newPGRows(dbRows, meta)
 
 	return pgRows, nil
 }
@@ -75,12 +81,18 @@ func (c *PostgresClient) Close() {
 
 type PGRows struct {
 	dbRows pgx.Rows
+	meta conn.Meta
 }
 
-func NewPGRows(pgRows pgx.Rows) *PGRows {
+func newPGRows(pgRows pgx.Rows, meta conn.Meta) *PGRows {
 	return &PGRows{
 		dbRows: pgRows,
+		meta: meta,
 	}
+}
+
+func (r *PGRows) Meta() (conn.Meta, error) {
+	return r.meta, nil
 }
 
 func (r *PGRows) Header() (conn.Header, error) {
