@@ -1,10 +1,13 @@
 package conn
 
 import (
+	"context"
 	"errors"
-	"fmt"
 	"log"
+	"sync"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/kndndrj/nvim-dbee/clients"
 )
 
@@ -25,91 +28,56 @@ type Output interface {
 type History interface {
 	Output
 	clients.Client
+	List() []string
 }
 
 type Conn struct {
-	driver       clients.Client
-	currentPager *pager
-	pageSize     int
-	history      map[string]History
+	driver   clients.Client
+	cache    *cache
+	pageSize int
+	history  History
 }
 
-func New(driver clients.Client, pageSize int) *Conn {
+func New(driver clients.Client, pageSize int, history History) *Conn {
 
 	return &Conn{
 		pageSize: pageSize,
 		driver:   driver,
-		history:  make(map[string]History),
+		history:  history,
+		cache:    newCache(pageSize),
 	}
 }
 
 func (c *Conn) Execute(query string) error {
+
+	log.Print("executing query: \"" + query + "\"")
 
 	rows, err := c.driver.Execute(query)
 	if err != nil {
 		return err
 	}
 
-	// create new history record
-	h := newHistory()
-	// TODO: use some sort of id instead of query
-	c.history[query] = h
+	c.cache.flush(c.history)
 
-	// create a new pager and set it as the active one
-	pager := newPager(c.pageSize, h)
-	c.currentPager = pager
-
-	return pager.set(rows)
+	return c.cache.set(rows)
 }
 
 func (c *Conn) History(query string) error {
 
-	h, ok := c.history[query]
-	if !ok {
-		return errors.New("no such input in history")
-	}
-
-	rows, err := h.Execute("")
+	rows, err := c.history.Execute(query)
 	if err != nil {
 		return err
 	}
 
-	// TODO make history optional in pager
-	hi := newHistory()
-
-	// create a new pager and set it as the active one
-	pager := newPager(c.pageSize, hi)
-	c.currentPager = pager
-
-	return pager.set(rows)
+	return c.cache.set(rows)
 }
 
 func (c *Conn) ListHistory() []string {
-
-	var keys []string
-	for k := range c.history {
-		keys = append(keys, k)
-	}
-
-	return keys
+	return c.history.List()
 }
 
 func (c *Conn) Display(page int, outputs ...Output) (int, error) {
-
-	result, currentPage, err := c.currentPager.get(page)
-	if err != nil {
-		return 0, err
-	}
-
-	// write result to all outputs
-	for _, out := range outputs {
-		err = out.Write(result)
-		if err != nil {
-			return 0, err
-		}
-	}
-
-	return currentPage, nil
+	return c.cache.page(page, outputs...)
 }
 
 func (c *Conn) Schema() (clients.Schema, error) {
@@ -120,23 +88,50 @@ func (c *Conn) Close() {
 	c.driver.Close()
 }
 
-// pager is used to "page" through results
-// not thread-safe!
-type pager struct {
-	cache    Result
-	history  Output
+// caching
+type record struct {
+	result  Result
+	drained bool
+}
+
+type cacheMap struct {
+	storage sync.Map
+}
+
+func (cm *cacheMap) Store(key string, value record) {
+	cm.storage.Store(key, value)
+}
+
+func (cm *cacheMap) Load(key string) (record, bool) {
+	val, ok := cm.storage.Load(key)
+	if !ok {
+		return record{}, false
+	}
+
+	return val.(record), true
+}
+
+func (cm *cacheMap) Delete(key string) {
+	cm.storage.Delete(key)
+}
+
+// cache maintains a map of currently active results
+// only one result is the active one (the latest one).
+// The non active results stay in the list until they are drained
+type cache struct {
+	active   string
+	records  cacheMap
 	pageSize int
 }
 
-func newPager(pageSize int, history Output) *pager {
-	return &pager{
-		cache:    Result{},
-		history:  history,
+func newCache(pageSize int) *cache {
+	return &cache{
 		pageSize: pageSize,
+		records:  cacheMap{},
 	}
 }
 
-func (p *pager) set(iter clients.Rows) error {
+func (c *cache) set(iter clients.Rows) error {
 	header, err := iter.Header()
 	if err != nil {
 		return err
@@ -145,82 +140,150 @@ func (p *pager) set(iter clients.Rows) error {
 		return errors.New("no headers provided")
 	}
 
-	// fill the cache
-	p.cache = Result{}
-	p.cache.Header = header
+	// create a new result
+	result := Result{}
+	result.Header = header
 
 	// produce the first page
-	for i := 0; i < p.pageSize; i++ {
+	drained := false
+	for i := 0; i < c.pageSize; i++ {
 		row, err := iter.Next()
-		if row == nil {
-			return nil
-		}
 		if err != nil {
 			return err
 		}
+		if row == nil {
+			drained = true
+			log.Print("successfully exhausted iterator")
+			break
+		}
 
-		p.cache.Rows = append(p.cache.Rows, row)
+		result.Rows = append(result.Rows, row)
 	}
 
+	// create a new record and set it's id as active
+	id := uuid.New().String()
+	c.records.Store(id, record{
+		result:  result,
+		drained: drained,
+	})
+	c.active = id
+
 	// process everything else in a seperate goroutine
-	go func() {
-		for {
-			row, err := iter.Next()
-			if err != nil {
-				log.Print(err)
-				return
+	if !drained {
+		go func() {
+			for {
+				row, err := iter.Next()
+				if err != nil {
+					log.Print(err)
+					return
+				}
+				if row == nil {
+					log.Print("successfully exhausted iterator")
+					rcs, _ := c.records.Load(id)
+					log.Print(len(rcs.result.Rows))
+					break
+				}
+				result.Rows = append(result.Rows, row)
 			}
-			if row == nil {
-				log.Print("successfully exhausted iterator")
-				log.Print(len(p.cache.Rows))
-				break
-			}
-			p.cache.Rows = append(p.cache.Rows, row)
-		}
-		err = p.history.Write(p.cache)
-		if err != nil {
-			log.Print(err)
-		}
-		log.Print("successfully written history")
-	}()
+			// store to records and set drained to true
+			record, _ := c.records.Load(id)
+			record.drained = true
+			record.result = result
+			c.records.Store(id, record)
+		}()
+	}
 
 	return nil
 }
 
-// page - zero based index of page
+// zero based index of page
 // returns current page
-func (p *pager) get(page int) (Result, int, error) {
-	if p.cache.Header == nil {
-		return Result{}, 0, errors.New("no results to page")
+// writes the requested page to outputs
+func (c *cache) page(page int, outputs ...Output) (int, error) {
+	id := c.active
+
+	cr, _ := c.records.Load(id)
+	cachedResult := cr.result
+
+	if cachedResult.Header == nil {
+		return 0, errors.New("no results to page")
 	}
 
 	var result Result
-	result.Header = p.cache.Header
+	result.Header = cachedResult.Header
 
 	if page < 0 {
 		page = 0
 	}
 
-	start := p.pageSize * page
-	end := p.pageSize * (page + 1)
+	start := c.pageSize * page
+	end := c.pageSize * (page + 1)
 
-	l := len(p.cache.Rows)
+	l := len(cachedResult.Rows)
 	if start >= l {
-		lastPage := l / p.pageSize
-		if l%p.pageSize == 0 && lastPage != 0 {
+		lastPage := l / c.pageSize
+		if l%c.pageSize == 0 && lastPage != 0 {
 			lastPage -= 1
 		}
-		start = lastPage * p.pageSize
+		start = lastPage * c.pageSize
 	}
 	if end > l {
 		end = l
 	}
 
-	fmt.Printf("start: %d", start)
-	fmt.Printf("end: %d", end)
+	result.Rows = cachedResult.Rows[start:end]
 
-	result.Rows = p.cache.Rows[start:end]
+	// write the page to outputs
+	for _, out := range outputs {
+		err := out.Write(result)
+		if err != nil {
+			return 0, err
+		}
+	}
 
-	currentPage := start / p.pageSize
-	return result, currentPage, nil
+	currentPage := start / c.pageSize
+	return currentPage, nil
+}
+
+// writes the whole current cache to outputs
+func (p *cache) flush(outputs ...Output) {
+	id := p.active
+
+	// wait until the currently active record is drained,
+	// write it to outputs and remove it from records
+	go func() {
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		// Wait for flag to be set or timeout to exceed
+		for {
+
+			rec, ok := p.records.Load(id)
+			if !ok {
+				log.Print("record " + id + " appears to be already flushed")
+				return
+			}
+			if rec.drained {
+				break
+			}
+			if ctx.Err() != nil {
+				log.Print("cache flushing timeout exceeded")
+				return
+			}
+			time.Sleep(1 * time.Second)
+		}
+
+		// write to outputs
+		for _, out := range outputs {
+			rec, _ := p.records.Load(id)
+			err := out.Write(rec.result)
+			if err != nil {
+				log.Print(err)
+			}
+		}
+
+		// delete the record
+		p.records.Delete(id)
+		log.Print("successfully flushed cache")
+	}()
 }

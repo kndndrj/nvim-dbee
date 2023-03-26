@@ -55,7 +55,9 @@ func main() {
 					return fmt.Errorf("database of type \"%s\" is not supported", typ)
 				}
 
-				c := conn.New(client, 100)
+				h := conn.NewHistory()
+
+				c := conn.New(client, 100, h)
 
 				conns[id] = c
 
