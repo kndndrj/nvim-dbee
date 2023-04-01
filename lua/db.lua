@@ -14,9 +14,21 @@ local function lazy_setup()
   local opts = setup_opts
 
   local ui_drawer = UI:new { win_cmd = "to 40vsplit" }
-  local ui_result = UI:new { win_cmd = "bo 15split" }
+  if not ui_drawer then
+    return
+  end
 
-  local handler = Handler:new { connections = opts.connections, ui = ui_result }
+  local editor_win_cmd = function()
+    -- TODO: check if tree is the only window etc.
+    vim.cmd("vsplit")
+  end
+
+  local ui_editor = UI:new { win_cmd = editor_win_cmd }
+  if not ui_editor then
+    return
+  end
+
+  local handler = Handler:new { connections = opts.connections, editor_ui = ui_editor, win_cmd = "bo 15split" }
   if not handler then
     print("error in handler setup")
     return

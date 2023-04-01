@@ -1,17 +1,27 @@
 ---@class UI
 ---@field winid integer
 ---@field bufnr integer
----@field win_cmd string
+---@field win_cmd function
 local UI = {}
 
----@param opts? { win_cmd: string }
----@return UI
+---@param opts? { win_cmd: string|function }
+---@return UI|nil
 function UI:new(opts)
   opts = opts or {}
 
-  local win_cmd = opts.win_cmd
-  if not win_cmd then
-    win_cmd  = "bo 15split"
+  local win_cmd = opts.win_cmd or function()
+    vim.cmd("bo 15split")
+  end
+
+  if type(win_cmd) ~= "function" and type(win_cmd) ~= "string" then
+    print("win_cmd must be either a string or a lua function")
+    return
+  end
+
+  if type(opts.win_cmd) == "string" then
+    win_cmd = function()
+      vim.cmd(opts.win_cmd)
+    end
   end
 
   -- class object
@@ -36,7 +46,7 @@ function UI:open()
 
   -- if window doesn't exist, create it
   if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
-    vim.cmd(self.win_cmd)
+    self.win_cmd()
     self.winid = vim.api.nvim_get_current_win()
   end
 
