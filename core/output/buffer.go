@@ -22,16 +22,13 @@ type BufferOutput struct {
 	windowCommand string
 }
 
-func NewBufferOutput() *BufferOutput {
+func NewBufferOutput(vim *nvim.Nvim, windowCommand string) *BufferOutput {
 	return &BufferOutput{
-		windowCommand: "bo 15split",
+		vim:           vim,
+		windowCommand: windowCommand,
 		buffer:        -1,
 		window:        -1,
 	}
-}
-func (bo *BufferOutput) SetConfig(windowCommand string, vim *nvim.Nvim) {
-	bo.windowCommand = windowCommand
-	bo.vim = vim
 }
 
 func (bo *BufferOutput) Open() error {
@@ -56,16 +53,29 @@ func (bo *BufferOutput) Open() error {
 		if err != nil {
 			return err
 		}
+
+		winOpts := map[string]any{
+			"winfixheight": true,
+			"winfixwidth":  true,
+			"wrap":         false,
+			"number":       false,
+		}
+
+		for opt, val := range winOpts {
+			err = bo.vim.SetWindowOption(win, opt, val)
+			if err != nil {
+				return err
+			}
+		}
+
 		bo.window = win
 	}
 
 	return bo.vim.SetBufferToWindow(bo.window, bo.buffer)
-
 }
 
-// TODO:
 func (bo *BufferOutput) Close() error {
-	return nil
+	return bo.vim.CloseWindow(bo.window, false)
 }
 
 func (bo *BufferOutput) Write(result conn.Result) error {

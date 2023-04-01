@@ -73,19 +73,17 @@ type Conn struct {
 	cache    *cache
 	pageSize int
 	history  History
-	pagingOutput Output
 	// is the result fresh (e.g. is it not history?)
 	fresh bool
 }
 
-func New(driver Client, pageSize int, history History, output Output) *Conn {
+func New(driver Client, pageSize int, history History) *Conn {
 
 	return &Conn{
 		pageSize: pageSize,
 		driver:   driver,
 		history:  history,
 		cache:    newCache(pageSize),
-		pagingOutput: output,
 	}
 }
 
@@ -127,12 +125,12 @@ func (c *Conn) ListHistory() []string {
 	return c.history.List()
 }
 
-func (c *Conn) PageCurrent(page int) (int, error) {
-	return c.cache.page(page, c.pagingOutput)
+func (c *Conn) PageCurrent(page int, outputs ...Output) (int, error) {
+	return c.cache.page(page, outputs...)
 }
 
-func (c *Conn) WriteCurrent() error {
-	c.cache.flush(false, c.pagingOutput)
+func (c *Conn) WriteCurrent(outputs ...Output) error {
+	c.cache.flush(false, outputs...)
 	return nil
 }
 

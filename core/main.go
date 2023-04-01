@@ -29,22 +29,34 @@ func main() {
 		}
 	}()
 
-	// outputs
-	bufOut := output.NewBufferOutput()
+	// TODO: do some sort of startup routine
+	var bufferOutput *output.BufferOutput
 
 	plugin.Main(func(p *plugin.Plugin) error {
 
-		// This must be called before anything else
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_update_config"},
+		// Control the results window
+		// This must be called before bufferOutput is used
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_results"},
 			func(v *nvim.Nvim, args []string) error {
-				log.Print("calling Dbee_update_config")
+				log.Print("calling Dbee_results")
 				if len(args) < 1 {
-					return errors.New("not enough arguments passed to Dbee_update_config")
+					return errors.New("not enough arguments passed to Dbee_results")
 				}
 
-				// TODO: make config more useful
-				winCmd := args[0]
-				bufOut.SetConfig(winCmd, v)
+				action := args[0]
+
+				if bufferOutput == nil && len(args) >= 2 {
+					bufferOutput = output.NewBufferOutput(v, args[1])
+				}
+
+				switch action {
+				case "create":
+					return nil
+				case "open":
+					return bufferOutput.Open()
+				case "close":
+					return bufferOutput.Close()
+				}
 
 				return nil
 			})
@@ -80,7 +92,7 @@ func main() {
 
 				h := conn.NewHistory()
 
-				c := conn.New(client, 100, h, bufOut)
+				c := conn.New(client, 100, h)
 
 				connections[id] = c
 
@@ -103,7 +115,18 @@ func main() {
 					return fmt.Errorf("connection with id %s not registered", id)
 				}
 
-				return c.Execute(query)
+				// execute and open the first page
+				go func() {
+					err := c.Execute(query)
+					if err != nil {
+						log.Print(err)
+					}
+					_, err = c.PageCurrent(0, bufferOutput)
+					if err != nil {
+						log.Print(err)
+					}
+				}()
+				return nil
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_history"},
@@ -122,7 +145,17 @@ func main() {
 					return fmt.Errorf("connection with id %s not registered", id)
 				}
 
-				return c.History(historyId)
+				go func() {
+					err := c.History(historyId)
+					if err != nil {
+						log.Print(err)
+					}
+					_, err = c.PageCurrent(0, bufferOutput)
+					if err != nil {
+						log.Print(err)
+					}
+				}()
+				return nil
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_list_history"},
@@ -162,7 +195,7 @@ func main() {
 					return 0, fmt.Errorf("connection with id %s not registered", id)
 				}
 
-				return c.PageCurrent(page)
+				return c.PageCurrent(page, bufferOutput)
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_save"},
@@ -180,7 +213,7 @@ func main() {
 					return fmt.Errorf("connection with id %s not registered", id)
 				}
 
-				return c.WriteCurrent()
+				return c.WriteCurrent(bufferOutput)
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_schema"},
