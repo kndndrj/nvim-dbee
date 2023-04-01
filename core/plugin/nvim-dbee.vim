@@ -40,5 +40,6 @@ call remote#host#RegisterPlugin('nvim_dbee', '0', [
 \ {'type': 'function', 'name': 'Dbee_history', 'sync': 1, 'opts': {}},
 \ {'type': 'function', 'name': 'Dbee_list_history', 'sync': 1, 'opts': {}},
 \ {'type': 'function', 'name': 'Dbee_register_client', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'Dbee_update_config', 'sync': 1, 'opts': {}},
 \ {'type': 'function', 'name': 'Dbee_write', 'sync': 1, 'opts': {}},
 \ ])

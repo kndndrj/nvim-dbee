@@ -10,19 +10,65 @@ import (
 	"github.com/neovim/go-client/nvim"
 )
 
-type BufferOutput struct {
-	bufnr nvim.Buffer
-	vim   *nvim.Nvim
+type Ui interface {
+	Open() (nvim.Window, nvim.Buffer, error)
+	Close() error
 }
 
-func NewBufferOutput(vim *nvim.Nvim, bufnr nvim.Buffer) *BufferOutput {
+type BufferOutput struct {
+	vim           *nvim.Nvim
+	window        nvim.Window
+	buffer        nvim.Buffer
+	windowCommand string
+}
+
+func NewBufferOutput() *BufferOutput {
 	return &BufferOutput{
-		bufnr: bufnr,
-		vim:   vim,
+		windowCommand: "bo 15split",
+		buffer:        -1,
+		window:        -1,
 	}
 }
+func (bo *BufferOutput) SetConfig(windowCommand string, vim *nvim.Nvim) {
+	bo.windowCommand = windowCommand
+	bo.vim = vim
+}
 
-func (o *BufferOutput) Write(result conn.Result) error {
+func (bo *BufferOutput) Open() error {
+	// buffer
+	bufValid, _ := bo.vim.IsBufferValid(bo.buffer)
+	if !bufValid {
+		buf, err := bo.vim.CreateBuffer(false, true)
+		if err != nil {
+			return err
+		}
+		bo.buffer = buf
+	}
+
+	// window
+	winValid, _ := bo.vim.IsWindowValid(bo.window)
+	if !winValid {
+		err := bo.vim.Command(bo.windowCommand)
+		if err != nil {
+			return err
+		}
+		win, err := bo.vim.CurrentWindow()
+		if err != nil {
+			return err
+		}
+		bo.window = win
+	}
+
+	return bo.vim.SetBufferToWindow(bo.window, bo.buffer)
+
+}
+
+// TODO:
+func (bo *BufferOutput) Close() error {
+	return nil
+}
+
+func (bo *BufferOutput) Write(result conn.Result) error {
 
 	var tableHeaders []any
 	for _, k := range result.Header {
@@ -52,6 +98,18 @@ func (o *BufferOutput) Write(result conn.Result) error {
 		lines = append(lines, []byte(scanner.Text()))
 	}
 
-	err := o.vim.SetBufferLines(o.bufnr, 0, -1, true, lines)
-	return err
+	err := bo.Open()
+	if err != nil {
+		return err
+	}
+
+	err = bo.vim.SetBufferOption(bo.buffer, "modifiable", true)
+	if err != nil {
+		return err
+	}
+	err = bo.vim.SetBufferLines(bo.buffer, 0, -1, true, lines)
+	if err != nil {
+		return err
+	}
+	return bo.vim.SetBufferOption(bo.buffer, "modifiable", false)
 }
