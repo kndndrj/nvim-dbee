@@ -62,6 +62,7 @@ function M.close()
     lazy_setup()
   end
   m.drawer:close()
+  m.handler:close()
 end
 
 function M.handler()
@@ -69,6 +70,13 @@ function M.handler()
     lazy_setup()
   end
   return m.handler
+end
+
+function M.editor()
+  if not m.loaded then
+    lazy_setup()
+  end
+  return m.editor
 end
 
 return M

@@ -1,8 +1,10 @@
 local utils = require("db.utils")
+local layout = require("db.layout")
 
 ---@class Editor
 ---@field private handler Handler
 ---@field private ui_opts { win_cmd: string, bufnr: integer, winid: integer}
+---@field private egg layoutEgg
 local Editor = {}
 
 ---@param opts? { handler: Handler, win_cmd: string }
@@ -40,6 +42,10 @@ function Editor:execute_selection()
 end
 
 function Editor:open()
+
+  -- save layout before doing anything
+  self.egg = layout.save()
+
   -- if buffer doesn't exist, create it
   local bufnr = self.ui_opts.bufnr
   if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
@@ -68,7 +74,8 @@ function Editor:open()
 end
 
 function Editor:close()
-    vim.api.nvim_win_close(self.ui_opts.winid, false)
+  layout.restore(self.egg)
+  self.egg = nil
 end
 
 return Editor
