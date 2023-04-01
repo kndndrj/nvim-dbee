@@ -5,22 +5,22 @@ local helpers = require("db.helpers")
 ---@class Drawer
 ---@field private tree table NuiTree
 ---@field private handler Handler
----@field private ui UI
----@field private last_bufnr integer last used buffer
----@field active_connection integer last called connection
+---@field private editor Editor
+---@field private ui_opts { win_cmd: string, bufnr: integer, winid: integer}
 local Drawer = {}
 
----@param opts? { handler: Handler, ui: UI }
+---@param opts? { handler: Handler, editor: Editor, win_cmd: string }
+---@return Drawer|nil
 function Drawer:new(opts)
   opts = opts or {}
 
-  if opts.ui == nil then
-    print("no UI provided to drawer")
+  if opts.handler == nil then
+    print("no Handler provided to drawer")
     return
   end
 
-  if opts.handler == nil then
-    print("no Handler provided to drawer")
+  if opts.editor == nil then
+    print("no Editor provided to drawer")
     return
   end
 
@@ -28,7 +28,12 @@ function Drawer:new(opts)
   local o = {
     tree = nil,
     handler = opts.handler,
-    ui = opts.ui,
+    editor = opts.editor,
+    ui_opts = {
+      win_cmd = opts.win_cmd or "to 40vsplit",
+      bufnr = nil,
+      winid = nil,
+    },
   }
   setmetatable(o, self)
   self.__index = self
@@ -105,7 +110,7 @@ function Drawer:map_keys(bufnr)
   -- quit
   vim.keymap.set("n", "q", function()
     vim.api.nvim_win_close(0, false)
-  end, { noremap = true, buffer = bufnr })
+  end, map_options)
 
   -- confirm
   vim.keymap.set("n", "<CR>", function()
@@ -244,7 +249,14 @@ function Drawer:refresh_connection(node_id)
   end
 
   local children = {
-    NuiTree.Node { id = con_details.name .. "new_query", master_id = node_id, text = "new query" },
+    NuiTree.Node {
+      id = con_details.name .. "new_query",
+      master_id = node_id,
+      text = "new query",
+      action = function()
+        self.editor:open()
+      end,
+    },
     NuiTree.Node({ id = con_details.name .. "structure", master_id = node_id, text = "structure" }, schema_nodes),
     NuiTree.Node({ id = con_details.name .. "history", master_id = node_id, text = "history" }, history_nodes),
   }
@@ -289,8 +301,33 @@ function Drawer:refresh()
 end
 
 -- Show drawer on screen
-function Drawer:render()
-  local bufnr = self.ui:open()
+function Drawer:open()
+  -- if buffer doesn't exist, create it
+  local bufnr = self.ui_opts.bufnr
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+    bufnr = vim.api.nvim_create_buf(false, true)
+  end
+
+  -- if window doesn't exist, create it
+  local winid = self.ui_opts.winid
+  if not winid or not vim.api.nvim_win_is_valid(winid) then
+    vim.cmd(self.ui_opts.win_cmd)
+    winid = vim.api.nvim_get_current_win()
+  end
+
+  self.ui_opts.bufnr = bufnr
+  self.ui_opts.winid = winid
+
+  vim.o.buflisted = false
+  vim.o.bufhidden = "delete"
+  vim.o.buftype = "nofile"
+  vim.o.swapfile = false
+  vim.wo.wrap = false
+  vim.wo.winfixheight = true
+  vim.wo.winfixwidth = true
+  vim.wo.number = false
+
+  vim.api.nvim_win_set_buf(winid, bufnr)
 
   if not self.tree then
     self.tree = self:create_tree(bufnr)
@@ -303,6 +340,10 @@ function Drawer:render()
   end
 
   self.tree:render()
+end
+
+function Drawer:close()
+    vim.api.nvim_win_close(self.ui_opts.winid, false)
 end
 
 return Drawer

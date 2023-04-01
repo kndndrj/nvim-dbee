@@ -6,27 +6,22 @@
 -- almost all functions take the connection id as their argument.
 ---@class Handler
 ---@field private connections { integer: connection_details } id - connection mapping
----@field private editor_ui UI ui for the editor
 ---@field private active_connection integer last called connection
 ---@field private last_id integer last id number
 ---@field private page_index integer current page
 local Handler = {}
 
----@param opts? { connections: connection_details[], editor_ui: UI, results_win_cmd: string }
+---@param opts? { connections: connection_details[], win_cmd: string }
+---@return Handler|nil
 function Handler:new(opts)
   opts = opts or {}
 
-  local win_cmd = opts.results_win_cmd or "bo 15split"
-
-  if not opts.editor_ui then
-    print("no editor ui provided to handler")
-    return
-  end
+  local win_cmd = opts.win_cmd or "bo 15split"
 
   local cons = opts.connections or {}
 
-  -- register configuration on go side
-  vim.fn.Dbee_update_config(win_cmd)
+  -- register buffer output with go
+  vim.fn.Dbee_results("create", win_cmd)
 
   local connections = {}
   local last_id = 0
@@ -54,8 +49,8 @@ function Handler:new(opts)
   local o = {
     connections = connections,
     last_id = last_id,
-    editor_ui = opts.editor_ui,
     active_connection = 1,
+    page_index = 0,
   }
   setmetatable(o, self)
   self.__index = self
@@ -85,7 +80,7 @@ function Handler:add_connection(connection)
   connection.id = self.last_id
 
   -- register in go
-  vim.fn.Dbee_register_client(tostring(self.last_id), connection.url, connection.type)
+  vim.fn.Dbee_register_connection(tostring(self.last_id), connection.url, connection.type)
 
   self.connections[self.last_id] = connection
 end
@@ -120,12 +115,9 @@ end
 function Handler:execute(query, id)
   id = id or self.active_connection
 
-  -- call Go function here
-  vim.fn.Dbee_execute(tostring(id), query)
-
-  -- open the first page
+  -- call Go function here - opens the first page itself
   self.page_index = 0
-  vim.fn.Dbee_page(tostring(id), tostring(self.page_index))
+  vim.fn.Dbee_execute(tostring(id), query)
 end
 
 ---@param id? integer connection id
@@ -147,12 +139,9 @@ end
 ---@param id? integer connection id
 function Handler:history(history_id, id)
   id = id or self.active_connection
-  -- call Go function here
-  vim.fn.Dbee_history(tostring(id), history_id)
-
-  -- open the first page
+  -- call Go function here - opens the first page itself
   self.page_index = 0
-  vim.fn.Dbee_page(tostring(id), tostring(self.page_index))
+  vim.fn.Dbee_history(tostring(id), history_id)
 end
 
 ---@param id? integer connection id
@@ -182,32 +171,14 @@ function Handler:save(format, file, id)
   vim.fn.Dbee_save(tostring(id))
 end
 
--- TODO
-function Handler:editor()
-  self.editor_ui:open()
-  local winid = self.editor_ui.winid
-
-  vim.api.nvim_win_set_cursor(winid, { 1, 1 })
+-- fill the Ui interface - open results
+function Handler:open()
+  vim.fn.Dbee_results("open")
 end
 
--- TODO
-function Handler:editor_exec()
-  local vstart = vim.fn.getpos("'<")
-
-  local vend = vim.fn.getpos("'>")
-
-  local start_row = vstart[2]
-  local start_col = vstart[3]
-  local end_row = vend[2]
-  local end_col = vend[3]
-  if end_col > 200000 then
-    end_col = 20000
-  end
-
-  -- or use api.nvim_buf_get_lines
-  local lines = vim.api.nvim_buf_get_text(0, start_row, start_col, end_row, end_col, {})
-
-  vim.pretty_print(lines)
+-- fill the Ui interface - close results
+function Handler:close()
+  vim.fn.Dbee_results("close")
 end
 
 return Handler

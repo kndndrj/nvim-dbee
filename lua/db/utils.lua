@@ -1,40 +1,21 @@
 local M = {}
 
----@param array string[]
-function M.alphanumsort(array)
-  local function padnum(d)
-    return ("%03d%s"):format(#d, d)
+-- Get cursor range of current selection
+---@return integer start row
+---@return integer start column
+---@return integer end row
+---@return integer end column
+function M.visual_selection()
+  local _, srow, scol, _ = unpack(vim.fn.getpos("'<"))
+  local _, erow, ecol, _ = unpack(vim.fn.getpos("'>"))
+  if ecol > 200000 then
+    ecol = 20000
   end
-
-  table.sort(array, function(a, b)
-    return tostring(a):gsub("%d+", padnum) < tostring(b):gsub("%d+", padnum)
-  end)
-  return array
-end
-
----@param obj table targeted table
----@param fields { exact?: string[], prefixes?: string[] } exact field names or prefixes
-function M.is_in_table(obj, fields)
-  for _, f in pairs(fields) do
-    if obj[f] == nil then
-      return false
-    end
+  if srow < erow or (srow == erow and scol <= ecol) then
+    return srow - 1, scol - 1, erow - 1, ecol
+  else
+    return erow - 1, ecol - 1, srow - 1, scol
   end
-  return true
-end
-
----@param obj table
----@param selector string|integer
-function M.longest(obj, selector)
-  local len = 0
-  for _, item in pairs(obj) do
-    local i = item[selector] or ""
-    local item_len = string.len(i)
-    if item_len > len then
-      len = item_len
-    end
-  end
-  return len
 end
 
 ---@param level "info"|"warn"|"error"

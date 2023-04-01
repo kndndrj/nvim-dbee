@@ -1,68 +1,74 @@
 local Drawer = require("db.drawer")
+local Editor = require("db.editor")
 local Handler = require("db.handler")
-local UI = require("db.ui")
+
+-- public and private module objects
 local M = {}
+local m = {}
 
 ---@alias setup_opts { connections: { name: string, type: string, url: string }, lazy: boolean }
 
+---@class Ui
+---@field open fun()
+---@field close fun()
+
 -- is the plugin loaded?
-local loaded = false
+m.loaded = false
 ---@type setup_opts
-local setup_opts = {}
+m.setup_opts = {}
 
 local function lazy_setup()
-  local opts = setup_opts
+  local opts = m.setup_opts
 
-  local ui_drawer = UI:new { win_cmd = "to 40vsplit" }
-  if not ui_drawer then
-    return
-  end
-
-  local editor_win_cmd = function()
-    -- TODO: check if tree is the only window etc.
-    vim.cmd("vsplit")
-  end
-
-  local ui_editor = UI:new { win_cmd = editor_win_cmd }
-  if not ui_editor then
-    return
-  end
-
-  local handler = Handler:new { connections = opts.connections, editor_ui = ui_editor, win_cmd = "bo 15split" }
-  if not handler then
+  m.handler = Handler:new { connections = opts.connections, win_cmd = "bo 15split" }
+  if not m.handler then
     print("error in handler setup")
     return
   end
 
-  M.drawer = Drawer:new {
-    handler = handler,
-    ui = ui_drawer,
-  }
+  m.editor = Editor:new { handler = m.handler, win_cmd = "vsplit" }
+  if not m.editor then
+    print("error in editor setup")
+    return
+  end
 
-  loaded = true
+  m.drawer = Drawer:new { handler = m.handler, editor = m.editor, win_cmd = "to 40vsplit" }
+  if not m.drawer then
+    print("error in drawer setup")
+    return
+  end
+
+  m.loaded = true
 end
 
 ---@param opts setup_opts
 function M.setup(opts)
-  setup_opts = opts or {}
-  if setup_opts.lazy then
+  m.setup_opts = opts or {}
+  if m.setup_opts.lazy then
     return
   end
   lazy_setup()
 end
 
-function M.open_ui()
-  if not loaded then
+function M.open()
+  if not m.loaded then
     lazy_setup()
   end
-  M.drawer:render()
+  m.drawer:open()
 end
 
-function M.close_ui()
-  if not loaded then
+function M.close()
+  if not m.loaded then
     lazy_setup()
   end
-  M.drawer:close()
+  m.drawer:close()
+end
+
+function M.handler()
+  if not m.loaded then
+    lazy_setup()
+  end
+  return m.handler
 end
 
 return M
