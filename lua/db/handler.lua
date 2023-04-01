@@ -41,7 +41,7 @@ function Handler:new(opts)
     con.id = id
 
     -- register in go
-    vim.fn.Dbee_register_client(tostring(id), con.url, con.type, opts.ui.win_cmd)
+    vim.fn.Dbee_register_connection(tostring(id), con.url, con.type, opts.ui.win_cmd)
 
     connections[id] = con
     last_id = id
@@ -121,7 +121,7 @@ function Handler:execute(query, id)
 
   -- open the first page
   self.page_index = 0
-  vim.fn.Dbee_display(tostring(id), tostring(self.page_index))
+  vim.fn.Dbee_page(tostring(id), tostring(self.page_index))
 end
 
 ---@param id? integer connection id
@@ -129,14 +129,14 @@ function Handler:page_next(id)
   id = id or self.active_connection
 
   -- go func returns selected page
-  self.page_index = vim.fn.Dbee_display(tostring(id), tostring(self.page_index + 1))
+  self.page_index = vim.fn.Dbee_page(tostring(id), tostring(self.page_index + 1))
 end
 
 ---@param id? integer connection id
 function Handler:page_prev(id)
   id = id or self.active_connection
 
-  self.page_index = vim.fn.Dbee_display(tostring(id), tostring(self.page_index - 1))
+  self.page_index = vim.fn.Dbee_page(tostring(id), tostring(self.page_index - 1))
 end
 
 ---@param history_id string history id
@@ -148,7 +148,7 @@ function Handler:history(history_id, id)
 
   -- open the first page
   self.page_index = 0
-  vim.fn.Dbee_display(tostring(id), tostring(self.page_index))
+  vim.fn.Dbee_page(tostring(id), tostring(self.page_index))
 end
 
 ---@param id? integer connection id
@@ -166,7 +166,7 @@ end
 ---@return schema
 function Handler:schemas(id)
   id = id or self.active_connection
-  return vim.fn.Dbee_get_schema(tostring(id))
+  return vim.fn.Dbee_schema(tostring(id))
 end
 
 ---@param format "csv"|"json" how to format the result
@@ -175,7 +175,7 @@ end
 function Handler:save(format, file, id)
   id = id or self.active_connection
   -- TODO
-  vim.fn.Dbee_write(tostring(id))
+  vim.fn.Dbee_save(tostring(id))
 end
 
 return Handler
