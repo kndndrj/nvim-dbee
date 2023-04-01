@@ -1,7 +1,7 @@
-local Drawer = require("db.drawer")
-local Editor = require("db.editor")
-local Handler = require("db.handler")
-local layout = require("db.layout")
+local Drawer = require("dbee.drawer")
+local Editor = require("dbee.editor")
+local Handler = require("dbee.handler")
+local layout = require("dbee.layout")
 
 -- public and private module objects
 local M = {}

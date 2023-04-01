@@ -1,4 +1,4 @@
-local utils = require("db.utils")
+local utils = require("dbee.utils")
 
 local SCRATCHES_DIR = vim.fn.stdpath("cache") .. "/dbee/scratches"
 

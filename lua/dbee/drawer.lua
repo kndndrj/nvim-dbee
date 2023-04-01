@@ -1,6 +1,6 @@
 local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
-local helpers = require("db.helpers")
+local helpers = require("dbee.helpers")
 
 ---@class Drawer
 ---@field private tree table NuiTree
