@@ -49,11 +49,11 @@ func main() {
 				return nil
 			})
 
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_register_client"},
-			func(v *nvim.Nvim, args []string) error {
-				log.Print("calling Dbee_register_client")
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_register_connection"},
+			func(args []string) error {
+				log.Print("calling Dbee_register_connection")
 				if len(args) < 3 {
-					return errors.New("not enough arguments passed to Dbee_register_client")
+					return errors.New("not enough arguments passed to Dbee_register_connection")
 				}
 
 				id := args[0]
@@ -88,7 +88,7 @@ func main() {
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_execute"},
-			func(v *nvim.Nvim, args []string) error {
+			func(args []string) error {
 				log.Print("calling Dbee_execute")
 				if len(args) < 2 {
 					return errors.New("not enough arguments passed to Dbee_execute")
@@ -107,7 +107,7 @@ func main() {
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_history"},
-			func(v *nvim.Nvim, args []string) error {
+			func(args []string) error {
 				log.Print("calling Dbee_history")
 				if len(args) < 2 {
 					return errors.New("not enough arguments passed to Dbee_history")
@@ -126,7 +126,7 @@ func main() {
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_list_history"},
-			func(v *nvim.Nvim, args []string) ([]string, error) {
+			func(args []string) ([]string, error) {
 				log.Print("calling Dbee_list_history")
 				if len(args) < 1 {
 					return nil, errors.New("not enough arguments passed to Dbee_list_history")
@@ -143,11 +143,11 @@ func main() {
 				return c.ListHistory(), nil
 			})
 
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_display"},
-			func(v *nvim.Nvim, args []string) (int, error) {
-				log.Print("calling Dbee_display")
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_page"},
+			func(args []string) (int, error) {
+				log.Print("calling Dbee_page")
 				if len(args) < 2 {
-					return 0, errors.New("not enough arguments passed to Dbee_display")
+					return 0, errors.New("not enough arguments passed to Dbee_page")
 				}
 
 				id := args[0]
@@ -165,11 +165,11 @@ func main() {
 				return c.PageCurrent(page)
 			})
 
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_write"},
-			func(v *nvim.Nvim, args []string) error {
-				log.Print("calling Dbee_write")
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_save"},
+			func(args []string) error {
+				log.Print("calling Dbee_save")
 				if len(args) < 1 {
-					return errors.New("not enough arguments passed to Dbee_write")
+					return errors.New("not enough arguments passed to Dbee_save")
 				}
 
 				id := args[0]
@@ -183,11 +183,11 @@ func main() {
 				return c.WriteCurrent()
 			})
 
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_get_schema"},
-			func(v *nvim.Nvim, args []string) (map[string][]string, error) {
-				log.Print("calling Dbee_get_schema")
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_schema"},
+			func(args []string) (map[string][]string, error) {
+				log.Print("calling Dbee_schema")
 				if len(args) < 1 {
-					return nil, errors.New("not enough arguments passed to Dbee_get_schema")
+					return nil, errors.New("not enough arguments passed to Dbee_schema")
 				}
 
 				id := args[0]
