@@ -1,21 +1,29 @@
----@alias con { name: string, type: string, url: string, id: integer }
+---@alias connection_details { name: string, type: string, url: string, id: integer }
+---@alias schema { string: string[] }
 
 -- Handler is a wrapper around the go code
 -- it is the central part of the plugin and manages connections.
 -- almost all functions take the connection id as their argument.
 ---@class Handler
----@field private connections { integer: con } id - connection mapping
+---@field private connections { integer: connection_details } id - connection mapping
 ---@field private active_connection integer last called connection
 ---@field private last_id integer last id number
----@field private ui UI
 ---@field private page_index integer current page
 local Handler = {}
 
----@param opts? { connections: con[], ui: UI }
+---@param opts? { connections: connection_details[], ui: UI }
 function Handler:new(opts)
   opts = opts or {}
 
+  if not opts.ui then
+    print("no ui provided to handler")
+    return
+  end
+
   local cons = opts.connections or {}
+
+  -- register configuration on go side
+  vim.fn.Dbee_update_config(opts.ui.win_cmd)
 
   local connections = {}
   local last_id = 0
@@ -33,7 +41,7 @@ function Handler:new(opts)
     con.id = id
 
     -- register in go
-    vim.fn.Dbee_register_client(tostring(id), con.url, con.type)
+    vim.fn.Dbee_register_client(tostring(id), con.url, con.type, opts.ui.win_cmd)
 
     connections[id] = con
     last_id = id
@@ -42,7 +50,6 @@ function Handler:new(opts)
   -- class object
   local o = {
     connections = connections,
-    ui = opts.ui,
     last_id = last_id,
     active_connection = 1,
   }
@@ -51,7 +58,7 @@ function Handler:new(opts)
   return o
 end
 
----@param connection con
+---@param connection connection_details
 function Handler:add_connection(connection)
   if not connection.url then
     print("url needs to be set!")
@@ -88,7 +95,7 @@ function Handler:set_active(id)
   self.active_connection = id
 end
 
----@return con[] list of connections
+---@return connection_details[] list of connections
 function Handler:list_connections()
   local cons = {}
   for _, con in pairs(self.connections) do
@@ -97,7 +104,7 @@ function Handler:list_connections()
   return cons
 end
 
----@return con
+---@return connection_details
 ---@param id? integer connection id
 function Handler:connection_details(id)
   id = id or self.active_connection
@@ -114,29 +121,22 @@ function Handler:execute(query, id)
 
   -- open the first page
   self.page_index = 0
-  local bufnr = self.ui:open()
-  vim.fn.Dbee_display(tostring(id), tostring(self.page_index), tostring(bufnr))
+  vim.fn.Dbee_display(tostring(id), tostring(self.page_index))
 end
 
 ---@param id? integer connection id
 function Handler:page_next(id)
   id = id or self.active_connection
 
-  -- open ui
-  local bufnr = self.ui:open()
-
   -- go func returns selected page
-  self.page_index = vim.fn.Dbee_display(tostring(id), tostring(self.page_index + 1), tostring(bufnr))
+  self.page_index = vim.fn.Dbee_display(tostring(id), tostring(self.page_index + 1))
 end
 
 ---@param id? integer connection id
 function Handler:page_prev(id)
   id = id or self.active_connection
 
-  -- open ui
-  local bufnr = self.ui:open()
-
-  self.page_index = vim.fn.Dbee_display(tostring(id), tostring(self.page_index - 1), tostring(bufnr))
+  self.page_index = vim.fn.Dbee_display(tostring(id), tostring(self.page_index - 1))
 end
 
 ---@param history_id string history id
@@ -148,8 +148,7 @@ function Handler:history(history_id, id)
 
   -- open the first page
   self.page_index = 0
-  local bufnr = self.ui:open()
-  vim.fn.Dbee_display(tostring(id), tostring(self.page_index), tostring(bufnr))
+  vim.fn.Dbee_display(tostring(id), tostring(self.page_index))
 end
 
 ---@param id? integer connection id
@@ -164,7 +163,7 @@ function Handler:list_history(id)
 end
 
 ---@param id? integer connection id
----@return schemas
+---@return schema
 function Handler:schemas(id)
   id = id or self.active_connection
   return vim.fn.Dbee_get_schema(tostring(id))
@@ -176,9 +175,7 @@ end
 function Handler:save(format, file, id)
   id = id or self.active_connection
   -- TODO
-  -- open ui
-  local bufnr = self.ui:open()
-  vim.fn.Dbee_write(tostring(id), tostring(bufnr))
+  vim.fn.Dbee_write(tostring(id))
 end
 
 return Handler

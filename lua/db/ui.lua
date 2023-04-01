@@ -1,7 +1,7 @@
 ---@class UI
 ---@field winid integer
 ---@field bufnr integer
----@field private win_cmd string
+---@field win_cmd string
 local UI = {}
 
 ---@param opts? { win_cmd: string }
