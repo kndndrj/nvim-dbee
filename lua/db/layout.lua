@@ -38,7 +38,7 @@ local function add_details(layout)
     for _, child_layout in ipairs(layout[2]) do
       table.insert(children, add_details(child_layout))
     end
-    return { type= layout[1], children = children }
+    return { type = layout[1], children = children }
   end
 end
 
@@ -48,7 +48,6 @@ function M.save()
   local restore_cmd = vim.fn.winrestcmd()
 
   layout = add_details(layout)
-  vim.pretty_print(layout)
 
   return { layout = layout, restore = restore_cmd }
 end
@@ -100,15 +99,13 @@ function M.restore(egg)
 
   -- make a new window and set it as the only one
   vim.cmd("new")
-  vim.cmd("wincmd o")
-  local tmp_buf = vim.api.nvim_get_current_buf()
+  vim.cmd("only!")
+  -- delete temporary buffer
+  vim.cmd("bd " .. vim.api.nvim_get_current_buf())
 
   -- apply layout and perform resize_cmd
   apply_layout(egg.layout)
   vim.cmd(egg.restore)
-
-  -- delete temporary buffer
-  vim.cmd("bd " .. tmp_buf)
 end
 
 return M

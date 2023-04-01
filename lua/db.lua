@@ -1,6 +1,7 @@
 local Drawer = require("db.drawer")
 local Editor = require("db.editor")
 local Handler = require("db.handler")
+local layout = require("db.layout")
 
 -- public and private module objects
 local M = {}
@@ -9,8 +10,8 @@ local m = {}
 ---@alias setup_opts { connections: { name: string, type: string, url: string }, lazy: boolean }
 
 ---@class Ui
----@field open fun()
----@field close fun()
+---@field open fun(self: Ui, winid?: integer)
+---@field close fun(self: Ui, )
 
 -- is the plugin loaded?
 m.loaded = false
@@ -54,15 +55,29 @@ function M.open()
   if not m.loaded then
     lazy_setup()
   end
-  m.drawer:open()
+  -- save layout before doing anything
+  m.egg = layout.save()
+
+  -- create a new layout
+  vim.cmd("new")
+  vim.cmd("only")
+  local editor_win = vim.api.nvim_get_current_win()
+  vim.cmd("to 70vsplit")
+  local drawer_win = vim.api.nvim_get_current_win()
+  -- delete temporary buffer
+  vim.cmd("bd " .. vim.api.nvim_get_current_buf())
+
+  -- open windows
+  m.editor:open(editor_win)
+  m.drawer:open(drawer_win)
+  -- handler opens it's results when necessery
 end
 
 function M.close()
   if not m.loaded then
     lazy_setup()
   end
-  m.drawer:close()
-  m.handler:close()
+  layout.restore(m.egg)
 end
 
 function M.handler()

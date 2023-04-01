@@ -9,6 +9,8 @@ local helpers = require("db.helpers")
 ---@field private ui_opts { win_cmd: string, bufnr: integer, winid: integer}
 local Drawer = {}
 
+local SCRATCHPAD_NODE_ID = "scratchpad_node"
+
 ---@param opts? { handler: Handler, editor: Editor, win_cmd: string }
 ---@return Drawer|nil
 function Drawer:new(opts)
@@ -68,6 +70,11 @@ function Drawer:create_tree(bufnr)
     end,
   }
 
+  -- add scratchpad node
+  local scratch_node = NuiTree.Node { id = SCRATCHPAD_NODE_ID, text = "scratchpads" }
+  tree:add_node(scratch_node)
+
+  -- add connections
   local cons = self.handler:list_connections()
   for _, c in ipairs(cons) do
     local db = NuiTree.Node { id = c.name, connection_id = c.id, text = c.name, type = "db" }
@@ -112,6 +119,11 @@ function Drawer:map_keys(bufnr)
     vim.api.nvim_win_close(0, false)
   end, map_options)
 
+  -- manual refresh
+  vim.keymap.set("n", "r", function()
+    self:refresh()
+  end, map_options)
+
   -- confirm
   vim.keymap.set("n", "<CR>", function()
     local node = self.tree:get_node()
@@ -120,44 +132,64 @@ function Drawer:map_keys(bufnr)
     end
   end, map_options)
 
-  -- collapse current node
-  vim.keymap.set("n", "i", function()
-    local node = self.tree:get_node()
-    if not node then
-      return
-    end
-
+  local function _collapse_node(node)
     if node:collapse() then
       self.tree:render()
     end
-  end, map_options)
-
-  -- expand all children nodes with only one field
-  local function expand_all_single(node)
-    local children = node:get_child_ids()
-    if #children == 1 then
-      local nested_node = self.tree:get_node(children[1])
-      nested_node:expand()
-      expand_all_single(nested_node)
-    end
   end
 
-  -- expand current node
-  vim.keymap.set("n", "o", function()
-    local node = self.tree:get_node()
-    if not node then
-      return
+  local function _expand_node(node)
+    -- expand all children nodes with only one field
+    local function __expand_all_single(n)
+      local children = n:get_child_ids()
+      if #children == 1 then
+        local nested_node = self.tree:get_node(children[1])
+        nested_node:expand()
+        __expand_all_single(nested_node)
+      end
     end
+
     -- TODO: clean this up
     local expanded = node:expand()
 
-    expand_all_single(node)
+    __expand_all_single(node)
 
     self:refresh()
     expanded = node:expand()
 
     if expanded then
       self.tree:render()
+    end
+  end
+
+  -- collapse current node
+  vim.keymap.set("n", "c", function()
+    local node = self.tree:get_node()
+    if not node then
+      return
+    end
+    _collapse_node(node)
+  end, map_options)
+
+  -- expand current node
+  vim.keymap.set("n", "e", function()
+    local node = self.tree:get_node()
+    if not node then
+      return
+    end
+    _expand_node(node)
+  end, map_options)
+
+  -- toggle collapse/expand
+  vim.keymap.set("n", "o", function()
+    local node = self.tree:get_node()
+    if not node then
+      return
+    end
+    if node:is_expanded() then
+      _collapse_node(node)
+    else
+      _expand_node(node)
     end
   end, map_options)
 end
@@ -249,14 +281,6 @@ function Drawer:refresh_connection(node_id)
   end
 
   local children = {
-    NuiTree.Node {
-      id = con_details.name .. "new_query",
-      master_id = node_id,
-      text = "new query",
-      action = function()
-        self.editor:open()
-      end,
-    },
     NuiTree.Node({ id = con_details.name .. "structure", master_id = node_id, text = "structure" }, schema_nodes),
     NuiTree.Node({ id = con_details.name .. "history", master_id = node_id, text = "history" }, history_nodes),
   }
@@ -271,7 +295,45 @@ function Drawer:refresh_connection(node_id)
   self.tree:render()
 end
 
+function Drawer:refresh_scratches()
+  -- new scratchpad button
+  local scratch_nodes = {
+    NuiTree.Node {
+      id = "scratch:new:-",
+      master_id = SCRATCHPAD_NODE_ID,
+      text = "New",
+      type = "scratch",
+      action = function()
+        self.editor:new_scratch()
+        self.editor:open()
+        self:refresh_scratches()
+      end,
+    },
+  }
+
+  -- scratches
+  for id, s in ipairs(self.editor:list_scratches()) do
+    local scratch_node = NuiTree.Node {
+      id = "scratch:" .. id .. ":" .. s,
+      master_id = SCRATCHPAD_NODE_ID,
+      text = vim.fs.basename(s),
+      type = "scratch",
+      action = function()
+        self.editor:set_active_scratch(id)
+        self.editor:open()
+      end,
+    }
+    table.insert(scratch_nodes, scratch_node)
+  end
+  self.tree:set_nodes(scratch_nodes, SCRATCHPAD_NODE_ID)
+  self.tree:render()
+end
+
 function Drawer:refresh()
+  -- scratches
+  self:refresh_scratches()
+
+  -- connections
   local existing_nodes = self.tree:get_nodes()
 
   local function exists(connection_id)
@@ -301,7 +363,8 @@ function Drawer:refresh()
 end
 
 -- Show drawer on screen
-function Drawer:open()
+---@param winid? integer if provided, use it instead of creating new window
+function Drawer:open(winid)
   -- if buffer doesn't exist, create it
   local bufnr = self.ui_opts.bufnr
   if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
@@ -309,7 +372,7 @@ function Drawer:open()
   end
 
   -- if window doesn't exist, create it
-  local winid = self.ui_opts.winid
+  winid = winid or self.ui_opts.winid
   if not winid or not vim.api.nvim_win_is_valid(winid) then
     vim.cmd(self.ui_opts.win_cmd)
     winid = vim.api.nvim_get_current_win()
@@ -318,17 +381,31 @@ function Drawer:open()
   self.ui_opts.bufnr = bufnr
   self.ui_opts.winid = winid
 
-  vim.o.buflisted = false
-  vim.o.bufhidden = "delete"
-  vim.o.buftype = "nofile"
-  vim.o.swapfile = false
-  vim.wo.wrap = false
-  vim.wo.winfixheight = true
-  vim.wo.winfixwidth = true
-  vim.wo.number = false
-
   vim.api.nvim_win_set_buf(winid, bufnr)
+  vim.api.nvim_set_current_win(winid)
+  vim.api.nvim_buf_set_name(bufnr, "dbee-drawer")
 
+  -- set options
+  local buf_opts = {
+    buflisted = false,
+    bufhidden = "delete",
+    buftype = "nofile",
+    swapfile = false,
+  }
+  local win_opts = {
+    wrap = false,
+    winfixheight = true,
+    winfixwidth = true,
+    number = false,
+  }
+  for opt, val in pairs(buf_opts) do
+    vim.api.nvim_buf_set_option(bufnr, opt, val)
+  end
+  for opt, val in pairs(win_opts) do
+    vim.api.nvim_win_set_option(winid, opt, val)
+  end
+
+  -- tree
   if not self.tree then
     self.tree = self:create_tree(bufnr)
   end
@@ -343,7 +420,7 @@ function Drawer:open()
 end
 
 function Drawer:close()
-    vim.api.nvim_win_close(self.ui_opts.winid, false)
+  vim.api.nvim_win_close(self.ui_opts.winid, false)
 end
 
 return Drawer
