@@ -59,6 +59,10 @@ function M.open()
   if not m.loaded then
     lazy_setup()
   end
+  if m.egg then
+    print("already open")
+    return
+  end
   -- save layout before doing anything
   m.egg = layout.save()
 
@@ -66,36 +70,47 @@ function M.open()
   vim.cmd("new")
   vim.cmd("only")
   local editor_win = vim.api.nvim_get_current_win()
-  vim.cmd("to 70vsplit")
+  vim.cmd("to 40vsplit")
   local drawer_win = vim.api.nvim_get_current_win()
-  -- delete temporary buffer
-  vim.cmd("bd " .. vim.api.nvim_get_current_buf())
+  local tmp_buf = vim.api.nvim_get_current_buf()
 
   -- open windows
   m.editor:open(editor_win)
   m.drawer:open(drawer_win)
   -- handler opens it's results when necessery
+
+  -- delete temporary buffer
+  vim.cmd("bd " .. tmp_buf)
 end
 
 function M.close()
   if not m.loaded then
     lazy_setup()
   end
+
   layout.restore(m.egg)
+  m.egg = nil
 end
 
-function M.handler()
+function M.next()
   if not m.loaded then
     lazy_setup()
   end
-  return m.handler
+  m.handler:page_next()
 end
 
-function M.editor()
+function M.prev()
   if not m.loaded then
     lazy_setup()
   end
-  return m.editor
+  m.handler:page_prev()
+end
+
+function M.execute_selection()
+  if not m.loaded then
+    lazy_setup()
+  end
+  m.editor:execute_selection()
 end
 
 ---@param command? "wget"|"curl"|"bitsadmin"|"go" preffered command

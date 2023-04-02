@@ -46,7 +46,6 @@ function Editor:new(opts)
   return o
 end
 
--- TODO
 function Editor:execute_selection()
   local srow, scol, erow, ecol = utils.visual_selection()
 

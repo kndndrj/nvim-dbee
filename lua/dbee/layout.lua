@@ -20,7 +20,7 @@ local function add_details(layout)
     local options = {}
     for key, val in pairs(all_options) do
       if val.global_local == false and val.scope == "win" then
-        options[key] = v[key] or nil
+        options[key] = v[key]
       end
     end
 
@@ -100,12 +100,14 @@ function M.restore(egg)
   -- make a new window and set it as the only one
   vim.cmd("new")
   vim.cmd("only!")
-  -- delete temporary buffer
-  vim.cmd("bd " .. vim.api.nvim_get_current_buf())
+  local tmp_buf = vim.api.nvim_get_current_buf()
 
   -- apply layout and perform resize_cmd
   apply_layout(egg.layout)
   vim.cmd(egg.restore)
+
+  -- delete temporary buffer
+  vim.cmd("bd " .. tmp_buf)
 end
 
 return M

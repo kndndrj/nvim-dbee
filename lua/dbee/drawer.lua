@@ -382,9 +382,6 @@ function Drawer:open(winid)
     winid = vim.api.nvim_get_current_win()
   end
 
-  self.ui_opts.bufnr = bufnr
-  self.ui_opts.winid = winid
-
   vim.api.nvim_win_set_buf(winid, bufnr)
   vim.api.nvim_set_current_win(winid)
   vim.api.nvim_buf_set_name(bufnr, "dbee-drawer")
@@ -414,11 +411,14 @@ function Drawer:open(winid)
     self.tree = self:create_tree(bufnr)
   end
 
-  if bufnr ~= self.last_bufnr then
+  if bufnr ~= self.ui_opts.bufnr then
     self:map_keys(bufnr)
     self.tree.bufnr = bufnr
-    self.last_bufnr = bufnr
+    self.ui_opts.bufnr = bufnr
   end
+
+  self.ui_opts.bufnr = bufnr
+  self.ui_opts.winid = winid
 
   self.tree:render()
 end

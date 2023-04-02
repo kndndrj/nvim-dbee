@@ -6,6 +6,11 @@ local M = {}
 ---@return integer end row
 ---@return integer end column
 function M.visual_selection()
+
+  -- return to normal mode ('< and '> become available only after you exit visual mode)
+  local key = vim.api.nvim_replace_termcodes("<esc>", true, false, true)
+  vim.api.nvim_feedkeys(key, "x", false)
+
   local _, srow, scol, _ = unpack(vim.fn.getpos("'<"))
   local _, erow, ecol, _ = unpack(vim.fn.getpos("'>"))
   if ecol > 200000 then
