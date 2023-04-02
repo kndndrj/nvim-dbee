@@ -2,6 +2,7 @@ local Drawer = require("dbee.drawer")
 local Editor = require("dbee.editor")
 local Handler = require("dbee.handler")
 local layout = require("dbee.layout")
+local install = require("dbee.install")
 
 -- public and private module objects
 local M = {}
@@ -20,6 +21,9 @@ m.setup_opts = {}
 
 local function lazy_setup()
   local opts = m.setup_opts
+
+  -- add install binary to path
+  vim.env.PATH = install.path() .. ":" .. vim.env.PATH
 
   m.handler = Handler:new { connections = opts.connections, win_cmd = "bo 15split" }
   if not m.handler then
@@ -92,6 +96,11 @@ function M.editor()
     lazy_setup()
   end
   return m.editor
+end
+
+---@param command? "wget"|"curl"|"bitsadmin"|"go" preffered command
+function M.install(command)
+  install.exec(command)
 end
 
 return M

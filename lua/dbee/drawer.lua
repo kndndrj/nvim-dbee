@@ -71,7 +71,7 @@ function Drawer:create_tree(bufnr)
   }
 
   -- add scratchpad node
-  local scratch_node = NuiTree.Node { id = SCRATCHPAD_NODE_ID, text = "scratchpads" }
+  local scratch_node = NuiTree.Node { id = SCRATCHPAD_NODE_ID, text = "scratchpads", type = "scratch" }
   tree:add_node(scratch_node)
 
   -- add connections
@@ -149,15 +149,19 @@ function Drawer:map_keys(bufnr)
       end
     end
 
-    -- TODO: clean this up
-    local expanded = node:expand()
+    local expanded = node:is_expanded()
 
     __expand_all_single(node)
 
-    self:refresh()
-    expanded = node:expand()
+    if node.type == "db" then
+      self:refresh_connection(node.id)
+    elseif node.type == "scratch" then
+      self:refresh_scratches()
+    end
 
-    if expanded then
+    node:expand()
+
+    if expanded ~= node:is_expanded() then
       self.tree:render()
     end
   end

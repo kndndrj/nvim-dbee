@@ -17,7 +17,7 @@ endfunction
 " nvim know to communicate with the process via msgpack-rpc over stdout.
 " See :h msgpack-rpc and :h jobstart() for more information.
 function! s:Start_dbee(host) abort
-    return jobstart(['go', 'run', '/Users/andrej/Repos/nvim-dbee/main.go'], {
+    return jobstart(['dbee'], {
         \ 'rpc': v:true, 
         \ 'on_stderr': function('s:panic')
         \ })
