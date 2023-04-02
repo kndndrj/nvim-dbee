@@ -1,4 +1,4 @@
-module github.com/kndndrj/nvim-dbee
+module github.com/kndndrj/nvim-dbee/dbee
 
 go 1.20
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/kndndrj/nvim-dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/conn"
 )
 
 type PostgresClient struct {

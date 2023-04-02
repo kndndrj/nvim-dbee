@@ -6,7 +6,7 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
-	"github.com/kndndrj/nvim-dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/neovim/go-client/nvim"
 )
 

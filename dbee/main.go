@@ -7,9 +7,9 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/kndndrj/nvim-dbee/clients"
-	"github.com/kndndrj/nvim-dbee/conn"
-	"github.com/kndndrj/nvim-dbee/output"
+	"github.com/kndndrj/nvim-dbee/dbee/clients"
+	"github.com/kndndrj/nvim-dbee/dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/output"
 	"github.com/neovim/go-client/nvim"
 	"github.com/neovim/go-client/nvim/plugin"
 )

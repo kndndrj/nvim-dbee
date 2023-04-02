@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/kndndrj/nvim-dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/redis/go-redis/v9"
 )
 
