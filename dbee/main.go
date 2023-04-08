@@ -22,7 +22,7 @@ func main() {
 		if err != nil {
 			return err
 		}
-		dl := log.New(logFile, "", log.Ldate|log.Ltime|log.Lshortfile)
+		dl := log.New(logFile, "", log.Ldate|log.Ltime)
 		logger := nvimlog.New(p.Nvim, dl)
 
 		logger.Debug("Starting up...")

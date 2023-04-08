@@ -7,13 +7,13 @@ import (
 )
 
 type Logger struct {
-	vim *nvim.Nvim
+	vim    *nvim.Nvim
 	logger *log.Logger
 }
 
 func New(vim *nvim.Nvim, defaultLogger *log.Logger) *Logger {
 	return &Logger{
-		vim: vim,
+		vim:    vim,
 		logger: defaultLogger,
 	}
 }
@@ -39,14 +39,15 @@ func (l *Logger) log(level nvim.LogLevel, message string) {
 
 	if notify {
 		// use lua so the plugins can prettify the message
-		err := l.vim.ExecLua("vim.notify('"+message+"', "+luaLevel+", { title = 'nvim-dbee' })", nil)
-		if err == nil {
-			return
+		err := l.vim.ExecLua("vim.notify([["+message+"]], "+luaLevel+", { title = 'nvim-dbee' })", nil)
+		if err != nil {
+			l.logger.Printf("[lua log failure]: %s", err.Error())
+			// fallback to go method
+			err = l.vim.Notify(message, level, map[string]any{})
+			if err != nil {
+				l.logger.Printf("[log failure]: %s", err.Error())
+			}
 		}
-		// fallback to go method
-		l.vim.Notify(message, level, map[string]interface{}{
-			"title": "dbee",
-		})
 	}
 
 	l.logger.Printf("[%s]: %s", level.String(), message)

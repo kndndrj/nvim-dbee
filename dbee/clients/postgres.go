@@ -65,8 +65,8 @@ func (c *PostgresClient) Schema() (conn.Schema, error) {
 		}
 
 		// We know for a fact there are 2 string fields (see query above)
-		key := string(row[0].([]byte))
-		val := string(row[1].([]byte))
+		key := row[0].(string)
+		val := row[1].(string)
 		schema[key] = append(schema[key], val)
 	}
 
@@ -143,8 +143,13 @@ func (r *PGRows) Next() (conn.Row, error) {
 	// storing it in the map with the name of the column as the key.
 	var row = make(conn.Row, len(dbCols))
 	for i := range dbCols {
-		val := columnPointers[i].(*any)
-		row[i] = *val
+		val := *columnPointers[i].(*any)
+		// fix for pq - hopefully does not break
+		valb, ok := val.([]byte)
+		if ok {
+			val = string(valb)
+		}
+		row[i] = val
 	}
 
 	return row, nil

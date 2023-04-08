@@ -50,6 +50,7 @@ type HistoryOutput struct {
 }
 
 func NewHistory() *HistoryOutput {
+	gob.Register(Result{})
 
 	return &HistoryOutput{
 		records: historyMap{},
