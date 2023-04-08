@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 type SqliteClient struct {
@@ -14,7 +14,7 @@ type SqliteClient struct {
 
 func NewSqlite(url string) (*SqliteClient, error) {
 
-	db, err := sql.Open("sqlite3", url)
+	db, err := sql.Open("sqlite", url)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to connect to database: %v\n", err)
 	}
