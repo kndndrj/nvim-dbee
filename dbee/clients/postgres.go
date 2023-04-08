@@ -3,7 +3,7 @@ package clients
 import (
 	"database/sql"
 	"fmt"
-	"time"
+	"strings"
 
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	_ "github.com/lib/pq"
@@ -26,17 +26,30 @@ func NewPostgres(url string) (*PostgresClient, error) {
 
 func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
 
-	dbRows, err := c.sql.query(query)
+	con, err := c.sql.conn()
 	if err != nil {
 		return nil, err
 	}
 
-	meta := conn.Meta{
-		Query:     query,
-		Timestamp: time.Now(),
+	action := strings.ToLower(strings.Split(query, " ")[0])
+	hasReturnValues := strings.Contains(strings.ToLower(query), " returning ")
+
+	if (action == "update" || action == "delete" || action == "insert") && !hasReturnValues {
+		return con.exec(query)
 	}
 
-	rows := newPGRows(dbRows, meta)
+	rows, err := con.query(query)
+	if err != nil {
+		return nil, err
+	}
+	h, err := rows.Header()
+	if err != nil {
+		return nil, err
+	}
+	if len(h) == 0 {
+		rows.SetCustomHeader(conn.Header{"No Results"})
+	}
+
 
 	return rows, nil
 }
@@ -74,47 +87,4 @@ func (c *PostgresClient) Schema() (conn.Schema, error) {
 
 func (c *PostgresClient) Close() {
 	c.sql.close()
-}
-
-type PostgresRows struct {
-	dbRows *sqlRows
-	meta   conn.Meta
-}
-
-func newPGRows(rows *sqlRows, meta conn.Meta) *PostgresRows {
-	return &PostgresRows{
-		dbRows: rows,
-		meta:   meta,
-	}
-}
-
-func (r *PostgresRows) Meta() (conn.Meta, error) {
-	return r.meta, nil
-}
-
-func (r *PostgresRows) Header() (conn.Header, error) {
-	return r.dbRows.header()
-}
-
-func (r *PostgresRows) Next() (conn.Row, error) {
-
-	row, err := r.dbRows.next()
-	if err != nil {
-		return nil, err
-	}
-
-	// fix for pq interpreting strings as bytes - hopefully does not break
-	for i, val := range row {
-		valb, ok := val.([]byte)
-		if ok {
-			val = string(valb)
-		}
-		row[i] = val
-	}
-
-	return row, nil
-}
-
-func (r *PostgresRows) Close() {
-	r.dbRows.close()
 }

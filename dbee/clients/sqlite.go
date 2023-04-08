@@ -3,7 +3,6 @@ package clients
 import (
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	_ "github.com/mattn/go-sqlite3"
@@ -27,19 +26,26 @@ func NewSqlite(url string) (*SqliteClient, error) {
 
 func (c *SqliteClient) Query(query string) (conn.IterResult, error) {
 
-	dbRows, err := c.sql.query(query)
+	con, err := c.sql.conn()
 	if err != nil {
 		return nil, err
 	}
 
-	meta := conn.Meta{
-		Query:     query,
-		Timestamp: time.Now(),
+	rows, err := con.query(query)
+	if err != nil {
+		return nil, err
 	}
 
-	rows := newSqliteRows(dbRows, meta)
+	h, err := rows.Header()
+	if err != nil {
+		return nil, err
+	}
+	if len(h) > 0 {
+		return rows, nil
+	}
 
-	return rows, nil
+	// empty header means no result -> get affected rows
+	return con.query("select changes() as 'Rows Affected'")
 }
 
 func (c *SqliteClient) Schema() (conn.Schema, error) {
@@ -72,47 +78,4 @@ func (c *SqliteClient) Schema() (conn.Schema, error) {
 
 func (c *SqliteClient) Close() {
 	c.sql.close()
-}
-
-type SqliteRows struct {
-	dbRows *sqlRows
-	meta   conn.Meta
-}
-
-func newSqliteRows(rows *sqlRows, meta conn.Meta) *SqliteRows {
-	return &SqliteRows{
-		dbRows: rows,
-		meta:   meta,
-	}
-}
-
-func (r *SqliteRows) Meta() (conn.Meta, error) {
-	return r.meta, nil
-}
-
-func (r *SqliteRows) Header() (conn.Header, error) {
-	return r.dbRows.header()
-}
-
-func (r *SqliteRows) Next() (conn.Row, error) {
-
-	row, err := r.dbRows.next()
-	if err != nil {
-		return nil, err
-	}
-
-	// fix for pq interpreting strings as bytes - hopefully does not break
-	for i, val := range row {
-		valb, ok := val.([]byte)
-		if ok {
-			val = string(valb)
-		}
-		row[i] = val
-	}
-
-	return row, nil
-}
-
-func (r *SqliteRows) Close() {
-	r.dbRows.close()
 }
