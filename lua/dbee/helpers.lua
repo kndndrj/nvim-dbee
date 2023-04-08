@@ -15,7 +15,6 @@ local function postgres()
 
   return {
     List = 'select * from "{table}" LIMIT 500',
-    Listall = 'select * from "{table}"',
     Columns = "select * from information_schema.columns where table_name='{table}' and table_schema='{schema}'",
     Indexes = "SELECT * FROM pg_indexes where tablename='{table}' and schemaname='{schema}'",
     ["Foreign Keys"] = basic_constraint_query
@@ -28,9 +27,30 @@ local function postgres()
 end
 
 ---@return { string: string } helpers list of table helpers
+local function mysql()
+  return {
+    List = "SELECT * from `{table}` LIMIT 500",
+    Columns = "DESCRIBE `{table}`",
+    Indexes = "SHOW INDEXES FROM `{table}`",
+    ["Foreign Keys"] = "SELECT * FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}' AND CONSTRAINT_TYPE = 'FOREIGN KEY'",
+    ["Primary Keys"] = "SELECT * FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}' AND CONSTRAINT_TYPE = 'PRIMARY KEY'",
+  }
+end
+
+---@return { string: string } helpers list of table helpers
+local function sqlite()
+  return {
+    List = 'select * from "{table}" LIMIT 500',
+    Indexes = "SELECT * FROM pragma_index_list('{table}')",
+    ["Foreign Keys"] = "SELECT * FROM pragma_foreign_key_list('{table}')",
+    ["Primary Keys"] = "SELECT * FROM pragma_index_list('{table}') WHERE origin = 'pk'",
+  }
+end
+
+---@return { string: string } helpers list of table helpers
 local function redis()
   return {
-    List = 'KEYS *',
+    List = "KEYS *",
   }
 end
 
@@ -39,6 +59,10 @@ end
 function M.get(type)
   if type == "postgres" then
     return postgres()
+  elseif type == "mysql" then
+    return mysql()
+  elseif type == "sqlite" then
+    return sqlite()
   elseif type == "redis" then
     return redis()
   end

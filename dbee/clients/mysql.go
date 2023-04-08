@@ -3,28 +3,42 @@ package clients
 import (
 	"database/sql"
 	"fmt"
+	"log"
+	"regexp"
 	"time"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	_ "github.com/lib/pq"
 )
 
-type PostgresClient struct {
+type MysqlClient struct {
 	sql *sqlClient
 }
 
-func NewPostgres(url string) (*PostgresClient, error) {
-	db, err := sql.Open("postgres", url)
+func NewMysql(url string) (*MysqlClient, error) {
+	// add multiple statements support parameter
+	match, err := regexp.MatchString(`[\?][\w]+=[\w-]+`, url)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if match {
+		url = url + "&multiStatements=true"
+	} else {
+		url = url + "?multiStatements=true"
+	}
+	fmt.Println(url)
+
+	db, err := sql.Open("mysql", url)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to connect to database: %v\n", err)
 	}
 
-	return &PostgresClient{
+	return &MysqlClient{
 		sql: newSql(db),
 	}, nil
 }
 
-func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
+func (c *MysqlClient) Query(query string) (conn.IterResult, error) {
 
 	dbRows, err := c.sql.query(query)
 	if err != nil {
@@ -36,16 +50,13 @@ func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
 		Timestamp: time.Now(),
 	}
 
-	rows := newPGRows(dbRows, meta)
+	rows := newMysqlRows(dbRows, meta)
 
 	return rows, nil
 }
 
-func (c *PostgresClient) Schema() (conn.Schema, error) {
-	query := `
-		SELECT table_schema, table_name FROM information_schema.tables UNION ALL
-		SELECT schemaname, matviewname FROM pg_matviews;
-	`
+func (c *MysqlClient) Schema() (conn.Schema, error) {
+	query := `SELECT table_schema, table_name FROM information_schema.tables`
 
 	rows, err := c.Query(query)
 	if err != nil {
@@ -72,31 +83,31 @@ func (c *PostgresClient) Schema() (conn.Schema, error) {
 	return schema, nil
 }
 
-func (c *PostgresClient) Close() {
+func (c *MysqlClient) Close() {
 	c.sql.close()
 }
 
-type PostgresRows struct {
+type MysqlRows struct {
 	dbRows *sqlRows
 	meta   conn.Meta
 }
 
-func newPGRows(rows *sqlRows, meta conn.Meta) *PostgresRows {
-	return &PostgresRows{
+func newMysqlRows(rows *sqlRows, meta conn.Meta) *MysqlRows {
+	return &MysqlRows{
 		dbRows: rows,
 		meta:   meta,
 	}
 }
 
-func (r *PostgresRows) Meta() (conn.Meta, error) {
+func (r *MysqlRows) Meta() (conn.Meta, error) {
 	return r.meta, nil
 }
 
-func (r *PostgresRows) Header() (conn.Header, error) {
+func (r *MysqlRows) Header() (conn.Header, error) {
 	return r.dbRows.header()
 }
 
-func (r *PostgresRows) Next() (conn.Row, error) {
+func (r *MysqlRows) Next() (conn.Row, error) {
 
 	row, err := r.dbRows.next()
 	if err != nil {
@@ -115,6 +126,6 @@ func (r *PostgresRows) Next() (conn.Row, error) {
 	return row, nil
 }
 
-func (r *PostgresRows) Close() {
+func (r *MysqlRows) Close() {
 	r.dbRows.close()
 }

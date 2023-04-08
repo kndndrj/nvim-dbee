@@ -97,6 +97,18 @@ func main() {
 						logger.Error(err.Error())
 						return nil
 					}
+				case "mysql":
+					client, err = clients.NewMysql(url)
+					if err != nil {
+						logger.Error(err.Error())
+						return nil
+					}
+				case "sqlite":
+					client, err = clients.NewSqlite(url)
+					if err != nil {
+						logger.Error(err.Error())
+						return nil
+					}
 				case "redis":
 					client, err = clients.NewRedis(url)
 					if err != nil {

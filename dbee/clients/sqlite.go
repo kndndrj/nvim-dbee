@@ -6,25 +6,26 @@ import (
 	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
 )
 
-type PostgresClient struct {
+type SqliteClient struct {
 	sql *sqlClient
 }
 
-func NewPostgres(url string) (*PostgresClient, error) {
-	db, err := sql.Open("postgres", url)
+func NewSqlite(url string) (*SqliteClient, error) {
+
+	db, err := sql.Open("sqlite3", url)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to connect to database: %v\n", err)
 	}
 
-	return &PostgresClient{
+	return &SqliteClient{
 		sql: newSql(db),
 	}, nil
 }
 
-func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
+func (c *SqliteClient) Query(query string) (conn.IterResult, error) {
 
 	dbRows, err := c.sql.query(query)
 	if err != nil {
@@ -36,24 +37,20 @@ func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
 		Timestamp: time.Now(),
 	}
 
-	rows := newPGRows(dbRows, meta)
+	rows := newSqliteRows(dbRows, meta)
 
 	return rows, nil
 }
 
-func (c *PostgresClient) Schema() (conn.Schema, error) {
-	query := `
-		SELECT table_schema, table_name FROM information_schema.tables UNION ALL
-		SELECT schemaname, matviewname FROM pg_matviews;
-	`
+func (c *SqliteClient) Schema() (conn.Schema, error) {
+	query := `SELECT name FROM sqlite_schema WHERE type ='table'`
 
 	rows, err := c.Query(query)
 	if err != nil {
 		return nil, err
 	}
 
-	var schema = make(conn.Schema)
-
+	var tables []string
 	for {
 		row, err := rows.Next()
 		if row == nil {
@@ -63,40 +60,41 @@ func (c *PostgresClient) Schema() (conn.Schema, error) {
 			return nil, err
 		}
 
-		// We know for a fact there are 2 string fields (see query above)
-		key := row[0].(string)
-		val := row[1].(string)
-		schema[key] = append(schema[key], val)
+		// We know for a fact there is only one string field (see query above)
+		table := row[0].(string)
+		tables = append(tables, table)
 	}
 
-	return schema, nil
+	return conn.Schema{
+		"tables": tables,
+	}, nil
 }
 
-func (c *PostgresClient) Close() {
+func (c *SqliteClient) Close() {
 	c.sql.close()
 }
 
-type PostgresRows struct {
+type SqliteRows struct {
 	dbRows *sqlRows
 	meta   conn.Meta
 }
 
-func newPGRows(rows *sqlRows, meta conn.Meta) *PostgresRows {
-	return &PostgresRows{
+func newSqliteRows(rows *sqlRows, meta conn.Meta) *SqliteRows {
+	return &SqliteRows{
 		dbRows: rows,
 		meta:   meta,
 	}
 }
 
-func (r *PostgresRows) Meta() (conn.Meta, error) {
+func (r *SqliteRows) Meta() (conn.Meta, error) {
 	return r.meta, nil
 }
 
-func (r *PostgresRows) Header() (conn.Header, error) {
+func (r *SqliteRows) Header() (conn.Header, error) {
 	return r.dbRows.header()
 }
 
-func (r *PostgresRows) Next() (conn.Row, error) {
+func (r *SqliteRows) Next() (conn.Row, error) {
 
 	row, err := r.dbRows.next()
 	if err != nil {
@@ -115,6 +113,6 @@ func (r *PostgresRows) Next() (conn.Row, error) {
 	return row, nil
 }
 
-func (r *PostgresRows) Close() {
+func (r *SqliteRows) Close() {
 	r.dbRows.close()
 }

@@ -411,11 +411,8 @@ function Drawer:open(winid)
     self.tree = self:create_tree(bufnr)
   end
 
-  if bufnr ~= self.ui_opts.bufnr then
-    self:map_keys(bufnr)
-    self.tree.bufnr = bufnr
-    self.ui_opts.bufnr = bufnr
-  end
+  self:map_keys(bufnr)
+  self.tree.bufnr = bufnr
 
   self.ui_opts.bufnr = bufnr
   self.ui_opts.winid = winid
