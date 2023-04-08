@@ -1,7 +1,6 @@
 package conn
 
 import (
-	"log"
 	"time"
 )
 
@@ -68,28 +67,37 @@ type (
 	}
 )
 
+type Logger interface {
+	Debug(msg string)
+	Info(msg string)
+	Warn(msg string)
+	Error(msg string)
+}
+
 type Conn struct {
 	driver   Client
 	cache    *cache
 	pageSize int
 	history  History
+	log Logger
 	// is the result fresh (e.g. is it not history?)
-	fresh bool
+	fresh  bool
 }
 
-func New(driver Client, pageSize int, history History) *Conn {
+func New(driver Client, pageSize int, history History, logger Logger) *Conn {
 
 	return &Conn{
 		pageSize: pageSize,
 		driver:   driver,
 		history:  history,
-		cache:    newCache(pageSize),
+		cache:    newCache(pageSize, logger),
+		log:   logger,
 	}
 }
 
 func (c *Conn) Execute(query string) error {
 
-	log.Print("executing query: \"" + query + "\"")
+	c.log.Info("executing query: \"" + query + "\"")
 
 	rows, err := c.driver.Query(query)
 	if err != nil {
@@ -106,6 +114,8 @@ func (c *Conn) Execute(query string) error {
 }
 
 func (c *Conn) History(historyId string) error {
+
+	c.log.Info("retrieving history with id: \"" + historyId + "\"")
 
 	rows, err := c.history.Query(historyId)
 	if err != nil {

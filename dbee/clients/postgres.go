@@ -3,7 +3,6 @@ package clients
 import (
 	"database/sql"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
@@ -18,8 +17,7 @@ type PostgresClient struct {
 func NewPostgres(url string) (*PostgresClient, error) {
 	conn, err := sql.Open("postgres", url)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
-		return nil, err
+		return nil, fmt.Errorf("Unable to connect to database: %v\n", err)
 	}
 
 	return &PostgresClient{

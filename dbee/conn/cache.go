@@ -3,7 +3,6 @@ package conn
 import (
 	"context"
 	"errors"
-	"log"
 	"sync"
 	"time"
 
@@ -43,12 +42,14 @@ type cache struct {
 	active   string
 	records  cacheMap
 	pageSize int
+	log      Logger
 }
 
-func newCache(pageSize int) *cache {
+func newCache(pageSize int, logger Logger) *cache {
 	return &cache{
 		pageSize: pageSize,
 		records:  cacheMap{},
+		log:      logger,
 	}
 }
 
@@ -80,7 +81,7 @@ func (c *cache) set(iter IterResult) error {
 		}
 		if row == nil {
 			drained = true
-			log.Print("successfully exhausted iterator")
+			c.log.Debug("successfully exhausted iterator")
 			break
 		}
 
@@ -101,11 +102,11 @@ func (c *cache) set(iter IterResult) error {
 			for {
 				row, err := iter.Next()
 				if err != nil {
-					log.Print(err)
+					c.log.Error(err.Error())
 					return
 				}
 				if row == nil {
-					log.Print("successfully exhausted iterator")
+					c.log.Debug("successfully exhausted iterator")
 					break
 				}
 				result.Rows = append(result.Rows, row)
@@ -173,8 +174,8 @@ func (c *cache) page(page int, outputs ...Output) (int, error) {
 
 // flush writes the whole current cache to outputs
 // purge controls wheather to wipe the record from cache
-func (p *cache) flush(wipe bool, outputs ...Output) {
-	id := p.active
+func (c *cache) flush(wipe bool, outputs ...Output) {
+	id := c.active
 
 	// wait until the currently active record is drained,
 	// write it to outputs and remove it from records
@@ -185,16 +186,16 @@ func (p *cache) flush(wipe bool, outputs ...Output) {
 		// Wait for flag to be set or timeout to exceed
 		for {
 
-			rec, ok := p.records.load(id)
+			rec, ok := c.records.load(id)
 			if !ok {
-				log.Print("record " + id + " appears to be already flushed")
+				c.log.Debug("record " + id + " appears to be already flushed")
 				return
 			}
 			if rec.drained {
 				break
 			}
 			if ctx.Err() != nil {
-				log.Print("cache flushing timeout exceeded")
+				c.log.Debug("cache flushing timeout exceeded")
 				return
 			}
 			time.Sleep(1 * time.Second)
@@ -202,18 +203,18 @@ func (p *cache) flush(wipe bool, outputs ...Output) {
 
 		// write to outputs
 		for _, out := range outputs {
-			rec, _ := p.records.load(id)
+			rec, _ := c.records.load(id)
 			err := out.Write(rec.result)
 			if err != nil {
-				log.Print(err)
+				c.log.Error(err.Error())
 			}
 		}
 
 		if wipe {
 			// delete the record
-			p.records.delete(id)
-			log.Print("successfully wiped record from cache")
+			c.records.delete(id)
+			c.log.Debug("successfully wiped record from cache")
 		}
-		log.Print("successfully flushed cache")
+		c.log.Debug("successfully flushed cache")
 	}()
 }

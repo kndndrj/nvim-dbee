@@ -23,12 +23,19 @@ type BufferOutput struct {
 }
 
 func NewBufferOutput(vim *nvim.Nvim, windowCommand string) *BufferOutput {
+	if windowCommand == "" {
+		windowCommand = "bo 15split"
+	}
+
 	return &BufferOutput{
 		vim:           vim,
 		windowCommand: windowCommand,
 		buffer:        -1,
 		window:        -1,
 	}
+}
+func (bo *BufferOutput) SetWindowCommand(command string) {
+	bo.windowCommand = command
 }
 
 func (bo *BufferOutput) Open() error {

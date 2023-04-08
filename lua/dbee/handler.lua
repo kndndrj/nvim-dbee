@@ -21,7 +21,7 @@ function Handler:new(opts)
   local cons = opts.connections or {}
 
   -- register buffer output with go
-  vim.fn.Dbee_results("create", win_cmd)
+  vim.fn.Dbee_results("set", win_cmd)
 
   local connections = {}
   local last_id = 0

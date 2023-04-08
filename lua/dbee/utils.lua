@@ -43,7 +43,7 @@ function M.log(level, message, subtitle)
   else
     subtitle = ""
   end
-  vim.notify(subtitle .. " " .. message, l, { title = "nvim-db" })
+  vim.notify(subtitle .. " " .. message, l, { title = "nvim-dbee" })
 end
 
 return M
