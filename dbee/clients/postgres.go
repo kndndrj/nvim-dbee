@@ -1,22 +1,22 @@
 package clients
 
 import (
-	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"time"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
+	_ "github.com/lib/pq"
 )
 
+// TODO: use this as a default sql client
 type PostgresClient struct {
-	db *pgxpool.Pool
+	db *sql.DB
 }
 
 func NewPostgres(url string) (*PostgresClient, error) {
-	conn, err := pgxpool.New(context.Background(), url)
+	conn, err := sql.Open("postgres", url)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 		return nil, err
@@ -29,7 +29,7 @@ func NewPostgres(url string) (*PostgresClient, error) {
 
 func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
 
-	dbRows, err := c.db.Query(context.Background(), query) // Note: Ignoring errors for brevity
+	dbRows, err := c.db.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -46,8 +46,8 @@ func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
 
 func (c *PostgresClient) Schema() (conn.Schema, error) {
 	query := `
-    SELECT table_schema, table_name FROM information_schema.tables UNION ALL
-    SELECT schemaname, matviewname FROM pg_matviews;
+		SELECT table_schema, table_name FROM information_schema.tables UNION ALL
+		SELECT schemaname, matviewname FROM pg_matviews;
 	`
 
 	rows, err := c.Query(query)
@@ -67,8 +67,8 @@ func (c *PostgresClient) Schema() (conn.Schema, error) {
 		}
 
 		// We know for a fact there are 2 string fields (see query above)
-		key := row[0].(string)
-		val := row[1].(string)
+		key := string(row[0].([]byte))
+		val := string(row[1].([]byte))
 		schema[key] = append(schema[key], val)
 	}
 
@@ -80,14 +80,14 @@ func (c *PostgresClient) Close() {
 }
 
 type PGRows struct {
-	dbRows pgx.Rows
-	meta conn.Meta
+	dbRows *sql.Rows
+	meta   conn.Meta
 }
 
-func newPGRows(pgRows pgx.Rows, meta conn.Meta) *PGRows {
+func newPGRows(pgRows *sql.Rows, meta conn.Meta) *PGRows {
 	return &PGRows{
 		dbRows: pgRows,
-		meta: meta,
+		meta:   meta,
 	}
 }
 
@@ -96,20 +96,36 @@ func (r *PGRows) Meta() (conn.Meta, error) {
 }
 
 func (r *PGRows) Header() (conn.Header, error) {
-	dbCols := r.dbRows.FieldDescriptions()
-
-	var header conn.Header
-	for _, col := range dbCols {
-		header = append(header, col.Name)
+	header, err := r.dbRows.Columns()
+	if err != nil {
+		return nil, err
 	}
+	if len(header) == 0 {
+		return conn.Header{"No Results"}, nil
+	}
+
 	return header, nil
 }
 
 func (r *PGRows) Next() (conn.Row, error) {
-	dbCols := r.dbRows.FieldDescriptions()
+	dbCols, err := r.dbRows.Columns()
+	if err != nil {
+		return nil, err
+	}
 
+	// TODO: support multiple result sets?
+	// if not next result, check for any new sets
 	if !r.dbRows.Next() {
-		return nil, nil
+		if !r.dbRows.NextResultSet() {
+			return nil, nil
+		}
+		dbCols, err = r.dbRows.Columns()
+		if err != nil {
+			return nil, err
+		}
+		if !r.dbRows.Next() {
+			return nil, nil
+		}
 	}
 
 	// Create a slice of any's to represent each column,
