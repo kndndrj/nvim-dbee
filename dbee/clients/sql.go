@@ -3,6 +3,7 @@ package clients
 import (
 	"context"
 	"database/sql"
+	"sync"
 	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
@@ -69,6 +70,10 @@ func (c *sqlConn) query(query string) (*SqlQueryRows, error) {
 	return rows, nil
 }
 
+func (c *sqlConn) close() error {
+	return c.conn.Close()
+}
+
 // rows returned by sql.exec
 type SqlExecRows struct {
 	// first is reset after the first call to Next()
@@ -76,6 +81,8 @@ type SqlExecRows struct {
 	dbResult     sql.Result
 	meta         conn.Meta
 	customHeader conn.Header
+	callback     func()
+	once         sync.Once
 }
 
 func newSqlExecRows(result sql.Result, meta conn.Meta) *SqlExecRows {
@@ -83,11 +90,16 @@ func newSqlExecRows(result sql.Result, meta conn.Meta) *SqlExecRows {
 		dbResult: result,
 		meta:     meta,
 		first:    true,
+		once: sync.Once{},
 	}
 }
 
 func (r *SqlExecRows) SetCustomHeader(header conn.Header) {
 	r.customHeader = header
+}
+
+func (r *SqlExecRows) SetCallback(callback func()) {
+	r.callback = callback
 }
 
 func (r *SqlExecRows) Meta() (conn.Meta, error) {
@@ -115,12 +127,17 @@ func (r *SqlExecRows) Next() (conn.Row, error) {
 }
 
 func (r *SqlExecRows) Close() {
+	if r.callback != nil {
+		r.once.Do(r.callback)
+	}
 }
 
 type SqlQueryRows struct {
 	dbRows       *sql.Rows
 	meta         conn.Meta
 	customHeader conn.Header
+	callback     func()
+	once         sync.Once
 }
 
 // rows returned by sql.query
@@ -128,11 +145,16 @@ func newSqlQueryRows(rows *sql.Rows, meta conn.Meta) *SqlQueryRows {
 	return &SqlQueryRows{
 		dbRows: rows,
 		meta:   meta,
+		once: sync.Once{},
 	}
 }
 
 func (r *SqlQueryRows) SetCustomHeader(header conn.Header) {
 	r.customHeader = header
+}
+
+func (r *SqlQueryRows) SetCallback(callback func()) {
+	r.callback = callback
 }
 
 func (r *SqlQueryRows) Meta() (conn.Meta, error) {
@@ -147,6 +169,14 @@ func (r *SqlQueryRows) Header() (conn.Header, error) {
 }
 
 func (r *SqlQueryRows) Next() (conn.Row, error) {
+	var err error
+	var row conn.Row
+	defer func() {
+		if err != nil || row == nil {
+			r.Close()
+		}
+	}()
+
 	dbCols, err := r.dbRows.Columns()
 	if err != nil {
 		return nil, err
@@ -177,7 +207,7 @@ func (r *SqlQueryRows) Next() (conn.Row, error) {
 		return nil, err
 	}
 
-	var row = make(conn.Row, len(dbCols))
+	row = make(conn.Row, len(dbCols))
 	for i := range dbCols {
 		val := *columnPointers[i].(*any)
 		// fix for some strings being interpreted as bytes
@@ -193,4 +223,7 @@ func (r *SqlQueryRows) Next() (conn.Row, error) {
 
 func (r *SqlQueryRows) Close() {
 	r.dbRows.Close()
+	if r.callback != nil {
+		r.once.Do(r.callback)
+	}
 }

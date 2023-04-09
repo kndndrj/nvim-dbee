@@ -30,12 +30,25 @@ func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	cb := func() {
+		con.close()
+	}
+	defer func() {
+		if err != nil {
+			cb()
+		}
+	}()
 
 	action := strings.ToLower(strings.Split(query, " ")[0])
 	hasReturnValues := strings.Contains(strings.ToLower(query), " returning ")
 
 	if (action == "update" || action == "delete" || action == "insert") && !hasReturnValues {
-		return con.exec(query)
+		rows, err := con.exec(query)
+		if err != nil {
+			return nil, err
+		}
+		rows.SetCallback(cb)
+		return rows, nil
 	}
 
 	rows, err := con.query(query)
@@ -49,7 +62,7 @@ func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
 	if len(h) == 0 {
 		rows.SetCustomHeader(conn.Header{"No Results"})
 	}
-
+	rows.SetCallback(cb)
 
 	return rows, nil
 }

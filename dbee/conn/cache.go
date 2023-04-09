@@ -54,6 +54,15 @@ func newCache(pageSize int, logger Logger) *cache {
 }
 
 func (c *cache) set(iter IterResult) error {
+
+	// close the iterator on error
+	var err error
+	defer func() {
+		if err != nil {
+			iter.Close()
+		}
+	}()
+
 	header, err := iter.Header()
 	if err != nil {
 		return err

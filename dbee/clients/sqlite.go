@@ -30,6 +30,14 @@ func (c *SqliteClient) Query(query string) (conn.IterResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	cb := func() {
+		con.close()
+	}
+	defer func() {
+		if err != nil {
+			cb()
+		}
+	}()
 
 	rows, err := con.query(query)
 	if err != nil {
@@ -41,11 +49,15 @@ func (c *SqliteClient) Query(query string) (conn.IterResult, error) {
 		return nil, err
 	}
 	if len(h) > 0 {
+		rows.SetCallback(cb)
 		return rows, nil
 	}
+	rows.Close()
 
 	// empty header means no result -> get affected rows
-	return con.query("select changes() as 'Rows Affected'")
+	rows, err = con.query("select changes() as 'Rows Affected'")
+	rows.SetCallback(cb)
+	return rows, err
 }
 
 func (c *SqliteClient) Schema() (conn.Schema, error) {
