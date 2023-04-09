@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	_ "github.com/lib/pq"
 )
 
 // default sql client used by other specific implementations
@@ -38,34 +37,105 @@ type sqlConn struct {
 	conn *sql.Conn
 }
 
-func (c *sqlConn) exec(query string) (*SqlExecRows, error) {
+func (c *sqlConn) exec(query string) (*SqlRows, error) {
 	res, err := c.conn.ExecContext(context.TODO(), query)
 	if err != nil {
 		return nil, err
 	}
 
-	meta := conn.Meta{
-		Query:     query,
-		Timestamp: time.Now(),
-	}
+	// create new rows
+	first := true
 
-	rows := newSqlExecRows(res, meta)
+	rows := newSqlRowsBuilder().
+		WithNextFunc(func() (conn.Row, error) {
+			if !first {
+				return nil, nil
+			}
+			first = false
+
+			affected, err := res.RowsAffected()
+			if err != nil {
+				return nil, err
+			}
+			return conn.Row{affected}, nil
+
+		}).
+		WithHeader(conn.Header{"Rows Affected"}).
+		WithMeta(conn.Meta{
+			Query:     query,
+			Timestamp: time.Now(),
+		}).
+		Build()
 
 	return rows, nil
 }
 
-func (c *sqlConn) query(query string) (*SqlQueryRows, error) {
+func (c *sqlConn) query(query string) (*SqlRows, error) {
 	dbRows, err := c.conn.QueryContext(context.TODO(), query)
 	if err != nil {
 		return nil, err
 	}
 
-	meta := conn.Meta{
-		Query:     query,
-		Timestamp: time.Now(),
+	// create new rows
+	header, err := dbRows.Columns()
+	if err != nil {
+		return nil, err
 	}
 
-	rows := newSqlQueryRows(dbRows, meta)
+	rows := newSqlRowsBuilder().
+		WithNextFunc(func() (conn.Row, error) {
+			dbCols, err := dbRows.Columns()
+			if err != nil {
+				return nil, err
+			}
+
+			// TODO: do we even support multiple result sets?
+			// if not next result, check for any new sets
+			if !dbRows.Next() {
+				if !dbRows.NextResultSet() {
+					return nil, nil
+				}
+				dbCols, err = dbRows.Columns()
+				if err != nil {
+					return nil, err
+				}
+				if !dbRows.Next() {
+					return nil, nil
+				}
+			}
+
+			columns := make([]any, len(dbCols))
+			columnPointers := make([]any, len(dbCols))
+			for i := range columns {
+				columnPointers[i] = &columns[i]
+			}
+
+			if err := dbRows.Scan(columnPointers...); err != nil {
+				return nil, err
+			}
+
+			row := make(conn.Row, len(dbCols))
+			for i := range dbCols {
+				val := *columnPointers[i].(*any)
+				// fix for some strings being interpreted as bytes
+				valb, ok := val.([]byte)
+				if ok {
+					val = string(valb)
+				}
+				row[i] = val
+			}
+
+			return row, nil
+		}).
+		WithHeader(header).
+		WithCloseFunc(func() {
+			dbRows.Close()
+		}).
+		WithMeta(conn.Meta{
+			Query:     query,
+			Timestamp: time.Now(),
+		}).
+		Build()
 
 	return rows, nil
 }
@@ -74,156 +144,91 @@ func (c *sqlConn) close() error {
 	return c.conn.Close()
 }
 
-// rows returned by sql.exec
-type SqlExecRows struct {
-	// first is reset after the first call to Next()
-	first        bool
-	dbResult     sql.Result
-	meta         conn.Meta
-	customHeader conn.Header
-	callback     func()
-	once         sync.Once
+// SqlRows fills conn.IterResult interface for all sql dbs
+type SqlRows struct {
+	next     func() (conn.Row, error)
+	header   conn.Header
+	close    func()
+	meta     conn.Meta
+	callback func()
+	once     sync.Once
 }
 
-func newSqlExecRows(result sql.Result, meta conn.Meta) *SqlExecRows {
-	return &SqlExecRows{
-		dbResult: result,
-		meta:     meta,
-		first:    true,
-		once: sync.Once{},
-	}
+func (r *SqlRows) SetCustomHeader(header conn.Header) {
+	r.header = header
 }
 
-func (r *SqlExecRows) SetCustomHeader(header conn.Header) {
-	r.customHeader = header
-}
-
-func (r *SqlExecRows) SetCallback(callback func()) {
+func (r *SqlRows) SetCallback(callback func()) {
 	r.callback = callback
 }
 
-func (r *SqlExecRows) Meta() (conn.Meta, error) {
+func (r *SqlRows) Meta() (conn.Meta, error) {
 	return r.meta, nil
 }
 
-func (r *SqlExecRows) Header() (conn.Header, error) {
-	if len(r.customHeader) > 0 {
-		return r.customHeader, nil
-	}
-	return conn.Header{"Rows Affected"}, nil
+func (r *SqlRows) Header() (conn.Header, error) {
+	return r.header, nil
 }
 
-func (r *SqlExecRows) Next() (conn.Row, error) {
-	affected, err := r.dbResult.RowsAffected()
-	if err != nil {
+func (r *SqlRows) Next() (conn.Row, error) {
+	rows, err := r.next()
+	if err != nil || rows == nil {
+		r.Close()
 		return nil, err
 	}
-
-	if r.first {
-		r.first = false
-		return conn.Row{affected}, nil
-	}
-	return nil, nil
+	return rows, nil
 }
 
-func (r *SqlExecRows) Close() {
+func (r *SqlRows) Close() {
+	r.close()
 	if r.callback != nil {
 		r.once.Do(r.callback)
 	}
 }
 
-type SqlQueryRows struct {
-	dbRows       *sql.Rows
-	meta         conn.Meta
-	customHeader conn.Header
-	callback     func()
-	once         sync.Once
+// SqlRowsBuilder builds the rows
+type SqlRowsBuilder struct {
+	next   func() (conn.Row, error)
+	header conn.Header
+	close  func()
+	meta   conn.Meta
 }
 
-// rows returned by sql.query
-func newSqlQueryRows(rows *sql.Rows, meta conn.Meta) *SqlQueryRows {
-	return &SqlQueryRows{
-		dbRows: rows,
-		meta:   meta,
-		once: sync.Once{},
+func newSqlRowsBuilder() *SqlRowsBuilder {
+	return &SqlRowsBuilder{
+		next:   func() (conn.Row, error) { return nil, nil },
+		header: conn.Header{},
+		close:  func() {},
+		meta:   conn.Meta{},
 	}
 }
 
-func (r *SqlQueryRows) SetCustomHeader(header conn.Header) {
-	r.customHeader = header
+func (b *SqlRowsBuilder) WithNextFunc(fn func() (conn.Row, error)) *SqlRowsBuilder {
+	b.next = fn
+	return b
 }
 
-func (r *SqlQueryRows) SetCallback(callback func()) {
-	r.callback = callback
+func (b *SqlRowsBuilder) WithHeader(header conn.Header) *SqlRowsBuilder {
+	b.header = header
+	return b
 }
 
-func (r *SqlQueryRows) Meta() (conn.Meta, error) {
-	return r.meta, nil
+func (b *SqlRowsBuilder) WithCloseFunc(fn func()) *SqlRowsBuilder {
+	b.close = fn
+	return b
 }
 
-func (r *SqlQueryRows) Header() (conn.Header, error) {
-	if len(r.customHeader) > 0 {
-		return r.customHeader, nil
-	}
-	return r.dbRows.Columns()
+func (b *SqlRowsBuilder) WithMeta(meta conn.Meta) *SqlRowsBuilder {
+	b.meta = meta
+	return b
 }
 
-func (r *SqlQueryRows) Next() (conn.Row, error) {
-	var err error
-	var row conn.Row
-	defer func() {
-		if err != nil || row == nil {
-			r.Close()
-		}
-	}()
-
-	dbCols, err := r.dbRows.Columns()
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: do we even support multiple result sets?
-	// if not next result, check for any new sets
-	if !r.dbRows.Next() {
-		if !r.dbRows.NextResultSet() {
-			return nil, nil
-		}
-		dbCols, err = r.dbRows.Columns()
-		if err != nil {
-			return nil, err
-		}
-		if !r.dbRows.Next() {
-			return nil, nil
-		}
-	}
-
-	columns := make([]any, len(dbCols))
-	columnPointers := make([]any, len(dbCols))
-	for i := range columns {
-		columnPointers[i] = &columns[i]
-	}
-
-	if err := r.dbRows.Scan(columnPointers...); err != nil {
-		return nil, err
-	}
-
-	row = make(conn.Row, len(dbCols))
-	for i := range dbCols {
-		val := *columnPointers[i].(*any)
-		// fix for some strings being interpreted as bytes
-		valb, ok := val.([]byte)
-		if ok {
-			val = string(valb)
-		}
-		row[i] = val
-	}
-
-	return row, nil
-}
-
-func (r *SqlQueryRows) Close() {
-	r.dbRows.Close()
-	if r.callback != nil {
-		r.once.Do(r.callback)
+func (b *SqlRowsBuilder) Build() *SqlRows {
+	return &SqlRows{
+		next:   b.next,
+		header: b.header,
+		close:  b.close,
+		meta:   b.meta,
+		once:   sync.Once{},
 	}
 }
