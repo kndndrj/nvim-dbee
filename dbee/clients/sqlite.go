@@ -4,12 +4,13 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	_ "modernc.org/sqlite"
 )
 
 type SqliteClient struct {
-	sql *sqlClient
+	c *common.Client
 }
 
 func NewSqlite(url string) (*SqliteClient, error) {
@@ -20,18 +21,18 @@ func NewSqlite(url string) (*SqliteClient, error) {
 	}
 
 	return &SqliteClient{
-		sql: newSql(db),
+		c: common.NewClient(db),
 	}, nil
 }
 
 func (c *SqliteClient) Query(query string) (conn.IterResult, error) {
 
-	con, err := c.sql.conn()
+	con, err := c.c.Conn()
 	if err != nil {
 		return nil, err
 	}
 	cb := func() {
-		con.close()
+		con.Close()
 	}
 	defer func() {
 		if err != nil {
@@ -39,7 +40,7 @@ func (c *SqliteClient) Query(query string) (conn.IterResult, error) {
 		}
 	}()
 
-	rows, err := con.query(query)
+	rows, err := con.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +56,7 @@ func (c *SqliteClient) Query(query string) (conn.IterResult, error) {
 	rows.Close()
 
 	// empty header means no result -> get affected rows
-	rows, err = con.query("select changes() as 'Rows Affected'")
+	rows, err = con.Query("select changes() as 'Rows Affected'")
 	rows.SetCallback(cb)
 	return rows, err
 }
@@ -89,5 +90,5 @@ func (c *SqliteClient) Schema() (conn.Schema, error) {
 }
 
 func (c *SqliteClient) Close() {
-	c.sql.close()
+	c.c.Close()
 }

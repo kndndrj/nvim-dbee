@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	_ "github.com/lib/pq"
 )
 
 type PostgresClient struct {
-	sql *sqlClient
+	c *common.Client
 }
 
 func NewPostgres(url string) (*PostgresClient, error) {
@@ -20,18 +21,18 @@ func NewPostgres(url string) (*PostgresClient, error) {
 	}
 
 	return &PostgresClient{
-		sql: newSql(db),
+		c: common.NewClient(db),
 	}, nil
 }
 
 func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
 
-	con, err := c.sql.conn()
+	con, err := c.c.Conn()
 	if err != nil {
 		return nil, err
 	}
 	cb := func() {
-		con.close()
+		con.Close()
 	}
 	defer func() {
 		if err != nil {
@@ -43,7 +44,7 @@ func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
 	hasReturnValues := strings.Contains(strings.ToLower(query), " returning ")
 
 	if (action == "update" || action == "delete" || action == "insert") && !hasReturnValues {
-		rows, err := con.exec(query)
+		rows, err := con.Exec(query)
 		if err != nil {
 			return nil, err
 		}
@@ -51,7 +52,7 @@ func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
 		return rows, nil
 	}
 
-	rows, err := con.query(query)
+	rows, err := con.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -99,5 +100,5 @@ func (c *PostgresClient) Schema() (conn.Schema, error) {
 }
 
 func (c *PostgresClient) Close() {
-	c.sql.close()
+	c.c.Close()
 }

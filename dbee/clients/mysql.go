@@ -7,11 +7,12 @@ import (
 	"regexp"
 
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
 )
 
 type MysqlClient struct {
-	sql *sqlClient
+	sql *common.Client
 }
 
 func NewMysql(url string) (*MysqlClient, error) {
@@ -32,18 +33,18 @@ func NewMysql(url string) (*MysqlClient, error) {
 	}
 
 	return &MysqlClient{
-		sql: newSql(db),
+		sql: common.NewClient(db),
 	}, nil
 }
 
 func (c *MysqlClient) Query(query string) (conn.IterResult, error) {
 
-	con, err := c.sql.conn()
+	con, err := c.sql.Conn()
 	if err != nil {
 		return nil, err
 	}
 	cb := func() {
-		con.close()
+		con.Close()
 	}
 	defer func() {
 		if err != nil {
@@ -51,7 +52,7 @@ func (c *MysqlClient) Query(query string) (conn.IterResult, error) {
 		}
 	}()
 
-	rows, err := con.query(query)
+	rows, err := con.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +68,7 @@ func (c *MysqlClient) Query(query string) (conn.IterResult, error) {
 	rows.Close()
 
 	// empty header means no result -> get affected rows
-	rows, err = con.query("select ROW_COUNT() as 'Rows Affected'")
+	rows, err = con.Query("select ROW_COUNT() as 'Rows Affected'")
 	rows.SetCallback(cb)
 	return rows, err
 }
@@ -101,5 +102,5 @@ func (c *MysqlClient) Schema() (conn.Schema, error) {
 }
 
 func (c *MysqlClient) Close() {
-	c.sql.close()
+	c.sql.Close()
 }
