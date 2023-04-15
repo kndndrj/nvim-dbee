@@ -9,6 +9,7 @@ require (
 	github.com/lib/pq v1.10.7
 	github.com/neovim/go-client v1.2.1
 	github.com/redis/go-redis/v9 v9.0.2
+	gotest.tools v2.2.0+incompatible
 	modernc.org/sqlite v1.21.1
 )
 
@@ -16,9 +17,11 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
+	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	golang.org/x/mod v0.3.0 // indirect

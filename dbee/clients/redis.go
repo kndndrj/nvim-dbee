@@ -29,15 +29,12 @@ func NewRedis(url string) (*RedisClient, error) {
 }
 
 func (c *RedisClient) Query(query string) (conn.IterResult, error) {
-
-	q := strings.Split(query, " ")
-
-	args := make([]any, len(q))
-	for i, v := range q {
-		args[i] = v
+	cmd, err := ParseRedisCmd(query)
+	if err != nil {
+		return nil, err
 	}
 
-	resp, err := c.redis.Do(context.Background(), args...).Result()
+	resp, err := c.redis.Do(context.Background(), cmd...).Result()
 	if err != nil {
 		return nil, err
 	}
@@ -91,6 +88,90 @@ func (c *RedisClient) Schema() (conn.Schema, error) {
 
 func (c *RedisClient) Close() {
 	c.redis.Close()
+}
+
+// ErrUnmatchedDoubleQuote and ErrUnmatchedSingleQuote are errors returned from ParseRedisCmd
+var (
+	ErrUnmatchedDoubleQuote = func(position int) error { return fmt.Errorf("syntax error: unmatched double quote at: %d", position) }
+	ErrUnmatchedSingleQuote = func(position int) error { return fmt.Errorf("syntax error: unmatched single quote at: %d", position) }
+)
+
+// ParseRedisCmd parses string command into args for redis.Do
+func ParseRedisCmd(unparsed string) ([]any, error) {
+
+	// error helper
+	quoteErr := func(quote rune, position int) error {
+		if quote == '"' {
+			return ErrUnmatchedDoubleQuote(position)
+		} else {
+			return ErrUnmatchedSingleQuote(position)
+		}
+	}
+
+	// return array
+	var fields []any
+	// what char is the current quote
+	var blank rune
+	var currentQuote struct {
+		char     rune
+		position int
+	}
+	// is the current char escaped or not?
+	var escaped bool
+
+	sb := &strings.Builder{}
+	for i, r := range unparsed {
+		// handle unescaped quotes
+		if !escaped && (r == '"' || r == '\'') {
+			// next char
+			next := byte(' ')
+			if i < len(unparsed)-1 {
+				next = unparsed[i+1]
+			}
+
+			if r == currentQuote.char {
+				if next != ' ' {
+					return nil, quoteErr(r, i+1)
+				}
+				// end quote
+				currentQuote.char = blank
+				continue
+			} else if currentQuote.char == blank {
+				// start quote
+				currentQuote.char = r
+				currentQuote.position = i + 1
+				continue
+			}
+		}
+
+		// handle escapes
+		if r == '\\' {
+			escaped = true
+			continue
+		}
+
+		// handle word end
+		if currentQuote.char == blank && r == ' ' {
+			fields = append(fields, sb.String())
+			sb.Reset()
+			continue
+		}
+
+		escaped = false
+		sb.WriteRune(r)
+	}
+
+	// check if quote is not closed
+	if currentQuote.char != blank {
+		return nil, quoteErr(currentQuote.char, currentQuote.position)
+	}
+
+	// write last word
+	if sb.Len() > 0 {
+		fields = append(fields, sb.String())
+	}
+
+	return fields, nil
 }
 
 // sliceToRows expands []any slice and any possible nested slices to multiple rows
