@@ -199,106 +199,89 @@ function Drawer:map_keys(bufnr)
 end
 
 ---@private
----@param node_id integer master node id
-function Drawer:refresh_connection(node_id)
-  local master_node = self.tree:get_node(node_id)
+---@param master_node_id integer master node id
+function Drawer:refresh_connection(master_node_id)
+  local master_node = self.tree:get_node(master_node_id)
 
-  local con_details = self.handler:connection_details(master_node.connection_id)
+  local details = self.handler:connection_details(master_node.connection_id)
   local expanded = self:get_expanded_ids() or {}
 
-  -- schemas
-  local schemas = self.handler:schemas(con_details.id)
-  -- table helpers
-  local table_helpers = helpers.get(con_details.type)
-  if not table_helpers then
-    print("no table_helpers")
-    return
+  local layout = self.handler:layout(details.id)
+
+  local table_helpers = helpers.get(details.type)
+  local helper_keys = {}
+  for k, _ in pairs(table_helpers) do
+    table.insert(helper_keys, k)
   end
-  -- history
-  local history = self.handler:list_history(con_details.id)
 
-  -- structure
-  local schema_nodes = {}
-  for sch_name, tbls in pairs(schemas) do
-    local sch_id = con_details.name .. sch_name
-    -- tables
-    local tbl_nodes = {}
-    for _, tbl_name in ipairs(tbls) do
-      local tbl_id = sch_id .. tbl_name
-      -- helpers
-      local helper_nodes = {}
-      for helper_name, helper_query in pairs(table_helpers) do
-        local helper_id = tbl_id .. helper_name
-        local h = NuiTree.Node {
-          id = helper_id,
-          master_id = node_id,
-          text = helper_name,
-          type = "query",
-          action = function()
-            self.handler:set_active(con_details.id)
+  ---@param _layout schema[]
+  ---@param _parent_id? string
+  ---@return table nodes list of NuiTreeNodes
+  local function _layout_to_tree_nodes(_layout, _parent_id)
+    _parent_id = _parent_id or ""
 
-            self.handler:execute(
-              helpers.expand_query(helper_query, { table = tbl_name, schema = sch_name, dbname = con_details.name }),
-              con_details.id
-            )
+    if not _layout or _layout == vim.NIL then
+      return {}
+    end
 
-            self:refresh_connection(node_id)
-          end,
-        }
-        if expanded[h.id] then
-          h:expand()
-        end
-        table.insert(helper_nodes, h)
+    -- sort keys
+    table.sort(_layout, function (k1, k2) return k1.name < k2.name end)
+
+    local _nodes = {}
+    for _, _l in ipairs(_layout) do
+      local _id = _parent_id .. _l.name
+      local _node = NuiTree.Node({
+        id = _id,
+        master_id = master_node_id,
+        text = _l.name,
+        action = function()
+          -- get action from type
+          if _l.type == "table" then
+            -- select a helper to execute
+            vim.ui.select(helper_keys, {
+              prompt = "select a helper to execute:",
+            }, function(_selection)
+              if _selection then
+                self.handler:execute(
+                  helpers.expand_query(
+                    table_helpers[_selection],
+                    { table = _l.name, schema = _l.schema, dbname = _l.database }
+                  ),
+                  details.id
+                )
+              end
+            end)
+          elseif _l.type == "history" then
+            -- TODO: make propper history ids
+            self.handler:history(_l.name, details.id)
+          elseif _l.type == "record" then
+            self.tree:get_node(_id):expand()
+          end
+
+          self.handler:set_active(details.id)
+          self:refresh_connection(master_node_id)
+        end,
+        -- recurse children
+      }, _layout_to_tree_nodes(_l.children, _id))
+
+      -- expand if it was expanded
+      if expanded[_id] then
+        _node:expand()
       end
-      local t = NuiTree.Node({ id = tbl_id, text = tbl_name, type = "table" }, helper_nodes)
-      if expanded[t.id] then
-        t:expand()
-      end
-      table.insert(tbl_nodes, t)
+
+      table.insert(_nodes, _node)
     end
 
-    local schema_node = NuiTree.Node({ id = sch_id, text = sch_name, type = "schema" }, tbl_nodes)
-    if expanded[schema_node.id] then
-      schema_node:expand()
-    end
-    table.insert(schema_nodes, schema_node)
+    return _nodes
   end
 
-  -- history
-  local history_nodes = {}
-  for _, h in ipairs(history) do
-    local history_node = NuiTree.Node {
-      id = "history" .. con_details.name .. h,
-      master_id = node_id,
-      text = h,
-      type = "history",
-      action = function()
-        self.handler:set_active(con_details.id)
-        self.handler:history(h, con_details.id)
-        self:refresh_connection(node_id)
-      end,
-    }
-    if expanded[history_node.id] then
-      history_node:expand()
-    end
-    table.insert(history_nodes, history_node)
-  end
+  local children = _layout_to_tree_nodes(layout, tostring(details.id))
 
-  local children = {
-    NuiTree.Node({ id = con_details.name .. "structure", master_id = node_id, text = "structure" }, schema_nodes),
-    NuiTree.Node({ id = con_details.name .. "history", master_id = node_id, text = "history" }, history_nodes),
-  }
-  -- expand nodes from map
-  for _, n in ipairs(children) do
-    if expanded[n.id] then
-      n:expand()
-    end
-  end
-
-  self.tree:set_nodes(children, node_id)
+  self.tree:set_nodes(children, master_node_id)
   self.tree:render()
 end
 
+---@private
 function Drawer:refresh_scratches()
   -- new scratchpad button
   local scratch_nodes = {
@@ -358,7 +341,7 @@ function Drawer:refresh()
       self.tree:add_node(db)
     else
       for _, n in ipairs(existing_nodes) do
-        if n.connection_id == con.id then
+        if n.connection_id == con.id and n:is_expanded() then
           self:refresh_connection(n.id)
         end
       end

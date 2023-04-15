@@ -1,14 +1,15 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"os"
 	"strconv"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	"github.com/kndndrj/nvim-dbee/dbee/output"
 	nvimlog "github.com/kndndrj/nvim-dbee/dbee/nvimlog"
+	"github.com/kndndrj/nvim-dbee/dbee/output"
 	"github.com/neovim/go-client/nvim"
 	"github.com/neovim/go-client/nvim/plugin"
 )
@@ -288,13 +289,14 @@ func main() {
 				return nil
 			})
 
+		// returns json string (must parse on caller side)
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_schema"},
-			func(args []string) (map[string][]string, error) {
+			func(args []string) (string, error) {
 				method := "Dbee_schema"
 				logger.Debug("calling " + method)
 				if len(args) < 1 {
 					logger.Error("not enough arguments passed to " + method)
-					return nil, nil
+					return "{}", nil
 				}
 
 				id := args[0]
@@ -303,17 +305,23 @@ func main() {
 				c, ok := connections[id]
 				if !ok {
 					logger.Error("connection with id " + id + " not registered")
-					return nil, nil
+					return "{}", nil
 				}
 
 				schema, err := c.Schema()
 				if err != nil {
 					logger.Error(err.Error())
-					return nil, nil
+					return "{}", nil
+				}
+
+				parsed, err := json.Marshal(schema)
+				if err != nil {
+					logger.Error(err.Error())
+					return "{}", nil
 				}
 
 				logger.Debug(method + " returned successfully")
-				return schema, nil
+				return string(parsed), nil
 			})
 
 		return nil

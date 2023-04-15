@@ -73,7 +73,7 @@ func (c *MysqlClient) Query(query string) (conn.IterResult, error) {
 	return rows, err
 }
 
-func (c *MysqlClient) Schema() (conn.Schema, error) {
+func (c *MysqlClient) Schema() ([]conn.Layout, error) {
 	query := `SELECT table_schema, table_name FROM information_schema.tables`
 
 	rows, err := c.Query(query)
@@ -81,7 +81,7 @@ func (c *MysqlClient) Schema() (conn.Schema, error) {
 		return nil, err
 	}
 
-	var schema = make(conn.Schema)
+	children := make(map[string][]conn.Layout)
 
 	for {
 		row, err := rows.Next()
@@ -93,12 +93,33 @@ func (c *MysqlClient) Schema() (conn.Schema, error) {
 		}
 
 		// We know for a fact there are 2 string fields (see query above)
-		key := row[0].(string)
-		val := row[1].(string)
-		schema[key] = append(schema[key], val)
+		schema := row[0].(string)
+		table := row[1].(string)
+
+		children[schema] = append(children[schema], conn.Layout{
+			Name:   table,
+			Schema: schema,
+			// TODO:
+			Database: "",
+			Type:     conn.LayoutTable,
+		})
+
 	}
 
-	return schema, nil
+	var layout []conn.Layout
+
+	for k, v := range children {
+		layout = append(layout, conn.Layout{
+			Name:   k,
+			Schema: k,
+			// TODO:
+			Database: "",
+			Type:     conn.LayoutRecord,
+			Children: v,
+		})
+	}
+
+	return layout, nil
 }
 
 func (c *MysqlClient) Close() {

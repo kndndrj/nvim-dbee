@@ -1,5 +1,5 @@
 ---@alias connection_details { name: string, type: string, url: string, id: integer }
----@alias schema { string: string[] }
+---@alias schema { name: string, schema: string, database: string, type: "record"|"table"|"history", children: schema[] }
 
 -- Handler is a wrapper around the go code
 -- it is the central part of the plugin and manages connections.
@@ -156,10 +156,35 @@ function Handler:list_history(id)
 end
 
 ---@param id? integer connection id
----@return schema
-function Handler:schemas(id)
+---@return schema[]
+function Handler:schema(id)
   id = id or self.active_connection
-  return vim.fn.Dbee_schema(tostring(id))
+  return vim.fn.json_decode(vim.fn.Dbee_schema(tostring(id)))
+end
+
+-- get layout for the connection (combines history and schema)
+---@param id? integer connection id
+---@return schema[]
+function Handler:layout(id)
+  id = id or self.active_connection
+
+  local structure = vim.fn.json_decode(vim.fn.Dbee_schema(tostring(id)))
+
+  ---@type schema[]
+  local history_children = {}
+  for _, h in ipairs(self:list_history(id)) do
+    ---@type schema
+    local sch = {
+      name = h,
+      type = "history",
+    }
+    table.insert(history_children, sch)
+  end
+
+  return {
+    { name = "structure", type = "record", children = structure },
+    { name = "history",   type = "record", children = history_children },
+  }
 end
 
 ---@param format "csv"|"json" how to format the result

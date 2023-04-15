@@ -61,7 +61,7 @@ func (c *SqliteClient) Query(query string) (conn.IterResult, error) {
 	return rows, err
 }
 
-func (c *SqliteClient) Schema() (conn.Schema, error) {
+func (c *SqliteClient) Schema() ([]conn.Layout, error) {
 	query := `SELECT name FROM sqlite_schema WHERE type ='table'`
 
 	rows, err := c.Query(query)
@@ -69,7 +69,7 @@ func (c *SqliteClient) Schema() (conn.Schema, error) {
 		return nil, err
 	}
 
-	var tables []string
+	var schema []conn.Layout
 	for {
 		row, err := rows.Next()
 		if row == nil {
@@ -81,12 +81,16 @@ func (c *SqliteClient) Schema() (conn.Schema, error) {
 
 		// We know for a fact there is only one string field (see query above)
 		table := row[0].(string)
-		tables = append(tables, table)
+		schema = append(schema, conn.Layout{
+			Name:   table,
+			Schema: "",
+			// TODO:
+			Database: "",
+			Type:     conn.LayoutTable,
+		})
 	}
 
-	return conn.Schema{
-		"tables": tables,
-	}, nil
+	return schema, nil
 }
 
 func (c *SqliteClient) Close() {

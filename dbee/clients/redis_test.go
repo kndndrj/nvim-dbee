@@ -1,10 +1,9 @@
-package clients_test
+package clients
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/kndndrj/nvim-dbee/dbee/clients"
 	"gotest.tools/assert"
 )
 
@@ -70,27 +69,27 @@ func TestParseRedisCmd(t *testing.T) {
 		{
 			unparsed:       `set key "unmatched double quoted val`,
 			expectedResult: nil,
-			expectedError:  clients.ErrUnmatchedDoubleQuote(9),
+			expectedError:  ErrUnmatchedDoubleQuote(9),
 		},
 		{
 			unparsed:       `set key 'unmatched single quoted val`,
 			expectedResult: nil,
-			expectedError:  clients.ErrUnmatchedSingleQuote(9),
+			expectedError:  ErrUnmatchedSingleQuote(9),
 		},
 		{
 			unparsed:       `set key "double quoted val with nested unescaped double quote (")"`,
 			expectedResult: nil,
-			expectedError:  clients.ErrUnmatchedDoubleQuote(64),
+			expectedError:  ErrUnmatchedDoubleQuote(64),
 		},
 		{
 			unparsed:       `set key 'single quoted val with nested unescaped single quote (')'`,
 			expectedResult: nil,
-			expectedError:  clients.ErrUnmatchedSingleQuote(64),
+			expectedError:  ErrUnmatchedSingleQuote(64),
 		},
 	}
 
 	for _, tc := range testCases {
-		parsed, err := clients.ParseRedisCmd(tc.unparsed)
+		parsed, err := parseRedisCmd(tc.unparsed)
 		fmt.Println(parsed, err)
 		if err != nil {
 			assert.Equal(t, err.Error(), tc.expectedError.Error())

@@ -55,7 +55,7 @@ local function redis()
 end
 
 ---@param type string
----@return { string: string }|nil helpers list of table helpers
+---@return { string: string } helpers list of table helpers
 function M.get(type)
   if type == "postgres" then
     return postgres()
@@ -66,6 +66,7 @@ function M.get(type)
   elseif type == "redis" then
     return redis()
   end
+  return {}
 end
 
 ---@param unexpanded_query string

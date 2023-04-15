@@ -29,7 +29,7 @@ func NewRedis(url string) (*RedisClient, error) {
 }
 
 func (c *RedisClient) Query(query string) (conn.IterResult, error) {
-	cmd, err := ParseRedisCmd(query)
+	cmd, err := parseRedisCmd(query)
 	if err != nil {
 		return nil, err
 	}
@@ -80,9 +80,14 @@ func (c *RedisClient) Query(query string) (conn.IterResult, error) {
 	return result, err
 }
 
-func (c *RedisClient) Schema() (conn.Schema, error) {
-	return conn.Schema{
-		"DB": []string{"DB"},
+func (c *RedisClient) Schema() ([]conn.Layout, error) {
+	return []conn.Layout{
+		{
+			Name:     "DB",
+			Schema:   "",
+			Database: "",
+			Type:     conn.LayoutTable,
+		},
 	}, nil
 }
 
@@ -96,8 +101,8 @@ var (
 	ErrUnmatchedSingleQuote = func(position int) error { return fmt.Errorf("syntax error: unmatched single quote at: %d", position) }
 )
 
-// ParseRedisCmd parses string command into args for redis.Do
-func ParseRedisCmd(unparsed string) ([]any, error) {
+// parseRedisCmd parses string command into args for redis.Do
+func parseRedisCmd(unparsed string) ([]any, error) {
 
 	// error helper
 	quoteErr := func(quote rune, position int) error {

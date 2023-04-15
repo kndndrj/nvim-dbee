@@ -1,6 +1,8 @@
 package conn
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -12,10 +14,52 @@ type (
 )
 
 type (
-	// Schema is a map which represents a database structure
+	LayoutType int
+	// Layout is a dict which represents a database structure
 	// it's primarely used for the tree view
-	Schema map[string][]string
+	Layout struct {
+		Name     string     `json:"name"`
+		Schema   string     `json:"schema"`
+		Database string     `json:"database"`
+		Type     LayoutType `json:"type"`
+		Children []Layout   `json:"children"`
+	}
 )
+
+const (
+	LayoutRecord LayoutType = iota
+	LayoutTable
+	LayoutHistory
+)
+
+func (s LayoutType) String() string {
+	switch s {
+	case LayoutRecord:
+		return "record"
+	case LayoutTable:
+		return "table"
+	case LayoutHistory:
+		return "history"
+	default:
+		return fmt.Sprintf("%d", int(s))
+	}
+}
+
+func (s *Layout) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		Name     string   `json:"name"`
+		Schema   string   `json:"schema"`
+		Database string   `json:"database"`
+		Type     string   `json:"type"`
+		Children []Layout `json:"children"`
+	}{
+		Name:     s.Name,
+		Schema:   s.Schema,
+		Database: s.Database,
+		Type:     s.Type.String(),
+		Children: s.Children,
+	})
+}
 
 type (
 	// Meta holds metadata
@@ -63,7 +107,7 @@ type (
 	Client interface {
 		Input
 		Close()
-		Schema() (Schema, error)
+		Schema() ([]Layout, error)
 	}
 )
 
@@ -79,9 +123,9 @@ type Conn struct {
 	cache    *cache
 	pageSize int
 	history  History
-	log Logger
+	log      Logger
 	// is the result fresh (e.g. is it not history?)
-	fresh  bool
+	fresh bool
 }
 
 func New(driver Client, pageSize int, history History, logger Logger) *Conn {
@@ -91,7 +135,7 @@ func New(driver Client, pageSize int, history History, logger Logger) *Conn {
 		driver:   driver,
 		history:  history,
 		cache:    newCache(pageSize, logger),
-		log:   logger,
+		log:      logger,
 	}
 }
 
@@ -144,7 +188,7 @@ func (c *Conn) WriteCurrent(outputs ...Output) error {
 	return nil
 }
 
-func (c *Conn) Schema() (Schema, error) {
+func (c *Conn) Schema() ([]Layout, error) {
 	return c.driver.Schema()
 }
 
