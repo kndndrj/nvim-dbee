@@ -2,6 +2,15 @@ local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
 local helpers = require("dbee.helpers")
 
+---@class Node
+---@field id string
+---@field text string
+---@field is_expanded fun(self:Node):boolean
+---@field is_master boolean
+
+---@class MasterNode: Node
+---@field getter fun():layout
+
 ---@class Drawer
 ---@field private tree table NuiTree
 ---@field private handler Handler
@@ -45,7 +54,7 @@ end
 ---@private
 ---@return table tree
 function Drawer:create_tree(bufnr)
-  local tree = NuiTree {
+  return NuiTree {
     bufnr = bufnr, -- dummy to suppress error
     prepare_node = function(node)
       local line = NuiLine()
@@ -58,7 +67,12 @@ function Drawer:create_tree(bufnr)
         line:append("  ")
       end
 
-      line:append(node.text)
+      -- if connection is the active one, apply a special highlihgt on the master
+      if node.is_master and tostring(self.handler:connection_details().id) == node.id then
+        line:append(node.text, "Title")
+      else
+        line:append(node.text)
+      end
 
       return line
     end,
@@ -69,43 +83,6 @@ function Drawer:create_tree(bufnr)
       return math.random()
     end,
   }
-
-  -- add scratchpad node
-  local scratch_node = NuiTree.Node { id = SCRATCHPAD_NODE_ID, text = "scratchpads", type = "scratch" }
-  tree:add_node(scratch_node)
-
-  -- add connections
-  local cons = self.handler:list_connections()
-  for _, c in ipairs(cons) do
-    local db = NuiTree.Node { id = c.name, connection_id = c.id, text = c.name, type = "db" }
-    tree:add_node(db)
-  end
-
-  return tree
-end
-
----@private
----@return { string: boolean } expanded map of node ids that are expanded
-function Drawer:get_expanded_ids()
-  local expanded = {}
-
-  local function process(node)
-    if node:is_expanded() then
-      expanded[node:get_id()] = true
-
-      if node:has_children() then
-        for _, n in ipairs(self.tree:get_nodes(node:get_id())) do
-          process(n)
-        end
-      end
-    end
-  end
-
-  for _, node in ipairs(self.tree:get_nodes()) do
-    process(node)
-  end
-
-  return expanded
 end
 
 -- Map keybindings to split window
@@ -153,7 +130,7 @@ function Drawer:map_keys(bufnr)
 
     __expand_all_single(node)
 
-    if node.type == "db" or node.type == "scratch" then
+    if node.is_master then
       self:refresh_node(node.id)
     end
 
@@ -197,21 +174,14 @@ function Drawer:map_keys(bufnr)
 end
 
 ---@private
----@param master_node_id integer master node id
+---@param master_node_id string master node id
 function Drawer:refresh_node(master_node_id)
+  ---@type MasterNode
   local master_node = self.tree:get_node(master_node_id)
 
-  local layout = {}
-  if master_node.type == "db" then
-    local details = self.handler:connection_details(master_node.connection_id)
-    layout = self.handler:layout(details.id)
-  elseif master_node.type == "scratch" then
-    layout = self.editor:layout()
-  end
+  local layout = master_node.getter()
 
-  local expanded = self:get_expanded_ids() or {}
-
-  ---@param _layout schema[]
+  ---@param _layout layout[]
   ---@param _parent_id? string
   ---@return table nodes list of NuiTreeNodes
   local function _layout_to_tree_nodes(_layout, _parent_id)
@@ -236,7 +206,11 @@ function Drawer:refresh_node(master_node_id)
         action = function()
           -- get action from type
           if _l.type == "table" then
-            local details = self.handler:connection_details(master_node.connection_id)
+            local connection_id = tonumber(master_node_id)
+            if not connection_id then
+              error("master_node_id is not a valid number")
+            end
+            local details = self.handler:connection_details(connection_id)
             local table_helpers = helpers.get(details.type)
             local helper_keys = {}
             for k, _ in pairs(table_helpers) do
@@ -252,16 +226,19 @@ function Drawer:refresh_node(master_node_id)
                     table_helpers[_selection],
                     { table = _l.name, schema = _l.schema, dbname = _l.database }
                   ),
-                  details.id
+                  connection_id
                 )
               end
             end)
             self.handler:set_active(details.id)
           elseif _l.type == "history" then
-            local details = self.handler:connection_details(master_node.connection_id)
+            local connection_id = tonumber(master_node_id)
+            if not connection_id then
+              error("master_node_id is not a valid number")
+            end
             -- TODO: make propper history ids
-            self.handler:history(_l.name, details.id)
-            self.handler:set_active(details.id)
+            self.handler:history(_l.name, connection_id)
+            self.handler:set_active(connection_id)
           elseif _l.type == "record" then
             self.tree:get_node(_id):expand()
           elseif _l.type == "scratch" then
@@ -274,8 +251,9 @@ function Drawer:refresh_node(master_node_id)
         -- recurse children
       }, _layout_to_tree_nodes(_l.children, _id))
 
-      -- expand if it was expanded
-      if expanded[_id] then
+      -- get existing node from the current tree and check if it is expanded
+      local _ex_node = self.tree:get_node(_id)
+      if _ex_node and _ex_node:is_expanded() then
         _node:expand()
       end
 
@@ -292,30 +270,54 @@ function Drawer:refresh_node(master_node_id)
 end
 
 function Drawer:refresh()
+  ---@type MasterNode[]
   local existing_nodes = self.tree:get_nodes()
 
+  ---@param _id string
   local function _exists(_id)
     for _, _n in ipairs(existing_nodes) do
-      if _n.connection_id == _id then
+      if _n.id == _id then
         return true
       end
     end
     return false
   end
 
+  -- connections
   local cons = self.handler:list_connections()
-
   for _, con in ipairs(cons) do
-    -- add connection if it doesn't exist, refresh it if it does
-    if not _exists(con.id) then
-      local db = NuiTree.Node { id = con.name, connection_id = con.id, text = con.name, type = "db" }
-      self.tree:add_node(db)
-    else
-      for _, n in ipairs(existing_nodes) do
-        if n.connection_id == con.id and n:is_expanded() then
-          self:refresh_node(n.id)
-        end
-      end
+    if not _exists(tostring(con.id)) then
+      ---@type MasterNode
+      local node = NuiTree.Node {
+        id = tostring(con.id),
+        text = con.name,
+        is_master = true,
+        getter = function()
+          return self.handler:layout(con.id)
+        end,
+      }
+      self.tree:add_node(node)
+    end
+  end
+
+  -- scratchpads
+  if not _exists(SCRATCHPAD_NODE_ID) then
+    ---@type MasterNode
+    local node = NuiTree.Node {
+      id = SCRATCHPAD_NODE_ID,
+      text = "scratchpads",
+      is_master = true,
+      getter = function()
+        return self.editor:layout()
+      end,
+    }
+    self.tree:add_node(node)
+  end
+
+  -- refresh open master nodes
+  for _, n in ipairs(existing_nodes) do
+    if n:is_expanded() then
+      self:refresh_node(n.id)
     end
   end
 end
@@ -363,6 +365,7 @@ function Drawer:open(winid)
   -- tree
   if not self.tree then
     self.tree = self:create_tree(bufnr)
+    self:refresh()
   end
 
   self:map_keys(bufnr)

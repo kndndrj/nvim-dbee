@@ -1,5 +1,5 @@
 ---@alias connection_details { name: string, type: string, url: string, id: integer }
----@alias schema { name: string, schema: string, database: string, type: "record"|"table"|"history"|"scratch", children: schema[] }
+---@alias layout { name: string, schema: string, database: string, type: "record"|"table"|"history"|"scratch", children: layout[] }
 
 -- Handler is a wrapper around the go code
 -- it is the central part of the plugin and manages connections.
@@ -156,7 +156,7 @@ function Handler:list_history(id)
 end
 
 ---@param id? integer connection id
----@return schema[]
+---@return layout[]
 function Handler:schema(id)
   id = id or self.active_connection
   return vim.fn.json_decode(vim.fn.Dbee_schema(tostring(id)))
@@ -164,16 +164,16 @@ end
 
 -- get layout for the connection (combines history and schema)
 ---@param id? integer connection id
----@return schema[]
+---@return layout[]
 function Handler:layout(id)
   id = id or self.active_connection
 
   local structure = vim.fn.json_decode(vim.fn.Dbee_schema(tostring(id)))
 
-  ---@type schema[]
+  ---@type layout[]
   local history_children = {}
   for _, h in ipairs(self:list_history(id)) do
-    ---@type schema
+    ---@type layout
     local sch = {
       name = h,
       type = "history",

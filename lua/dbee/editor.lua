@@ -66,13 +66,13 @@ function Editor:list_scratches()
 end
 
 -- get layout of scratchpads
----@return schema[]
+---@return layout[]
 function Editor:layout()
-  ---@type schema[]
+  ---@type layout[]
   local scratches = {}
 
   for _, s in ipairs(self.scratches) do
-    ---@type schema
+    ---@type layout
     local sch = {
       name = s,
       type = "scratch",
