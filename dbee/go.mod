@@ -9,6 +9,7 @@ require (
 	github.com/lib/pq v1.10.7
 	github.com/neovim/go-client v1.2.1
 	github.com/redis/go-redis/v9 v9.0.2
+	golang.org/x/sync v0.1.0
 	gotest.tools v2.2.0+incompatible
 	modernc.org/sqlite v1.21.1
 )

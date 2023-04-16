@@ -106,7 +106,7 @@ func main() {
 					return nil
 				}
 
-				h := conn.NewHistory()
+				h := conn.NewHistory(id, logger)
 
 				c := conn.New(client, 100, h, logger)
 
