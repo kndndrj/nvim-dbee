@@ -153,10 +153,8 @@ function Drawer:map_keys(bufnr)
 
     __expand_all_single(node)
 
-    if node.type == "db" then
-      self:refresh_connection(node.id)
-    elseif node.type == "scratch" then
-      self:refresh_scratches()
+    if node.type == "db" or node.type == "scratch" then
+      self:refresh_node(node.id)
     end
 
     node:expand()
@@ -200,19 +198,18 @@ end
 
 ---@private
 ---@param master_node_id integer master node id
-function Drawer:refresh_connection(master_node_id)
+function Drawer:refresh_node(master_node_id)
   local master_node = self.tree:get_node(master_node_id)
 
-  local details = self.handler:connection_details(master_node.connection_id)
-  local expanded = self:get_expanded_ids() or {}
-
-  local layout = self.handler:layout(details.id)
-
-  local table_helpers = helpers.get(details.type)
-  local helper_keys = {}
-  for k, _ in pairs(table_helpers) do
-    table.insert(helper_keys, k)
+  local layout = {}
+  if master_node.type == "db" then
+    local details = self.handler:connection_details(master_node.connection_id)
+    layout = self.handler:layout(details.id)
+  elseif master_node.type == "scratch" then
+    layout = self.editor:layout()
   end
+
+  local expanded = self:get_expanded_ids() or {}
 
   ---@param _layout schema[]
   ---@param _parent_id? string
@@ -225,7 +222,9 @@ function Drawer:refresh_connection(master_node_id)
     end
 
     -- sort keys
-    table.sort(_layout, function (k1, k2) return k1.name < k2.name end)
+    table.sort(_layout, function(k1, k2)
+      return k1.name < k2.name
+    end)
 
     local _nodes = {}
     for _, _l in ipairs(_layout) do
@@ -237,6 +236,12 @@ function Drawer:refresh_connection(master_node_id)
         action = function()
           -- get action from type
           if _l.type == "table" then
+            local details = self.handler:connection_details(master_node.connection_id)
+            local table_helpers = helpers.get(details.type)
+            local helper_keys = {}
+            for k, _ in pairs(table_helpers) do
+              table.insert(helper_keys, k)
+            end
             -- select a helper to execute
             vim.ui.select(helper_keys, {
               prompt = "select a helper to execute:",
@@ -251,15 +256,20 @@ function Drawer:refresh_connection(master_node_id)
                 )
               end
             end)
+            self.handler:set_active(details.id)
           elseif _l.type == "history" then
+            local details = self.handler:connection_details(master_node.connection_id)
             -- TODO: make propper history ids
             self.handler:history(_l.name, details.id)
+            self.handler:set_active(details.id)
           elseif _l.type == "record" then
             self.tree:get_node(_id):expand()
+          elseif _l.type == "scratch" then
+            self.editor:set_active_scratch(_l.name)
+            self.editor:open()
           end
 
-          self.handler:set_active(details.id)
-          self:refresh_connection(master_node_id)
+          self:refresh_node(master_node_id)
         end,
         -- recurse children
       }, _layout_to_tree_nodes(_l.children, _id))
@@ -275,57 +285,18 @@ function Drawer:refresh_connection(master_node_id)
     return _nodes
   end
 
-  local children = _layout_to_tree_nodes(layout, tostring(details.id))
+  local children = _layout_to_tree_nodes(layout, tostring(master_node_id))
 
   self.tree:set_nodes(children, master_node_id)
   self.tree:render()
 end
 
----@private
-function Drawer:refresh_scratches()
-  -- new scratchpad button
-  local scratch_nodes = {
-    NuiTree.Node {
-      id = "scratch:new:-",
-      master_id = SCRATCHPAD_NODE_ID,
-      text = "New",
-      type = "scratch",
-      action = function()
-        self.editor:new_scratch()
-        self.editor:open()
-        self:refresh_scratches()
-      end,
-    },
-  }
-
-  -- scratches
-  for id, s in ipairs(self.editor:list_scratches()) do
-    local scratch_node = NuiTree.Node {
-      id = "scratch:" .. id .. ":" .. s,
-      master_id = SCRATCHPAD_NODE_ID,
-      text = vim.fs.basename(s),
-      type = "scratch",
-      action = function()
-        self.editor:set_active_scratch(id)
-        self.editor:open()
-      end,
-    }
-    table.insert(scratch_nodes, scratch_node)
-  end
-  self.tree:set_nodes(scratch_nodes, SCRATCHPAD_NODE_ID)
-  self.tree:render()
-end
-
 function Drawer:refresh()
-  -- scratches
-  self:refresh_scratches()
-
-  -- connections
   local existing_nodes = self.tree:get_nodes()
 
-  local function exists(connection_id)
-    for _, n in ipairs(existing_nodes) do
-      if n.connection_id == connection_id then
+  local function _exists(_id)
+    for _, _n in ipairs(existing_nodes) do
+      if _n.connection_id == _id then
         return true
       end
     end
@@ -336,13 +307,13 @@ function Drawer:refresh()
 
   for _, con in ipairs(cons) do
     -- add connection if it doesn't exist, refresh it if it does
-    if not exists(con.id) then
+    if not _exists(con.id) then
       local db = NuiTree.Node { id = con.name, connection_id = con.id, text = con.name, type = "db" }
       self.tree:add_node(db)
     else
       for _, n in ipairs(existing_nodes) do
         if n.connection_id == con.id and n:is_expanded() then
-          self:refresh_connection(n.id)
+          self:refresh_node(n.id)
         end
       end
     end

@@ -65,11 +65,31 @@ function Editor:list_scratches()
   return self.scratches
 end
 
----@param id integer scratch id
-function Editor:set_active_scratch(id)
-  if type(id) == "number" and id > 0 then
-    self.current_scratch = id
+-- get layout of scratchpads
+---@return schema[]
+function Editor:layout()
+  ---@type schema[]
+  local scratches = {}
+
+  for _, s in ipairs(self.scratches) do
+    ---@type schema
+    local sch = {
+      name = s,
+      type = "scratch",
+    }
+    table.insert(scratches, sch)
   end
+
+  return scratches
+end
+
+---@param id string scratch id - name
+function Editor:set_active_scratch(id)
+  local rev_lookup = {}
+  for i, s in ipairs(self.scratches) do
+    rev_lookup[s] = i
+  end
+  self.current_scratch = rev_lookup[id]
 end
 
 ---TODO

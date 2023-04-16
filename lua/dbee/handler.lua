@@ -1,5 +1,5 @@
 ---@alias connection_details { name: string, type: string, url: string, id: integer }
----@alias schema { name: string, schema: string, database: string, type: "record"|"table"|"history", children: schema[] }
+---@alias schema { name: string, schema: string, database: string, type: "record"|"table"|"history"|"scratch", children: schema[] }
 
 -- Handler is a wrapper around the go code
 -- it is the central part of the plugin and manages connections.
