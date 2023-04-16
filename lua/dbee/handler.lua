@@ -1,13 +1,13 @@
----@alias connection_details { name: string, type: string, url: string, id: integer }
+---@alias conn_id string
+---@alias connection_details { name: string, type: string, url: string, id: conn_id }
 ---@alias layout { name: string, schema: string, database: string, type: "record"|"table"|"history"|"scratch", children: layout[] }
 
 -- Handler is a wrapper around the go code
 -- it is the central part of the plugin and manages connections.
 -- almost all functions take the connection id as their argument.
 ---@class Handler
----@field private connections { integer: connection_details } id - connection mapping
----@field private active_connection integer last called connection
----@field private last_id integer last id number
+---@field private connections table<conn_id, connection_details> id - connection mapping
+---@field private active_connection conn_id last called connection
 ---@field private page_index integer current page
 ---@field private winid integer
 ---@field private bufnr integer
@@ -21,9 +21,9 @@ function Handler:new(opts)
 
   local cons = opts.connections or {}
 
+  local active = "ž" -- this MUST get overwritten
   local connections = {}
-  local last_id = 0
-  for id, con in ipairs(cons) do
+  for _, con in ipairs(cons) do
     if not con.url then
       error("url needs to be set!")
     end
@@ -32,14 +32,19 @@ function Handler:new(opts)
     end
 
     con.name = con.name or "[empty name]"
+    local id = con.name .. con.type
+
     con.id = id
+    if id < active then
+      active = id
+    end
 
     -- register in go
-    vim.fn.Dbee_register_connection(tostring(id), con.url, con.type)
+    vim.fn.Dbee_register_connection(id, con.url, con.type)
 
     connections[id] = con
-    last_id = id
   end
+  print(active)
 
   local win_cmd
   if type(opts.win_cmd) == "string" then
@@ -59,8 +64,7 @@ function Handler:new(opts)
   -- class object
   local o = {
     connections = connections,
-    last_id = last_id,
-    active_connection = 1,
+    active_connection = active,
     page_index = 0,
     win_cmd = win_cmd,
   }
@@ -72,32 +76,31 @@ end
 ---@param connection connection_details
 function Handler:add_connection(connection)
   if not connection.url then
-    print("url needs to be set!")
+    error("url needs to be set!")
     return
   end
   if not connection.type then
-    print("no type")
+    error("no type")
     return
   end
 
-  local name = connection.name or "[empty name]"
+  connection.name = connection.name or "[empty name]"
+
+  local id = connection.name .. connection.type
 
   for _, con in pairs(self.connections) do
-    if con.name == name then
+    if con.id == id then
       return
     end
   end
 
-  self.last_id = self.last_id + 1
-  connection.id = self.last_id
-
   -- register in go
-  vim.fn.Dbee_register_connection(tostring(self.last_id), connection.url, connection.type)
+  vim.fn.Dbee_register_connection(id, connection.url, connection.type)
 
-  self.connections[self.last_id] = connection
+  self.connections[id] = connection
 end
 
----@param id integer connection id
+---@param id conn_id connection id
 function Handler:set_active(id)
   if not id or self.connections[id] == nil then
     print("no id specified!")
@@ -112,24 +115,29 @@ function Handler:list_connections()
   for _, con in pairs(self.connections) do
     table.insert(cons, con)
   end
+
+  -- sort keys
+  table.sort(cons, function(k1, k2)
+    return k1.name < k2.name
+  end)
   return cons
 end
 
 ---@return connection_details
----@param id? integer connection id
+---@param id? conn_id connection id
 function Handler:connection_details(id)
   id = id or self.active_connection
   return self.connections[id]
 end
 
 ---@param query string query to execute
----@param id? integer connection id
+---@param id? conn_id connection id
 function Handler:execute(query, id)
   id = id or self.active_connection
 
   self:open_hook()
   self.page_index = 0
-  vim.fn.Dbee_execute(tostring(id), query)
+  vim.fn.Dbee_execute(id, query)
 end
 
 ---@private
@@ -141,82 +149,48 @@ function Handler:open_hook()
   vim.api.nvim_buf_set_option(self.bufnr, "modifiable", false)
 end
 
----@param id? integer connection id
+---@param id? conn_id connection id
 function Handler:page_next(id)
   id = id or self.active_connection
 
   self:open_hook()
-  self.page_index = vim.fn.Dbee_page(tostring(id), tostring(self.page_index + 1))
+  self.page_index = vim.fn.Dbee_page(id, tostring(self.page_index + 1))
 end
 
----@param id? integer connection id
+---@param id? conn_id connection id
 function Handler:page_prev(id)
   id = id or self.active_connection
 
   self:open_hook()
-  self.page_index = vim.fn.Dbee_page(tostring(id), tostring(self.page_index - 1))
+  self.page_index = vim.fn.Dbee_page(id, tostring(self.page_index - 1))
 end
 
 ---@param history_id string history id
----@param id? integer connection id
+---@param id? conn_id connection id
 function Handler:history(history_id, id)
   id = id or self.active_connection
 
   self:open_hook()
   self.page_index = 0
-  vim.fn.Dbee_history(tostring(id), history_id)
-end
-
----@param id? integer connection id
-function Handler:list_history(id)
-  id = id or self.active_connection
-
-  local h = vim.fn.Dbee_list_history(tostring(id))
-  if not h or h == vim.NIL then
-    return {}
-  end
-  return h
-end
-
----@param id? integer connection id
----@return layout[]
-function Handler:schema(id)
-  id = id or self.active_connection
-  return vim.fn.json_decode(vim.fn.Dbee_schema(tostring(id)))
+  vim.fn.Dbee_history(id, history_id)
 end
 
 -- get layout for the connection (combines history and schema)
----@param id? integer connection id
+---@param id? conn_id connection id
 ---@return layout[]
 function Handler:layout(id)
   id = id or self.active_connection
 
-  local structure = vim.fn.json_decode(vim.fn.Dbee_schema(tostring(id)))
-
-  ---@type layout[]
-  local history_children = {}
-  for _, h in ipairs(self:list_history(id)) do
-    ---@type layout
-    local sch = {
-      name = h,
-      type = "history",
-    }
-    table.insert(history_children, sch)
-  end
-
-  return {
-    { name = "structure", type = "record", children = structure },
-    { name = "history",   type = "record", children = history_children },
-  }
+  return vim.fn.json_decode(vim.fn.Dbee_layout(id))
 end
 
 ---@param format "csv"|"json" how to format the result
 ---@param file string file to write to
----@param id? integer connection id
+---@param id? conn_id connection id
 function Handler:save(format, file, id)
   id = id or self.active_connection
   -- TODO
-  vim.fn.Dbee_save(tostring(id))
+  vim.fn.Dbee_save(id)
 end
 
 -- fill the Ui interface - open results
@@ -250,7 +224,7 @@ function Handler:open(winid)
   self.bufnr = bufnr
 
   -- register in go
-  vim.fn.Dbee_set_results_buf(tostring(bufnr))
+  vim.fn.Dbee_set_results_buf(bufnr)
 end
 
 -- fill the Ui interface - close results

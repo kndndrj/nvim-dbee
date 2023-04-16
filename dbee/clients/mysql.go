@@ -73,7 +73,7 @@ func (c *MysqlClient) Query(query string) (conn.IterResult, error) {
 	return rows, err
 }
 
-func (c *MysqlClient) Schema() ([]conn.Layout, error) {
+func (c *MysqlClient) Layout() ([]conn.Layout, error) {
 	query := `SELECT table_schema, table_name FROM information_schema.tables`
 
 	rows, err := c.Query(query)

@@ -61,7 +61,7 @@ func (c *SqliteClient) Query(query string) (conn.IterResult, error) {
 	return rows, err
 }
 
-func (c *SqliteClient) Schema() ([]conn.Layout, error) {
+func (c *SqliteClient) Layout() ([]conn.Layout, error) {
 	query := `SELECT name FROM sqlite_schema WHERE type ='table'`
 
 	rows, err := c.Query(query)

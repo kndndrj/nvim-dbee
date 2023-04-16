@@ -108,7 +108,15 @@ func (c *cache) set(iter IterResult) error {
 	// process everything else in a seperate goroutine
 	if !drained {
 		go func() {
+			i := 0
 			for {
+				// update records in chunks
+				if i >= c.pageSize {
+					c.records.store(id, cacheRecord{
+						result: result,
+					})
+					i = 0
+				}
 				row, err := iter.Next()
 				if err != nil {
 					c.log.Error(err.Error())
@@ -119,12 +127,14 @@ func (c *cache) set(iter IterResult) error {
 					break
 				}
 				result.Rows = append(result.Rows, row)
+				i++
 			}
-			// store to records and set drained to true
-			record, _ := c.records.load(id)
-			record.drained = true
-			record.result = result
-			c.records.store(id, record)
+
+			// store one last time and set drained to true
+			c.records.store(id, cacheRecord{
+				drained: true,
+				result:  result,
+			})
 		}()
 	}
 

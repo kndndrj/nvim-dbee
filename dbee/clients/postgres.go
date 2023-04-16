@@ -68,7 +68,7 @@ func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
 	return rows, nil
 }
 
-func (c *PostgresClient) Schema() ([]conn.Layout, error) {
+func (c *PostgresClient) Layout() ([]conn.Layout, error) {
 	query := `
 		SELECT table_schema, table_name FROM information_schema.tables UNION ALL
 		SELECT schemaname, matviewname FROM pg_matviews;

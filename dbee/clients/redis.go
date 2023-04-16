@@ -80,7 +80,7 @@ func (c *RedisClient) Query(query string) (conn.IterResult, error) {
 	return result, err
 }
 
-func (c *RedisClient) Schema() ([]conn.Layout, error) {
+func (c *RedisClient) Layout() ([]conn.Layout, error) {
 	return []conn.Layout{
 		{
 			Name:     "DB",

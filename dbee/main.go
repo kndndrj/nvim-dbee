@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
@@ -14,7 +15,21 @@ import (
 	"github.com/neovim/go-client/nvim/plugin"
 )
 
+var deferFns []func()
+
+// use deferer to defer in main
+func deferer(fn func()) {
+	deferFns = append(deferFns, fn)
+}
+
 func main() {
+	defer func() {
+		for _, fn := range deferFns {
+			fn()
+		}
+		// TODO: I'm sure this can be done prettier
+		time.Sleep(10 * time.Second)
+	}()
 
 	plugin.Main(func(p *plugin.Plugin) error {
 
@@ -27,21 +42,26 @@ func main() {
 		logger := nvimlog.New(p.Nvim, dl)
 
 		logger.Debug("Starting up...")
+		deferer(func() {
+			logger.Debug("Shutting down...")
+		})
 
 		// Call clients from lua via id (string)
 		connections := make(map[string]*conn.Conn)
-		defer func() {
+
+		deferer(func() {
 			for _, c := range connections {
 				c.Close()
 			}
-		}()
+			logFile.Close()
+		})
 
 		bufferOutput := output.NewBufferOutput(p.Nvim)
 
 		// Control the results window
 		// This must be called before bufferOutput is used
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_set_results_buf"},
-			func(v *nvim.Nvim, args []string) error {
+			func(v *nvim.Nvim, args []int) error {
 				method := "Dbee_set_results_buf"
 				logger.Debug("calling " + method)
 				if len(args) < 1 {
@@ -49,12 +69,7 @@ func main() {
 					return nil
 				}
 
-				bufnr, err := strconv.Atoi(args[0])
-				if err != nil {
-					logger.Error(err.Error())
-					return nil
-				}
-				bufferOutput.SetBuffer(nvim.Buffer(bufnr))
+				bufferOutput.SetBuffer(nvim.Buffer(args[0]))
 
 				logger.Debug(method + " returned successfully")
 				return nil
@@ -191,30 +206,6 @@ func main() {
 				return nil
 			})
 
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_list_history"},
-			func(args []string) ([]string, error) {
-				method := "Dbee_list_history"
-				logger.Debug("calling " + method)
-				if len(args) < 1 {
-					logger.Error("not enough arguments passed to " + method)
-					return nil, nil
-				}
-
-				id := args[0]
-
-				// Get the right connection
-				c, ok := connections[id]
-				if !ok {
-					logger.Error("connection with id " + id + " not registered")
-					return nil, nil
-				}
-
-				list := c.ListHistory()
-
-				logger.Debug(method + " returned successfully")
-				return list, nil
-			})
-
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_page"},
 			func(args []string) (int, error) {
 				method := "Dbee_page"
@@ -275,9 +266,9 @@ func main() {
 			})
 
 		// returns json string (must parse on caller side)
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_schema"},
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_layout"},
 			func(args []string) (string, error) {
-				method := "Dbee_schema"
+				method := "Dbee_layout"
 				logger.Debug("calling " + method)
 				if len(args) < 1 {
 					logger.Error("not enough arguments passed to " + method)
@@ -293,13 +284,13 @@ func main() {
 					return "{}", nil
 				}
 
-				schema, err := c.Schema()
+				layout, err := c.Layout()
 				if err != nil {
 					logger.Error(err.Error())
 					return "{}", nil
 				}
 
-				parsed, err := json.Marshal(schema)
+				parsed, err := json.Marshal(layout)
 				if err != nil {
 					logger.Error(err.Error())
 					return "{}", nil

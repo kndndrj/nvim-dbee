@@ -54,6 +54,7 @@ type HistoryOutput struct {
 	// searchId is used to identify history records over restarts
 	searchId  string
 	directory string
+	log       Logger
 }
 
 func NewHistory(searchId string, logger Logger) *HistoryOutput {
@@ -64,6 +65,7 @@ func NewHistory(searchId string, logger Logger) *HistoryOutput {
 		records:   historyMap{},
 		searchId:  searchId,
 		directory: "/tmp/dbee-history",
+		log:       logger,
 	}
 
 	// concurrently gather info about any existing histories
@@ -194,7 +196,7 @@ func (ho *HistoryOutput) Query(historyId string) (IterResult, error) {
 	return newHistoryRows(rec)
 }
 
-func (ho *HistoryOutput) List() []string {
+func (ho *HistoryOutput) Layout() ([]Layout, error) {
 	keys := ho.records.keys()
 
 	// sort the slice
@@ -202,13 +204,38 @@ func (ho *HistoryOutput) List() []string {
 		return keys[i] < keys[j]
 	})
 
-	// TODO: add metadata to the response
-	var strKeys []string
-	for _, k := range keys {
-		strKeys = append(strKeys, strconv.Itoa(int(k)))
+	var layouts []Layout
+	for _, key := range keys {
+
+		rec, ok := ho.records.load(key)
+		if !ok {
+			continue
+		}
+
+		layout := Layout{
+			Name:     strconv.Itoa(int(key)),
+			Schema:   "",
+			Database: "",
+			Type:     LayoutHistory,
+			Children: []Layout{
+				{
+					Name:     rec.meta.Timestamp.String(),
+					Schema:   "",
+					Database: "",
+					Type:     LayoutRecord,
+				},
+				{
+					Name:     rec.meta.Query,
+					Schema:   "",
+					Database: "",
+					Type:     LayoutRecord,
+				},
+			},
+		}
+		layouts = append(layouts, layout)
 	}
 
-	return strKeys
+	return layouts, nil
 }
 
 // scanOld scans the ho.directory/ho.searchId to find any existing history records

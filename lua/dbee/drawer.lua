@@ -79,7 +79,7 @@ function Drawer:create_tree(bufnr)
       end
 
       -- if connection is the active one, apply a special highlihgt on the master
-      if node.is_master and tostring(self.handler:connection_details().id) == node.id then
+      if node.is_master and self.handler:connection_details().id == node.id then
         line:append(node.text, "Title")
       else
         line:append(node.text)
@@ -213,15 +213,11 @@ function Drawer:refresh_node(master_node_id)
       local _node = NuiTree.Node({
         id = _id,
         master_id = master_node_id,
-        text = _l.name,
+        text = string.gsub(_l.name, "\n", " "),
         action = function()
           -- get action from type
           if _l.type == "table" then
-            local connection_id = tonumber(master_node_id)
-            if not connection_id then
-              error("master_node_id is not a valid number")
-            end
-            local details = self.handler:connection_details(connection_id)
+            local details = self.handler:connection_details(master_node_id)
             local table_helpers = helpers.get(details.type)
             local helper_keys = {}
             for k, _ in pairs(table_helpers) do
@@ -237,19 +233,15 @@ function Drawer:refresh_node(master_node_id)
                     table_helpers[_selection],
                     { table = _l.name, schema = _l.schema, dbname = _l.database }
                   ),
-                  connection_id
+                  master_node_id
                 )
               end
             end)
             self.handler:set_active(details.id)
           elseif _l.type == "history" then
-            local connection_id = tonumber(master_node_id)
-            if not connection_id then
-              error("master_node_id is not a valid number")
-            end
             -- TODO: make propper history ids
-            self.handler:history(_l.name, connection_id)
-            self.handler:set_active(connection_id)
+            self.handler:history(_l.name, master_node_id)
+            self.handler:set_active(master_node_id)
           elseif _l.type == "record" then
             self.tree:get_node(_id):expand()
           elseif _l.type == "scratch" then
@@ -294,23 +286,6 @@ function Drawer:refresh()
     return false
   end
 
-  -- connections
-  local cons = self.handler:list_connections()
-  for _, con in ipairs(cons) do
-    if not _exists(tostring(con.id)) then
-      ---@type MasterNode
-      local node = NuiTree.Node {
-        id = tostring(con.id),
-        text = con.name,
-        is_master = true,
-        getter = function()
-          return self.handler:layout(con.id)
-        end,
-      }
-      self.tree:add_node(node)
-    end
-  end
-
   -- scratchpads
   if not _exists(SCRATCHPAD_NODE_ID) then
     ---@type MasterNode
@@ -323,6 +298,23 @@ function Drawer:refresh()
       end,
     }
     self.tree:add_node(node)
+  end
+
+  -- connections
+  local cons = self.handler:list_connections()
+  for _, con in ipairs(cons) do
+    if not _exists(con.id) then
+      ---@type MasterNode
+      local node = NuiTree.Node {
+        id = con.id,
+        text = con.name,
+        is_master = true,
+        getter = function()
+          return self.handler:layout(con.id)
+        end,
+      }
+      self.tree:add_node(node)
+    end
   end
 
   -- refresh open master nodes

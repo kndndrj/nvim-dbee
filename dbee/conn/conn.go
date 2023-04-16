@@ -100,14 +100,14 @@ type (
 	History interface {
 		Output
 		Input
-		List() []string
+		Layout() ([]Layout, error)
 	}
 
 	// Client is a special kind of input with extra stuff
 	Client interface {
 		Input
 		Close()
-		Schema() ([]Layout, error)
+		Layout() ([]Layout, error)
 	}
 )
 
@@ -175,8 +175,8 @@ func (c *Conn) History(historyId string) error {
 	return c.cache.set(rows)
 }
 
-func (c *Conn) ListHistory() []string {
-	return c.history.List()
+func (c *Conn) ListHistory() ([]Layout, error) {
+	return c.history.Layout()
 }
 
 func (c *Conn) PageCurrent(page int, outputs ...Output) (int, error) {
@@ -188,10 +188,42 @@ func (c *Conn) WriteCurrent(outputs ...Output) error {
 	return nil
 }
 
-func (c *Conn) Schema() ([]Layout, error) {
-	return c.driver.Schema()
+func (c *Conn) Layout() ([]Layout, error) {
+
+	structure, err := c.driver.Layout()
+	if err != nil {
+		return nil, err
+	}
+	history, err := c.history.Layout()
+	if err != nil {
+		return nil, err
+	}
+
+	layout := []Layout{
+		{
+			Name:     "structure",
+			Schema:   "",
+			Database: "",
+			Type:     LayoutRecord,
+			Children: structure,
+		},
+		{
+			Name:     "history",
+			Schema:   "",
+			Database: "",
+			Type:     LayoutRecord,
+			Children: history,
+		},
+	}
+
+	return layout, nil
 }
 
 func (c *Conn) Close() {
+	if c.fresh {
+		c.log.Debug("flushing history on close")
+		c.cache.flush(true, c.history)
+	}
+
 	c.driver.Close()
 }
