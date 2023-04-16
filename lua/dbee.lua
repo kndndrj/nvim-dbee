@@ -70,17 +70,11 @@ function M.open()
   vim.cmd("new")
   vim.cmd("only")
   local editor_win = vim.api.nvim_get_current_win()
-  vim.cmd("to 40vsplit")
-  local drawer_win = vim.api.nvim_get_current_win()
-  local tmp_buf = vim.api.nvim_get_current_buf()
 
   -- open windows
   m.editor:open(editor_win)
-  m.drawer:open(drawer_win)
-  -- handler opens it's results when necessery
-
-  -- delete temporary buffer
-  vim.cmd("bd " .. tmp_buf)
+  m.drawer:open()
+  m.handler:open()
 end
 
 function M.close()

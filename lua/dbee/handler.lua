@@ -9,30 +9,26 @@
 ---@field private active_connection integer last called connection
 ---@field private last_id integer last id number
 ---@field private page_index integer current page
+---@field private winid integer
+---@field private bufnr integer
+---@field private win_cmd fun():integer function which opens a new window and returns a window id
 local Handler = {}
 
----@param opts? { connections: connection_details[], win_cmd: string }
----@return Handler|nil
+---@param opts? { connections: connection_details[], win_cmd: string|fun():integer }
+---@return Handler
 function Handler:new(opts)
   opts = opts or {}
 
-  local win_cmd = opts.win_cmd or "bo 15split"
-
   local cons = opts.connections or {}
-
-  -- register buffer output with go
-  vim.fn.Dbee_results("set", win_cmd)
 
   local connections = {}
   local last_id = 0
   for id, con in ipairs(cons) do
     if not con.url then
-      print("url needs to be set!")
-      return
+      error("url needs to be set!")
     end
     if not con.type then
-      print("no type")
-      return
+      error("no type")
     end
 
     con.name = con.name or "[empty name]"
@@ -45,12 +41,28 @@ function Handler:new(opts)
     last_id = id
   end
 
+  local win_cmd
+  if type(opts.win_cmd) == "string" then
+    win_cmd = function()
+      vim.cmd(opts.win_cmd)
+      return vim.api.nvim_get_current_win()
+    end
+  elseif type(opts.win_cmd) == "function" then
+    win_cmd = opts.win_cmd
+  else
+    win_cmd = function()
+      vim.cmd("bo 15split")
+      return vim.api.nvim_get_current_win()
+    end
+  end
+
   -- class object
   local o = {
     connections = connections,
     last_id = last_id,
     active_connection = 1,
     page_index = 0,
+    win_cmd = win_cmd,
   }
   setmetatable(o, self)
   self.__index = self
@@ -115,16 +127,25 @@ end
 function Handler:execute(query, id)
   id = id or self.active_connection
 
-  -- call Go function here - opens the first page itself
+  self:open_hook()
   self.page_index = 0
   vim.fn.Dbee_execute(tostring(id), query)
+end
+
+---@private
+-- called when anything needs to be displayed on screen
+function Handler:open_hook()
+  self:open()
+  vim.api.nvim_buf_set_option(self.bufnr, "modifiable", true)
+  vim.api.nvim_buf_set_lines(self.bufnr, 0, -1, true, { "Loading..." })
+  vim.api.nvim_buf_set_option(self.bufnr, "modifiable", false)
 end
 
 ---@param id? integer connection id
 function Handler:page_next(id)
   id = id or self.active_connection
 
-  -- go func returns selected page
+  self:open_hook()
   self.page_index = vim.fn.Dbee_page(tostring(id), tostring(self.page_index + 1))
 end
 
@@ -132,6 +153,7 @@ end
 function Handler:page_prev(id)
   id = id or self.active_connection
 
+  self:open_hook()
   self.page_index = vim.fn.Dbee_page(tostring(id), tostring(self.page_index - 1))
 end
 
@@ -139,7 +161,8 @@ end
 ---@param id? integer connection id
 function Handler:history(history_id, id)
   id = id or self.active_connection
-  -- call Go function here - opens the first page itself
+
+  self:open_hook()
   self.page_index = 0
   vim.fn.Dbee_history(tostring(id), history_id)
 end
@@ -197,8 +220,37 @@ function Handler:save(format, file, id)
 end
 
 -- fill the Ui interface - open results
-function Handler:open()
-  vim.fn.Dbee_results("open")
+---@param winid? integer
+function Handler:open(winid)
+  winid = winid or self.winid
+  if not winid or not vim.api.nvim_win_is_valid(winid) then
+    winid = self.win_cmd()
+  end
+
+  -- if buffer doesn't exist, create it
+  local bufnr = self.bufnr
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+    bufnr = vim.api.nvim_create_buf(false, true)
+  end
+  vim.api.nvim_win_set_buf(winid, bufnr)
+  vim.api.nvim_set_current_win(winid)
+  vim.api.nvim_buf_set_name(bufnr, "dbee-results-" .. tostring(os.clock()))
+
+  local win_opts = {
+    wrap = false,
+    winfixheight = true,
+    winfixwidth = true,
+    number = false,
+  }
+  for opt, val in pairs(win_opts) do
+    vim.api.nvim_win_set_option(winid, opt, val)
+  end
+
+  self.winid = winid
+  self.bufnr = bufnr
+
+  -- register in go
+  vim.fn.Dbee_set_results_buf(tostring(bufnr))
 end
 
 -- fill the Ui interface - close results

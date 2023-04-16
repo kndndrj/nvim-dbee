@@ -36,40 +36,25 @@ func main() {
 			}
 		}()
 
-		bufferOutput := output.NewBufferOutput(p.Nvim, "")
+		bufferOutput := output.NewBufferOutput(p.Nvim)
 
 		// Control the results window
 		// This must be called before bufferOutput is used
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_results"},
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_set_results_buf"},
 			func(v *nvim.Nvim, args []string) error {
-				method := "Dbee_results"
+				method := "Dbee_set_results_buf"
 				logger.Debug("calling " + method)
 				if len(args) < 1 {
 					logger.Error("not enough arguments passed to " + method)
 					return nil
 				}
 
-				action := args[0]
-
-				switch action {
-				case "set":
-					if len(args) >= 2 {
-						bufferOutput.SetWindowCommand(args[1])
-					} else {
-						logger.Error("not enough arguments to " + method + " - create")
-					}
+				bufnr, err := strconv.Atoi(args[0])
+				if err != nil {
+					logger.Error(err.Error())
 					return nil
-				case "open":
-					err := bufferOutput.Open()
-					if err != nil {
-						logger.Error(err.Error())
-					}
-				case "close":
-					err := bufferOutput.Close()
-					if err != nil {
-						logger.Error(err.Error())
-					}
 				}
+				bufferOutput.SetBuffer(nvim.Buffer(bufnr))
 
 				logger.Debug(method + " returned successfully")
 				return nil

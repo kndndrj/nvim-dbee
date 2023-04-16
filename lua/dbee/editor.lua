@@ -4,19 +4,34 @@ local SCRATCHES_DIR = vim.fn.stdpath("cache") .. "/dbee/scratches"
 
 ---@class Editor
 ---@field private handler Handler
----@field private ui_opts { win_cmd: string, winid: integer}
 ---@field private scratches string[] list of scratch files
----@field current_scratch integer id of the current scratch
+---@field private current_scratch integer id of the current scratch
+---@field private winid integer
+---@field private win_cmd fun():integer function which opens a new window and returns a window id
 local Editor = {}
 
----@param opts? { handler: Handler, win_cmd: string }
----@return Editor|nil
+---@param opts? { handler: Handler, win_cmd: string | fun():integer }
+---@return Editor
 function Editor:new(opts)
   opts = opts or {}
 
   if opts.handler == nil then
-    print("no Handler provided to editor")
-    return
+    error("no Handler provided to editor")
+  end
+
+  local win_cmd
+  if type(opts.win_cmd) == "string" then
+    win_cmd = function()
+      vim.cmd(opts.win_cmd)
+      return vim.api.nvim_get_current_win()
+    end
+  elseif type(opts.win_cmd) == "function" then
+    win_cmd = opts.win_cmd
+  else
+    win_cmd = function()
+      vim.cmd("split")
+      return vim.api.nvim_get_current_win()
+    end
   end
 
   -- check for any existing scratches
@@ -34,12 +49,10 @@ function Editor:new(opts)
   -- class object
   local o = {
     handler = opts.handler,
-    ui_opts = {
-      win_cmd = opts.win_cmd or "vsplit",
-      winid = nil,
-    },
+    winid = nil,
     scratches = scratches,
     current_scratch = 1,
+    win_cmd = win_cmd,
   }
   setmetatable(o, self)
   self.__index = self
@@ -98,16 +111,13 @@ function Editor:map_keys(bufnr)
   local map_options = { noremap = true, nowait = true, buffer = bufnr }
 end
 
----@param winid? integer if provided, use it instead of creating new window
+---@param winid? integer
 function Editor:open(winid)
-  -- if window doesn't exist, create it
-  winid = winid or self.ui_opts.winid
+  winid = winid or self.winid
   if not winid or not vim.api.nvim_win_is_valid(winid) then
-    vim.cmd(self.ui_opts.win_cmd)
-    winid = vim.api.nvim_get_current_win()
+    winid = self.win_cmd()
   end
 
-  -- open the file
   vim.api.nvim_set_current_win(winid)
 
   local s = self.scratches[self.current_scratch]
@@ -135,7 +145,7 @@ function Editor:open(winid)
   -- set keymaps
   self:map_keys(bufnr)
 
-  self.ui_opts.winid = winid
+  self.winid = winid
 
   -- set options
   local buf_opts = {
@@ -148,7 +158,7 @@ function Editor:open(winid)
 end
 
 function Editor:close()
-  vim.api.nvim_win_close(self.ui_opts.winid, false)
+  vim.api.nvim_win_close(self.winid, false)
 end
 
 return Editor

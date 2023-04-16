@@ -15,24 +15,39 @@ local helpers = require("dbee.helpers")
 ---@field private tree table NuiTree
 ---@field private handler Handler
 ---@field private editor Editor
----@field private ui_opts { win_cmd: string, bufnr: integer, winid: integer}
+---@field private bufnr integer
+---@field private winid integer
+---@field private win_cmd fun():integer function which opens a new window and returns a window id
 local Drawer = {}
 
 local SCRATCHPAD_NODE_ID = "scratchpad_node"
 
----@param opts? { handler: Handler, editor: Editor, win_cmd: string }
----@return Drawer|nil
+---@param opts? { handler: Handler, editor: Editor, win_cmd: string | fun():integer }
+---@return Drawer
 function Drawer:new(opts)
   opts = opts or {}
 
   if opts.handler == nil then
-    print("no Handler provided to drawer")
-    return
+    error("no Handler provided to drawer")
   end
 
   if opts.editor == nil then
-    print("no Editor provided to drawer")
-    return
+    error("no Editor provided to drawer")
+  end
+
+  local win_cmd
+  if type(opts.win_cmd) == "string" then
+    win_cmd = function()
+      vim.cmd(opts.win_cmd)
+      return vim.api.nvim_get_current_win()
+    end
+  elseif type(opts.win_cmd) == "function" then
+    win_cmd = opts.win_cmd
+  else
+    win_cmd = function()
+      vim.cmd("to 40vsplit")
+      return vim.api.nvim_get_current_win()
+    end
   end
 
   -- class object
@@ -40,11 +55,7 @@ function Drawer:new(opts)
     tree = nil,
     handler = opts.handler,
     editor = opts.editor,
-    ui_opts = {
-      win_cmd = opts.win_cmd or "to 40vsplit",
-      bufnr = nil,
-      winid = nil,
-    },
+    win_cmd = win_cmd,
   }
   setmetatable(o, self)
   self.__index = self
@@ -323,19 +334,17 @@ function Drawer:refresh()
 end
 
 -- Show drawer on screen
----@param winid? integer if provided, use it instead of creating new window
+---@param winid? integer
 function Drawer:open(winid)
-  -- if buffer doesn't exist, create it
-  local bufnr = self.ui_opts.bufnr
-  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
-    bufnr = vim.api.nvim_create_buf(false, true)
+  winid = winid or self.winid
+  if not winid or not vim.api.nvim_win_is_valid(winid) then
+    winid = self.win_cmd()
   end
 
-  -- if window doesn't exist, create it
-  winid = winid or self.ui_opts.winid
-  if not winid or not vim.api.nvim_win_is_valid(winid) then
-    vim.cmd(self.ui_opts.win_cmd)
-    winid = vim.api.nvim_get_current_win()
+  -- if buffer doesn't exist, create it
+  local bufnr = self.bufnr
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+    bufnr = vim.api.nvim_create_buf(false, true)
   end
 
   vim.api.nvim_win_set_buf(winid, bufnr)
@@ -371,14 +380,14 @@ function Drawer:open(winid)
   self:map_keys(bufnr)
   self.tree.bufnr = bufnr
 
-  self.ui_opts.bufnr = bufnr
-  self.ui_opts.winid = winid
+  self.bufnr = bufnr
+  self.winid = winid
 
   self.tree:render()
 end
 
 function Drawer:close()
-  vim.api.nvim_win_close(self.ui_opts.winid, false)
+  vim.api.nvim_win_close(self.winid, false)
 end
 
 return Drawer
