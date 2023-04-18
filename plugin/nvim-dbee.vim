@@ -18,7 +18,7 @@ endfunction
 " See :h msgpack-rpc and :h jobstart() for more information.
 function! s:Start_dbee(host) abort
     return jobstart(['dbee'], {
-        \ 'rpc': v:true, 
+        \ 'rpc': v:true,
         \ 'detach': v:true, 
         \ 'on_stderr': function('s:panic')
         \ })

@@ -1,6 +1,23 @@
+local helpers = require("dbee.helpers")
+
 ---@alias conn_id string
 ---@alias connection_details { name: string, type: string, url: string, id: conn_id }
----@alias layout { name: string, schema: string, database: string, type: "record"|"table"|"history"|"scratch", children: layout[] }
+--
+---@class _LayoutGo
+---@field name string display name
+---@field type "record"|"table"|"history" type of layout -> this infers action
+---@field schema? string parent schema
+---@field database? string parent database
+---@field children? Layout[] child layout nodes
+
+---@class Layout
+---@field name string display name
+---@field schema? string parent schema
+---@field database? string parent database
+---@field action_1? fun(cb: fun()) primary action - takes single arg: callback closure
+---@field action_2? fun(cb: fun()) secondary action - takes single arg: callback closure
+---@field action_3? fun(cb: fun()) tertiary action - takes single arg: callback closure
+---@field children? Layout[] child layout nodes
 
 -- Handler is a wrapper around the go code
 -- it is the central part of the plugin and manages connections.
@@ -44,7 +61,6 @@ function Handler:new(opts)
 
     connections[id] = con
   end
-  print(active)
 
   local win_cmd
   if type(opts.win_cmd) == "string" then
@@ -103,8 +119,7 @@ end
 ---@param id conn_id connection id
 function Handler:set_active(id)
   if not id or self.connections[id] == nil then
-    print("no id specified!")
-    return
+    error("no id specified!")
   end
   self.active_connection = id
 end
@@ -175,13 +190,74 @@ function Handler:history(history_id, id)
   vim.fn.Dbee_history(id, history_id)
 end
 
--- get layout for the connection (combines history and schema)
+-- get layout for the connection
 ---@param id? conn_id connection id
----@return layout[]
+---@return Layout[]
 function Handler:layout(id)
   id = id or self.active_connection
 
-  return vim.fn.json_decode(vim.fn.Dbee_layout(id))
+  ---@param _layout_go _LayoutGo[] layout from go
+  ---@return Layout[] layout with actions
+  local function _to_layout(_layout_go)
+    if not _layout_go or _layout_go == vim.NIL then
+      return {}
+    end
+
+    local _new_layouts = {}
+    for _, _lgo in ipairs(_layout_go) do
+      -- action
+      local action_1
+      if _lgo.type == "table" then
+        action_1 = function(cb)
+          local details = self:connection_details(id)
+          local table_helpers = helpers.get(details.type)
+          local helper_keys = {}
+          for k, _ in pairs(table_helpers) do
+            table.insert(helper_keys, k)
+          end
+          -- select a helper to execute
+          vim.ui.select(helper_keys, {
+            prompt = "select a helper to execute:",
+          }, function(_selection)
+            if _selection then
+              self:execute(
+                helpers.expand_query(
+                  table_helpers[_selection],
+                  { table = _lgo.name, schema = _lgo.schema, dbname = _lgo.database }
+                ),
+                id
+              )
+            end
+            cb()
+          end)
+          self:set_active(id)
+        end
+      elseif _lgo.type == "history" then
+        action_1 = function(cb)
+          self:history(_lgo.name, id)
+          self:set_active(id)
+          cb()
+        end
+      end
+      -- action_2, action_3 are empty
+
+      local _ly = {
+        name = _lgo.name,
+        schema = _lgo.schema,
+        database = _lgo.database,
+        action_1 = action_1,
+        action_2 = nil,
+        action_3 = nil,
+        children = _to_layout(_lgo.children),
+      }
+
+      table.insert(_new_layouts, _ly)
+    end
+
+    return _new_layouts
+  end
+
+  return _to_layout(vim.fn.json_decode(vim.fn.Dbee_layout(id)))
 end
 
 ---@param format "csv"|"json" how to format the result

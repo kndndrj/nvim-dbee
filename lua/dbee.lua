@@ -70,11 +70,14 @@ function M.open()
   vim.cmd("new")
   vim.cmd("only")
   local editor_win = vim.api.nvim_get_current_win()
+  local tmp_buf = vim.api.nvim_get_current_buf()
 
   -- open windows
   m.editor:open(editor_win)
   m.drawer:open()
   m.handler:open()
+
+  vim.cmd("bd " .. tmp_buf)
 end
 
 function M.close()
@@ -98,13 +101,6 @@ function M.prev()
     lazy_setup()
   end
   m.handler:page_prev()
-end
-
-function M.execute_selection()
-  if not m.loaded then
-    lazy_setup()
-  end
-  m.editor:execute_selection()
 end
 
 ---@param command? "wget"|"curl"|"bitsadmin"|"go" preffered command

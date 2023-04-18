@@ -1,5 +1,14 @@
 local M = {}
 
+-- Get random key from table
+---@param tbl table key-value table
+---@return any|nil key
+function M.random_key(tbl)
+  for k, _ in pairs(tbl) do
+    return k
+  end
+end
+
 -- Get cursor range of current selection
 ---@return integer start row
 ---@return integer start column

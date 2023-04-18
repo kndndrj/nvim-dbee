@@ -1,15 +1,17 @@
 local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
-local helpers = require("dbee.helpers")
 
 ---@class Node
 ---@field id string
 ---@field text string
 ---@field is_expanded fun(self:Node):boolean
 ---@field is_master boolean
+---@field action_1 fun() function to perform on primary event
+---@field action_2 fun() function to perform on secondary event
+---@field action_3 fun() function to perform on tertiary event
 
 ---@class MasterNode: Node
----@field getter fun():layout
+---@field getter fun():Layout
 
 ---@class Drawer
 ---@field private tree table NuiTree
@@ -112,11 +114,27 @@ function Drawer:map_keys(bufnr)
     self:refresh()
   end, map_options)
 
-  -- confirm
+  -- action_1 (confirm)
   vim.keymap.set("n", "<CR>", function()
     local node = self.tree:get_node()
-    if type(node.action) == "function" then
-      node.action()
+    if type(node.action_1) == "function" then
+      node.action_1()
+    end
+  end, map_options)
+
+  -- action_2 (alter)
+  vim.keymap.set("n", "da", function()
+    local node = self.tree:get_node()
+    if type(node.action_2) == "function" then
+      node.action_2()
+    end
+  end, map_options)
+
+  -- action_3 (remove)
+  vim.keymap.set("n", "dd", function()
+    local node = self.tree:get_node()
+    if type(node.action_3) == "function" then
+      node.action_3()
     end
   end, map_options)
 
@@ -192,13 +210,13 @@ function Drawer:refresh_node(master_node_id)
 
   local layout = master_node.getter()
 
-  ---@param _layout layout[]
+  ---@param _layout Layout[]
   ---@param _parent_id? string
   ---@return table nodes list of NuiTreeNodes
   local function _layout_to_tree_nodes(_layout, _parent_id)
     _parent_id = _parent_id or ""
 
-    if not _layout or _layout == vim.NIL then
+    if not _layout then
       return {}
     end
 
@@ -214,42 +232,20 @@ function Drawer:refresh_node(master_node_id)
         id = _id,
         master_id = master_node_id,
         text = string.gsub(_l.name, "\n", " "),
-        action = function()
-          -- get action from type
-          if _l.type == "table" then
-            local details = self.handler:connection_details(master_node_id)
-            local table_helpers = helpers.get(details.type)
-            local helper_keys = {}
-            for k, _ in pairs(table_helpers) do
-              table.insert(helper_keys, k)
-            end
-            -- select a helper to execute
-            vim.ui.select(helper_keys, {
-              prompt = "select a helper to execute:",
-            }, function(_selection)
-              if _selection then
-                self.handler:execute(
-                  helpers.expand_query(
-                    table_helpers[_selection],
-                    { table = _l.name, schema = _l.schema, dbname = _l.database }
-                  ),
-                  master_node_id
-                )
-              end
-            end)
-            self.handler:set_active(details.id)
-          elseif _l.type == "history" then
-            -- TODO: make propper history ids
-            self.handler:history(_l.name, master_node_id)
-            self.handler:set_active(master_node_id)
-          elseif _l.type == "record" then
-            self.tree:get_node(_id):expand()
-          elseif _l.type == "scratch" then
-            self.editor:set_active_scratch(_l.name)
-            self.editor:open()
-          end
-
-          self:refresh_node(master_node_id)
+        action_1 = function()
+          _l.action_1(function()
+            self:refresh()
+          end)
+        end,
+        action_2 = function()
+          _l.action_2(function()
+            self:refresh()
+          end)
+        end,
+        action_3 = function()
+          _l.action_3(function()
+            self:refresh()
+          end)
         end,
         -- recurse children
       }, _layout_to_tree_nodes(_l.children, _id))
