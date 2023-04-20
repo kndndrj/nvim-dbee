@@ -4,9 +4,11 @@ local M = {}
 ---@param tbl table key-value table
 ---@return any|nil key
 function M.random_key(tbl)
+  -- luacheck: push ignore 512
   for k, _ in pairs(tbl) do
     return k
   end
+  -- luacheck: pop
 end
 
 -- Get cursor range of current selection
@@ -15,7 +17,6 @@ end
 ---@return integer end row
 ---@return integer end column
 function M.visual_selection()
-
   -- return to normal mode ('< and '> become available only after you exit visual mode)
   local key = vim.api.nvim_replace_termcodes("<esc>", true, false, true)
   vim.api.nvim_feedkeys(key, "x", false)

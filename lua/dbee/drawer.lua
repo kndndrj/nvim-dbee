@@ -138,26 +138,26 @@ function Drawer:map_keys(bufnr)
     end
   end, map_options)
 
-  local function _collapse_node(node)
+  local function collapse_node(node)
     if node:collapse() then
       self.tree:render()
     end
   end
 
-  local function _expand_node(node)
+  local function expand_node(node)
     -- expand all children nodes with only one field
-    local function __expand_all_single(n)
+    local function expand_all_single(n)
       local children = n:get_child_ids()
       if #children == 1 then
         local nested_node = self.tree:get_node(children[1])
         nested_node:expand()
-        __expand_all_single(nested_node)
+        expand_all_single(nested_node)
       end
     end
 
     local expanded = node:is_expanded()
 
-    __expand_all_single(node)
+    expand_all_single(node)
 
     if node.is_master then
       self:refresh_node(node.id)
@@ -176,7 +176,7 @@ function Drawer:map_keys(bufnr)
     if not node then
       return
     end
-    _collapse_node(node)
+    collapse_node(node)
   end, map_options)
 
   -- expand current node
@@ -185,7 +185,7 @@ function Drawer:map_keys(bufnr)
     if not node then
       return
     end
-    _expand_node(node)
+    expand_node(node)
   end, map_options)
 
   -- toggle collapse/expand
@@ -195,9 +195,9 @@ function Drawer:map_keys(bufnr)
       return
     end
     if node:is_expanded() then
-      _collapse_node(node)
+      collapse_node(node)
     else
-      _expand_node(node)
+      expand_node(node)
     end
   end, map_options)
 end
@@ -205,64 +205,64 @@ end
 ---@private
 ---@param master_node_id string master node id
 function Drawer:refresh_node(master_node_id)
+  ---@param layouts Layout[]
+  ---@param parent_id? string
+  ---@return table nodes list of NuiTreeNodes
+  local function layout_to_tree_nodes(layouts, parent_id)
+    parent_id = parent_id or ""
+
+    if not layouts then
+      return {}
+    end
+
+    -- sort keys
+    table.sort(layouts, function(k1, k2)
+      return k1.name < k2.name
+    end)
+
+    local nodes = {}
+    for _, l in ipairs(layouts) do
+      local id = parent_id .. l.name
+      local node = NuiTree.Node({
+        id = id,
+        master_id = master_node_id,
+        text = string.gsub(l.name, "\n", " "),
+        action_1 = function()
+          l.action_1(function()
+            self:refresh()
+          end)
+        end,
+        action_2 = function()
+          l.action_2(function()
+            self:refresh()
+          end)
+        end,
+        action_3 = function()
+          l.action_3(function()
+            self:refresh()
+          end)
+        end,
+        -- recurse children
+      }, layout_to_tree_nodes(l.children, id))
+
+      -- get existing node from the current tree and check if it is expanded
+      local ex_node = self.tree:get_node(id)
+      if ex_node and ex_node:is_expanded() then
+        node:expand()
+      end
+
+      table.insert(nodes, node)
+    end
+
+    return nodes
+  end
+
   ---@type MasterNode
   local master_node = self.tree:get_node(master_node_id)
 
   local layout = master_node.getter()
 
-  ---@param _layout Layout[]
-  ---@param _parent_id? string
-  ---@return table nodes list of NuiTreeNodes
-  local function _layout_to_tree_nodes(_layout, _parent_id)
-    _parent_id = _parent_id or ""
-
-    if not _layout then
-      return {}
-    end
-
-    -- sort keys
-    table.sort(_layout, function(k1, k2)
-      return k1.name < k2.name
-    end)
-
-    local _nodes = {}
-    for _, _l in ipairs(_layout) do
-      local _id = _parent_id .. _l.name
-      local _node = NuiTree.Node({
-        id = _id,
-        master_id = master_node_id,
-        text = string.gsub(_l.name, "\n", " "),
-        action_1 = function()
-          _l.action_1(function()
-            self:refresh()
-          end)
-        end,
-        action_2 = function()
-          _l.action_2(function()
-            self:refresh()
-          end)
-        end,
-        action_3 = function()
-          _l.action_3(function()
-            self:refresh()
-          end)
-        end,
-        -- recurse children
-      }, _layout_to_tree_nodes(_l.children, _id))
-
-      -- get existing node from the current tree and check if it is expanded
-      local _ex_node = self.tree:get_node(_id)
-      if _ex_node and _ex_node:is_expanded() then
-        _node:expand()
-      end
-
-      table.insert(_nodes, _node)
-    end
-
-    return _nodes
-  end
-
-  local children = _layout_to_tree_nodes(layout, tostring(master_node_id))
+  local children = layout_to_tree_nodes(layout, tostring(master_node_id))
 
   self.tree:set_nodes(children, master_node_id)
   self.tree:render()
@@ -272,10 +272,10 @@ function Drawer:refresh()
   ---@type MasterNode[]
   local existing_nodes = self.tree:get_nodes()
 
-  ---@param _id string
-  local function _exists(_id)
-    for _, _n in ipairs(existing_nodes) do
-      if _n.id == _id then
+  ---@param id string
+  local function exists(id)
+    for _, n in ipairs(existing_nodes) do
+      if n.id == id then
         return true
       end
     end
@@ -283,7 +283,7 @@ function Drawer:refresh()
   end
 
   -- scratchpads
-  if not _exists(SCRATCHPAD_NODE_ID) then
+  if not exists(SCRATCHPAD_NODE_ID) then
     ---@type MasterNode
     local node = NuiTree.Node {
       id = SCRATCHPAD_NODE_ID,
@@ -299,7 +299,7 @@ function Drawer:refresh()
   -- connections
   local cons = self.handler:list_connections()
   for _, con in ipairs(cons) do
-    if not _exists(con.id) then
+    if not exists(con.id) then
       ---@type MasterNode
       local node = NuiTree.Node {
         id = con.id,

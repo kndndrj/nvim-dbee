@@ -196,15 +196,15 @@ end
 function Handler:layout(id)
   id = id or self.active_connection
 
-  ---@param _layout_go _LayoutGo[] layout from go
+  ---@param layout_go _LayoutGo[] layout from go
   ---@return Layout[] layout with actions
-  local function _to_layout(_layout_go)
-    if not _layout_go or _layout_go == vim.NIL then
+  local function to_layout(layout_go)
+    if not layout_go or layout_go == vim.NIL then
       return {}
     end
 
     local _new_layouts = {}
-    for _, _lgo in ipairs(_layout_go) do
+    for _, _lgo in ipairs(layout_go) do
       -- action
       local action_1
       if _lgo.type == "table" then
@@ -218,11 +218,11 @@ function Handler:layout(id)
           -- select a helper to execute
           vim.ui.select(helper_keys, {
             prompt = "select a helper to execute:",
-          }, function(_selection)
-            if _selection then
+          }, function(selection)
+            if selection then
               self:execute(
                 helpers.expand_query(
-                  table_helpers[_selection],
+                  table_helpers[selection],
                   { table = _lgo.name, schema = _lgo.schema, dbname = _lgo.database }
                 ),
                 id
@@ -248,7 +248,7 @@ function Handler:layout(id)
         action_1 = action_1,
         action_2 = nil,
         action_3 = nil,
-        children = _to_layout(_lgo.children),
+        children = to_layout(_lgo.children),
       }
 
       table.insert(_new_layouts, _ly)
@@ -257,7 +257,7 @@ function Handler:layout(id)
     return _new_layouts
   end
 
-  return _to_layout(vim.fn.json_decode(vim.fn.Dbee_layout(id)))
+  return to_layout(vim.fn.json_decode(vim.fn.Dbee_layout(id)))
 end
 
 ---@param format "csv"|"json" how to format the result
