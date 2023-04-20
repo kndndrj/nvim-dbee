@@ -1,0 +1,25 @@
+name: Linting and Style Checking
+
+on: [push, pull_request]
+
+jobs:
+  luacheck:
+    runs-on: ubuntu-20.04
+    name: Lint Lua Code
+    steps:
+      - uses: actions/checkout@v3
+      - name: Luacheck Linter
+        uses: lunarmodules/luacheck@v0
+        with:
+          args: lua/
+
+  stylua:
+    runs-on: ubuntu-20.04
+    name: Check Lua Style
+    steps:
+      - uses: actions/checkout@v3
+      - name: Lua Style Check
+        uses: JohnnyMorganz/stylua-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --color always --check lua/

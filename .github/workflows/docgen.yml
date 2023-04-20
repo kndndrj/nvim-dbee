@@ -1,0 +1,42 @@
+name: Documentation Generation
+
+on: [push, pull_request]
+
+jobs:
+  check-markdown-format:
+    runs-on: ubuntu-20.04
+    name: Check Markdown Format
+    steps:
+      - uses: actions/checkout@v3
+      - name: Python Setup
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.8'
+      - name: Install mdformat
+        run: |
+          pip install mdformat-gfm
+      - name: Markdown Style Check
+        run: |
+          mdformat --number --wrap 80 --check README.md
+
+  generate-docs:
+    runs-on: ubuntu-20.04
+    name: Generate Documentation
+    needs: check-markdown-format
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install md2vim
+        run: |
+          curl -L -o md2vim.tar.gz https://github.com/FooSoft/md2vim/releases/download/21.12.14.0/md2vim_linux_amd64.tar.gz
+          tar -xzvf md2vim.tar.gz
+      - name: Generate Vim Help from Markdown
+        run: |
+          ./md2vim -desc "Database client for NeoVim" <(sed '0,/docgen-start/d' README.md) doc/dbee.txt
+      - name: Commit the Generated Help
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: doc/dbee.txt
+          author_name: Github Actions
+          author_email: actions@github.com
+          message: "[docgen] Update doc/dbee.txt"
+          pull: --rebase --autostash
