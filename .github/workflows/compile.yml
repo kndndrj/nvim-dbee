@@ -148,7 +148,7 @@ jobs:
     name: Create Install File
     needs: [ upload-binaries, check-secrets ]
     env:
-      MANIFEST_FILE: "lua/dbee/__version.lua"
+      MANIFEST_FILE: "lua/dbee/install/__manifest.lua"
       COMMIT_HASH: "${{ needs.upload-binaries.outputs.commit-hash }}"
       BINARY_LIST: "${{ needs.upload-binaries.outputs.binary-list }}"
       BUCKET_REPOSITORY_NAME: "${{ secrets.BUCKET_REPOSITORY_NAME }}"
