@@ -1,1 +1,13 @@
-placeholder
+dbee.txt                                              Database client for NeoVim
+
+
+================================================================================
+CONTENTS                                                           *dbee-contents*
+
+1. Neovim DBee..................................................|dbee-neovim_dbee|
+
+================================================================================
+NEOVIM DBEE                                                     *dbee-neovim_dbee*
+
+Database client for NeoVim
+
