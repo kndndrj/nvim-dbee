@@ -9,6 +9,8 @@ local helpers = require("dbee.helpers")
 ---@field schema? string parent schema
 ---@field database? string parent database
 ---@field children? Layout[] child layout nodes
+--
+---@alias handler_config { fallback_window_command: string|fun():integer }
 
 -- Handler is a wrapper around the go code
 -- it is the central part of the plugin and manages connections.
@@ -22,45 +24,45 @@ local helpers = require("dbee.helpers")
 ---@field private win_cmd fun():integer function which opens a new window and returns a window id
 local Handler = {}
 
----@param opts? { connections: connection_details[], win_cmd: string|fun():integer }
+---@param connections? connection_details[]
+---@param opts? handler_config
 ---@return Handler
-function Handler:new(opts)
+function Handler:new(connections, opts)
+  connections = connections or {}
   opts = opts or {}
 
-  local cons = opts.connections or {}
-
   local active = "ž" -- this MUST get overwritten
-  local connections = {}
-  for _, con in ipairs(cons) do
-    if not con.url then
+  local conns = {}
+  for _, conn in ipairs(connections) do
+    if not conn.url then
       error("url needs to be set!")
     end
-    if not con.type then
+    if not conn.type then
       error("no type")
     end
 
-    con.name = con.name or "[empty name]"
-    local id = con.name .. con.type
+    conn.name = conn.name or "[empty name]"
+    local id = conn.name .. conn.type
 
-    con.id = id
+    conn.id = id
     if id < active then
       active = id
     end
 
     -- register in go
-    vim.fn.Dbee_register_connection(id, con.url, con.type)
+    vim.fn.Dbee_register_connection(id, conn.url, conn.type)
 
-    connections[id] = con
+    conns[id] = conn
   end
 
   local win_cmd
-  if type(opts.win_cmd) == "string" then
+  if type(opts.fallback_window_command) == "string" then
     win_cmd = function()
-      vim.cmd(opts.win_cmd)
+      vim.cmd(opts.fallback_window_command)
       return vim.api.nvim_get_current_win()
     end
-  elseif type(opts.win_cmd) == "function" then
-    win_cmd = opts.win_cmd
+  elseif type(opts.fallback_window_command) == "function" then
+    win_cmd = opts.fallback_window_command
   else
     win_cmd = function()
       vim.cmd("bo 15split")
@@ -70,7 +72,7 @@ function Handler:new(opts)
 
   -- class object
   local o = {
-    connections = connections,
+    connections = conns,
     active_connection = active,
     page_index = 0,
     win_cmd = win_cmd,

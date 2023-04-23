@@ -8,36 +8,87 @@ local install = require("dbee.install")
 local M = {}
 local m = {}
 
----@alias setup_opts { connections: { name: string, type: string, url: string }, lazy: boolean }
+-- configuration object
+---@class Config
+---@field connections { name: string, type: string, url: string }[] list of configured database connections
+---@field lazy boolean lazy load the plugin or not?
+---@field drawer drawer_config
+---@field editor editor_config
+---@field result handler_config
 
----@class Ui
----@field open fun(self: Ui, winid?: integer)
----@field close fun(self: Ui, )
+-- default configuration
+---@type Config
+local default_config = {
+  connections = {},
+  lazy = false,
+  drawer = {
+    fallback_window_command = "to 40vsplit",
+    disable_icons = false,
+    icons = {
+      history = {
+        icon = "",
+        highlight = "Constant",
+      },
+      scratch = {
+        icon = "",
+        highlight = "Character",
+      },
+      database = {
+        icon = "",
+        highlight = "SpecialChar",
+      },
+      table = {
+        icon = "",
+        highlight = "Conditional",
+      },
+
+      -- if there is no type
+      -- use this for normal nodes...
+      none = {
+        icon = " ",
+      },
+      -- ...and use this for nodes with children
+      none_dir = {
+        icon = "",
+        highlight = "NonText",
+      },
+    },
+  },
+  result = {
+    fallback_window_command = "bo 15split",
+  },
+  editor = {
+    fallback_window_command = function()
+      return vim.api.nvim_get_current_win()
+    end,
+  },
+}
 
 -- is the plugin loaded?
 m.loaded = false
----@type setup_opts
+---@type Config
 m.setup_opts = {}
 
 local function lazy_setup()
-  local opts = m.setup_opts
+  ---@type Config
+  local opts = vim.tbl_deep_extend("force", default_config, m.setup_opts)
 
   -- add install binary to path
   vim.env.PATH = install.path() .. ":" .. vim.env.PATH
 
-  m.handler = Handler:new { connections = opts.connections, win_cmd = "bo 15split" }
+  m.handler = Handler:new(opts.connections, opts.result)
   if not m.handler then
     print("error in handler setup")
     return
   end
 
-  m.editor = Editor:new { handler = m.handler, win_cmd = "vsplit" }
+  m.editor = Editor:new(m.handler, opts.editor)
   if not m.editor then
     print("error in editor setup")
     return
   end
 
-  m.drawer = Drawer:new { handler = m.handler, editor = m.editor, icons = { enable = true }, win_cmd = "to 40vsplit" }
+  m.drawer = Drawer:new(m.handler, m.editor, opts.drawer)
   if not m.drawer then
     print("error in drawer setup")
     return
@@ -46,7 +97,7 @@ local function lazy_setup()
   m.loaded = true
 end
 
----@param opts setup_opts
+---@param opts Config
 function M.setup(opts)
   m.setup_opts = opts or {}
   if m.setup_opts.lazy then

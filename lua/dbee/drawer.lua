@@ -1,6 +1,8 @@
 local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
 
+local SCRATCHPAD_NODE_ID = "scratchpad_node"
+
 ---@class Icon
 ---@field icon string
 ---@field highlight string
@@ -28,6 +30,8 @@ local NuiLine = require("nui.line")
 ---@class MasterNode: Node
 ---@field getter fun():Layout
 
+---@alias drawer_config { disable_icons: boolean, icons: table<string, Icon>, fallback_window_command: string|fun():integer }
+
 ---@class Drawer
 ---@field private tree table NuiTree
 ---@field private handler Handler
@@ -38,29 +42,28 @@ local NuiLine = require("nui.line")
 ---@field private win_cmd fun():integer function which opens a new window and returns a window id
 local Drawer = {}
 
-local SCRATCHPAD_NODE_ID = "scratchpad_node"
-
----@param opts? { handler: Handler, editor: Editor, icons: { enable: boolean, values: table<string, Icon> }, win_cmd: string | fun():integer }
+---@param handler Handler
+---@param editor Editor
+---@param opts? drawer_config
 ---@return Drawer
-function Drawer:new(opts)
+function Drawer:new(handler, editor, opts)
   opts = opts or {}
 
-  if opts.handler == nil then
+  if not handler then
     error("no Handler provided to drawer")
   end
-
-  if opts.editor == nil then
+  if not editor then
     error("no Editor provided to drawer")
   end
 
   local win_cmd
-  if type(opts.win_cmd) == "string" then
+  if type(opts.fallback_window_command) == "string" then
     win_cmd = function()
-      vim.cmd(opts.win_cmd)
+      vim.cmd(opts.fallback_window_command)
       return vim.api.nvim_get_current_win()
     end
-  elseif type(opts.win_cmd) == "function" then
-    win_cmd = opts.win_cmd
+  elseif type(opts.fallback_window_command) == "function" then
+    win_cmd = opts.fallback_window_command
   else
     win_cmd = function()
       vim.cmd("to 40vsplit")
@@ -68,47 +71,16 @@ function Drawer:new(opts)
     end
   end
 
-  ---@type table<string, Icon>
   local icons = {}
-  if opts.icons and opts.icons.enable then
-    icons = {
-      history = {
-        icon = "",
-        highlight = "Constant",
-      },
-      scratch = {
-        icon = "",
-        highlight = "Character",
-      },
-      database = {
-        icon = "",
-        highlight = "SpecialChar",
-      },
-      table = {
-        icon = "",
-        highlight = "Conditional",
-      },
-
-      -- if there is no type
-      -- use this for normal nodes...
-      none = {
-        icon = " ",
-      },
-      -- ...and use this for nodes with children
-      none_dir = {
-        icon = "",
-        highlight = "NonText",
-      },
-    }
-
-    icons = vim.tbl_deep_extend("force", icons, opts.icons)
+  if not opts.disable_icons then
+    icons = opts.icons or {}
   end
 
   -- class object
   local o = {
     tree = nil,
-    handler = opts.handler,
-    editor = opts.editor,
+    handler = handler,
+    editor = editor,
     icons = icons,
     win_cmd = win_cmd,
   }
@@ -145,6 +117,7 @@ function Drawer:create_tree(bufnr)
       else
         icon = self.icons[node.type] or {}
       end
+      icon = icon or {}
 
       if icon.icon then
         line:append(" " .. icon.icon .. " ", icon.highlight)

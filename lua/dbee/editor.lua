@@ -1,9 +1,10 @@
 local utils = require("dbee.utils")
 
+local SCRATCHES_DIR = vim.fn.stdpath("cache") .. "/dbee/scratches"
+
 ---@alias scratch_id string
 ---@alias scratch_details { file: string, bufnr: integer, type: "file"|"buffer", id: scratch_id }
-
-local SCRATCHES_DIR = vim.fn.stdpath("cache") .. "/dbee/scratches"
+---@alias editor_config { fallback_window_command: string|fun():integer }
 
 ---@class Editor
 ---@field private handler Handler
@@ -13,23 +14,24 @@ local SCRATCHES_DIR = vim.fn.stdpath("cache") .. "/dbee/scratches"
 ---@field private win_cmd fun():integer function which opens a new window and returns a window id
 local Editor = {}
 
----@param opts? { handler: Handler, win_cmd: string | fun():integer }
+---@param handler Handler
+---@param opts? editor_config
 ---@return Editor
-function Editor:new(opts)
+function Editor:new(handler, opts)
   opts = opts or {}
 
-  if not opts.handler then
+  if not handler then
     error("no Handler provided to editor")
   end
 
   local win_cmd
-  if type(opts.win_cmd) == "string" then
+  if type(opts.fallback_window_command) == "string" then
     win_cmd = function()
-      vim.cmd(opts.win_cmd)
+      vim.cmd(opts.fallback_window_command)
       return vim.api.nvim_get_current_win()
     end
-  elseif type(opts.win_cmd) == "function" then
-    win_cmd = opts.win_cmd
+  elseif type(opts.fallback_window_command) == "function" then
+    win_cmd = opts.fallback_window_command
   else
     win_cmd = function()
       vim.cmd("split")
@@ -57,7 +59,7 @@ function Editor:new(opts)
 
   -- class object
   local o = {
-    handler = opts.handler,
+    handler = handler,
     winid = nil,
     scratches = scratches,
     active_scratch = active,
