@@ -266,7 +266,7 @@ end
 function Handler:save(format, file, id)
   id = id or self.active_connection
   -- TODO
-  vim.fn.Dbee_save(id)
+  vim.fn.Dbee_save(id, format, file)
 end
 
 -- fill the Ui interface - open results
