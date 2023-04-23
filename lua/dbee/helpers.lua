@@ -66,6 +66,7 @@ function M.get(type)
   elseif type == "redis" then
     return redis()
   end
+  error("unsupported table type for helpers: " .. type)
   return {}
 end
 

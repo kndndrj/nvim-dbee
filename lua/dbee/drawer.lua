@@ -1,6 +1,15 @@
 local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
 
+---@class Layout
+---@field name string display name
+---@field schema? string parent schema
+---@field database? string parent database
+---@field action_1? fun(cb: fun()) primary action - takes single arg: callback closure
+---@field action_2? fun(cb: fun()) secondary action - takes single arg: callback closure
+---@field action_3? fun(cb: fun()) tertiary action - takes single arg: callback closure
+---@field children? Layout[] child layout nodes
+
 ---@class Node
 ---@field id string
 ---@field text string
@@ -305,6 +314,11 @@ function Drawer:refresh()
         id = con.id,
         text = con.name,
         is_master = true,
+        -- set connection as active manually
+        action_2 = function()
+          self.handler:set_active(con.id)
+          self:refresh_node(con.id)
+        end,
         getter = function()
           return self.handler:layout(con.id)
         end,

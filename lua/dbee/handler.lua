@@ -10,15 +10,6 @@ local helpers = require("dbee.helpers")
 ---@field database? string parent database
 ---@field children? Layout[] child layout nodes
 
----@class Layout
----@field name string display name
----@field schema? string parent schema
----@field database? string parent database
----@field action_1? fun(cb: fun()) primary action - takes single arg: callback closure
----@field action_2? fun(cb: fun()) secondary action - takes single arg: callback closure
----@field action_3? fun(cb: fun()) tertiary action - takes single arg: callback closure
----@field children? Layout[] child layout nodes
-
 -- Handler is a wrapper around the go code
 -- it is the central part of the plugin and manages connections.
 -- almost all functions take the connection id as their argument.
@@ -205,7 +196,7 @@ function Handler:layout(id)
 
     local _new_layouts = {}
     for _, _lgo in ipairs(layout_go) do
-      -- action
+      -- action 1 executes query or history
       local action_1
       if _lgo.type == "table" then
         action_1 = function(cb)
@@ -239,14 +230,19 @@ function Handler:layout(id)
           cb()
         end
       end
-      -- action_2, action_3 are empty
+      -- action 2 activates the connection manually
+      local action_2 = function(cb)
+        self:set_active(id)
+        cb()
+      end
+      -- action_3 is empty
 
       local _ly = {
         name = _lgo.name,
         schema = _lgo.schema,
         database = _lgo.database,
         action_1 = action_1,
-        action_2 = nil,
+        action_2 = action_2,
         action_3 = nil,
         children = to_layout(_lgo.children),
       }
