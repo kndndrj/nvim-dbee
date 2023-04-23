@@ -2,6 +2,12 @@ name: Compile and Upload Binaries
 
 on: [push, pull_request]
 
+env:
+  BUCKET_REPOSITORY_PUBLISH_USER: "${{ secrets.BUCKET_REPOSITORY_PUBLISH_USER }}"
+  BUCKET_REPOSITORY_PUBLISH_TOKEN: "${{ secrets.BUCKET_REPOSITORY_PUBLISH_TOKEN }}"
+  BUCKET_REPOSITORY_NAME: "${{ vars.BUCKET_REPOSITORY_NAME }}"
+  BUCKET_REPOSITORY_OWNER: "${{ vars.BUCKET_REPOSITORY_OWNER }}"
+
 jobs:
   assemble-os-matrix:
     runs-on: ubuntu-latest
@@ -37,10 +43,10 @@ jobs:
     steps:
       - name: Check for Secret Availability
         run: |
-          [ "${{ secrets.BUCKET_REPOSITORY_TOKEN }}" != '' ] || (echo "no BUCKET_REPOSITORY_TOKEN secret"; exit 1)
-          [ "${{ secrets.BUCKET_REPOSITORY_NAME }}" != '' ] || (echo "no BUCKET_REPOSITORY_NAME secret"; exit 1)
-          [ "${{ secrets.BUCKET_REPOSITORY_OWNER }}" != '' ] || (echo "no BUCKET_REPOSITORY_OWNER secret"; exit 1)
-          [ "${{ secrets.BUCKET_REPOSITORY_PUBLISH_USER }}" != '' ] || (echo "no BUCKET_REPOSITORY_PUBLISH_USER secret"; exit 1)
+          [ "$BUCKET_REPOSITORY_PUBLISH_USER" != '' ] || (echo "no BUCKET_REPOSITORY_PUBLISH_USER secret"; exit 1)
+          [ "$BUCKET_REPOSITORY_PUBLISH_TOKEN" != '' ] || (echo "no BUCKET_REPOSITORY_PUBLISH_TOKEN secret"; exit 1)
+          [ "$BUCKET_REPOSITORY_OWNER" != '' ] || (echo "no BUCKET_REPOSITORY_OWNER secret"; exit 1)
+          [ "$BUCKET_REPOSITORY_NAME" != '' ] || (echo "no BUCKET_REPOSITORY_NAME secret"; exit 1)
 
   go-test:
     runs-on: ubuntu-latest
@@ -93,11 +99,6 @@ jobs:
     runs-on: ubuntu-latest
     name: Upload Binaries
     needs: [ go-build, check-secrets ]
-    env:
-      BUCKET_REPOSITORY_TOKEN: "${{ secrets.BUCKET_REPOSITORY_TOKEN }}"
-      BUCKET_REPOSITORY_NAME: "${{ secrets.BUCKET_REPOSITORY_NAME }}"
-      BUCKET_REPOSITORY_OWNER: "${{ secrets.BUCKET_REPOSITORY_OWNER }}"
-      BUCKET_REPOSITORY_PUBLISH_USER: "${{ secrets.BUCKET_REPOSITORY_PUBLISH_USER }}"
     outputs:
       commit-hash: ${{ steps.publish-binaries.outputs.commit-hash }}
       binary-list: ${{ steps.parse-artifacts.outputs.binary-list }}
@@ -126,7 +127,7 @@ jobs:
         id: publish-binaries
         run: |
           echo "cloning bucket repository"
-          git clone https://"$BUCKET_REPOSITORY_PUBLISH_USER":"$BUCKET_REPOSITORY_TOKEN"@github.com/"$BUCKET_REPOSITORY_OWNER"/"$BUCKET_REPOSITORY_NAME" bucket
+          git clone https://"$BUCKET_REPOSITORY_PUBLISH_USER":"$BUCKET_REPOSITORY_PUBLISH_TOKEN"@github.com/"$BUCKET_REPOSITORY_OWNER"/"$BUCKET_REPOSITORY_NAME" bucket
           cd bucket
           git config user.name "Github Actions"
           git config user.email "actions@github.com"
@@ -151,8 +152,6 @@ jobs:
       MANIFEST_FILE: "lua/dbee/install/__manifest.lua"
       COMMIT_HASH: "${{ needs.upload-binaries.outputs.commit-hash }}"
       BINARY_LIST: "${{ needs.upload-binaries.outputs.binary-list }}"
-      BUCKET_REPOSITORY_NAME: "${{ secrets.BUCKET_REPOSITORY_NAME }}"
-      BUCKET_REPOSITORY_OWNER: "${{ secrets.BUCKET_REPOSITORY_OWNER }}"
     steps:
       - uses: actions/checkout@v3
       - name: Create Install File from Artifacts
