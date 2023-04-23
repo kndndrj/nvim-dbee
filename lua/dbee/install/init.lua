@@ -26,7 +26,7 @@ local function get_url(osys, arch)
   }
   -- TODO:
   local os_aliases = {
-    ["win"] = "windows",
+    ["windows_nt"] = "windows",
   }
 
   if not osys or not arch then
@@ -62,7 +62,7 @@ local function get_version()
 end
 
 ---@param command? "wget"|"curl"|"bitsadmin"|"go"
----@return { cmd: string, args: string[], env: { string: string } }
+---@return { cmd: string, args: string[], env: { string: string } }[]
 local function get_job(command)
   local uname = vim.loop.os_uname()
   local arch = uname.machine
@@ -73,69 +73,93 @@ local function get_job(command)
   -- make install dir
   vim.fn.mkdir(install_dir, "p")
 
-  local jobs = {
+  local chmod = {
+    cmd = "chmod",
+    args = { "+x", install_binary },
+    env = {},
+  }
+
+  local jobs_list = {
     wget = function()
       return {
-        cmd = "wget",
-        args = { "-O", install_binary, get_url(osys, arch) },
-        env = {},
+        {
+          cmd = "wget",
+          args = { "-O", install_binary, get_url(osys, arch) },
+          env = {},
+        },
+        chmod,
       }
     end,
     curl = function()
       return {
-        cmd = "curl",
-        args = { "-sfLo", install_binary, get_url(osys, arch) },
-        env = {},
+        {
+          cmd = "curl",
+          args = { "-sfLo", install_binary, get_url(osys, arch) },
+          env = {},
+        },
+        chmod,
       }
     end,
     bitsadmin = function()
       return {
-        cmd = "bitsadmin",
-        args = { "TODO" },
-        env = {},
+        {
+          cmd = "bitsadmin",
+          args = { "TODO" },
+          env = {},
+        },
       }
     end,
     go = function()
       return {
-        cmd = "go",
-        args = { "install", "github.com/kndndrj/nvim-dbee/dbee@" .. get_version() },
-        env = { GOBIN = install_dir },
+        {
+          cmd = "go",
+          args = { "install", "github.com/kndndrj/nvim-dbee/dbee@" .. get_version() },
+          env = { GOBIN = install_dir },
+        },
       }
     end,
   }
   -- priority list
-  local prio = { "wget", "curl", "bitsadmin", "go" }
+  local prio_job_list = { "wget", "curl", "bitsadmin", "go" }
 
   -- if command is provided use it
   if command then
-    local job = jobs[command]()
-    if job and vim.fn.executable(job.cmd) == 1 then
-      return job
+    local jobs = jobs_list[command]() or {}
+    for _, j in ipairs(jobs) do
+      if vim.fn.executable(j.cmd) ~= 1 then
+        error('"' .. command .. '" is not a supported installation method')
+      end
     end
-    error('"' .. command .. '" is not a supported installation method')
+    return jobs
   end
 
   -- else find the first suitable command
-  for _, cmd in ipairs(prio) do
-    local job = jobs[cmd]()
-    if job and vim.fn.executable(job.cmd) == 1 then
-      return job
+  for _, cmd in ipairs(prio_job_list) do
+    local jobs = jobs_list[cmd]() or {}
+    local ignore = false
+    for _, j in ipairs(jobs) do
+      if vim.fn.executable(j.cmd) ~= 1 then
+        ignore = true
+        break
+      end
+    end
+    if not ignore then
+      return jobs
     end
   end
 
-  error("no suitable command found")
+  error("no suitable installation method found")
 end
 
----@param command? "wget"|"curl"|"bitsadmin"|"go" preffered command
-function M.exec(command)
-  -- find a suitable install command
-  local job = get_job(command)
-
-  print("installing dbee with: " .. job.cmd)
-
-  -- run the command
+---@param jobs table jobs to run in order
+---@param index integer index of the job in jobs table
+local function run_jobs(jobs, index)
+  local job = jobs[index]
+  if not job then
+    return
+  end
+  print("running command: " .. job.cmd)
   local uv = vim.loop
-
   -- set env and save the previous values
   -- for some reason setting env on uv.spawn doesnt work
   local saved_env = {}
@@ -161,7 +185,11 @@ function M.exec(command)
   }, function(code, _)
     handle:close()
     if code == 0 then
-      print("successfully installed")
+      if index >= #jobs then
+        print("successfully installed")
+        return
+      end
+      run_jobs(jobs, index + 1)
     else
       print("installation error")
     end
@@ -172,6 +200,20 @@ function M.exec(command)
     print("installation error")
     cleanup()
   end
+end
+
+---@param command? "wget"|"curl"|"bitsadmin"|"go" preffered command
+function M.exec(command)
+  -- find a suitable install command
+  local jobs = get_job(command)
+
+  local msg = ""
+  for _, j in ipairs(jobs) do
+    msg = msg .. " " .. j.cmd
+  end
+  print("installing dbee with: " .. msg)
+
+  run_jobs(jobs, 1)
 end
 
 return M
