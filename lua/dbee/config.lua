@@ -27,6 +27,15 @@ M.default = {
   drawer = {
     window_command = "to 40vsplit",
     disable_icons = false,
+    mappings = {
+      refresh = "r",
+      action_1 = "<CR>",
+      action_2 = "da",
+      action_3 = "dd",
+      collapse = "c",
+      expand = "e",
+      toggle = "o",
+    },
     icons = {
       history = {
         icon = "",
@@ -67,6 +76,10 @@ M.default = {
       m.tmp_buf = vim.api.nvim_get_current_buf()
       return vim.api.nvim_get_current_win()
     end,
+    mappings = {
+      run_selection = "BB",
+      run_file = "BB",
+    },
   },
   ui = {
     window_open_order = { "editor", "result", "drawer" },

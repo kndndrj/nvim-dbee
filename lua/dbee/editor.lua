@@ -4,10 +4,11 @@ local SCRATCHES_DIR = vim.fn.stdpath("cache") .. "/dbee/scratches"
 
 ---@alias scratch_id string
 ---@alias scratch_details { file: string, bufnr: integer, type: "file"|"buffer", id: scratch_id }
----@alias editor_config { window_command: string|fun():integer }
+---@alias editor_config { mappings: table<string, string>, window_command: string|fun():integer }
 
 ---@class Editor
 ---@field private handler Handler
+---@field private mappings table<string, string>
 ---@field private scratches table<scratch_id, scratch_details> id - scratch mapping
 ---@field private active_scratch scratch_id id of the current scratch
 ---@field private winid integer
@@ -63,6 +64,7 @@ function Editor:new(handler, opts)
     winid = nil,
     scratches = scratches,
     active_scratch = active,
+    mappings = opts.mappings or {},
     win_cmd = win_cmd,
   }
   setmetatable(o, self)
@@ -205,23 +207,29 @@ function Editor:map_keys(bufnr)
   local map_options = { noremap = true, nowait = true, buffer = bufnr }
 
   -- run the whole file
-  vim.keymap.set("n", "BB", function()
-    local bnr = self.scratches[self.active_scratch].bufnr
-    local lines = vim.api.nvim_buf_get_lines(bnr, 0, -1, false)
-    local query = table.concat(lines, "\n")
+  local key = self.mappings["run_file"]
+  if key then
+    vim.keymap.set("n", key, function()
+      local bnr = self.scratches[self.active_scratch].bufnr
+      local lines = vim.api.nvim_buf_get_lines(bnr, 0, -1, false)
+      local query = table.concat(lines, "\n")
 
-    self.handler:execute(query)
-  end, map_options)
+      self.handler:execute(query)
+    end, map_options)
+  end
 
   -- run selection
-  vim.keymap.set("v", "BB", function()
-    local srow, scol, erow, ecol = utils.visual_selection()
+  key = self.mappings["run_selection"]
+  if key then
+    vim.keymap.set("v", key, function()
+      local srow, scol, erow, ecol = utils.visual_selection()
 
-    local selection = vim.api.nvim_buf_get_text(0, srow, scol, erow, ecol, {})
-    local query = table.concat(selection, "\n")
+      local selection = vim.api.nvim_buf_get_text(0, srow, scol, erow, ecol, {})
+      local query = table.concat(selection, "\n")
 
-    self.handler:execute(query)
-  end, map_options)
+      self.handler:execute(query)
+    end, map_options)
+  end
 end
 
 function Editor:open()

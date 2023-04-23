@@ -30,12 +30,13 @@ local SCRATCHPAD_NODE_ID = "scratchpad_node"
 ---@class MasterNode: Node
 ---@field getter fun():Layout
 
----@alias drawer_config { disable_icons: boolean, icons: table<string, Icon>, window_command: string|fun():integer }
+---@alias drawer_config { disable_icons: boolean, icons: table<string, Icon>, mappings: table<string, string>, window_command: string|fun():integer }
 
 ---@class Drawer
 ---@field private tree table NuiTree
 ---@field private handler Handler
 ---@field private editor Editor
+---@field private mappings table<string, string>
 ---@field private bufnr integer
 ---@field private winid integer
 ---@field private icons table<string, Icon>
@@ -81,6 +82,7 @@ function Drawer:new(handler, editor, opts)
     tree = nil,
     handler = handler,
     editor = editor,
+    mappings = opts.mappings or {},
     icons = icons,
     win_cmd = win_cmd,
   }
@@ -147,39 +149,46 @@ end
 function Drawer:map_keys(bufnr)
   local map_options = { noremap = true, nowait = true, buffer = bufnr }
 
-  -- quit
-  vim.keymap.set("n", "q", function()
-    vim.api.nvim_win_close(0, false)
-  end, map_options)
-
   -- manual refresh
-  vim.keymap.set("n", "r", function()
-    self:refresh()
-  end, map_options)
+  local key = self.mappings["refresh"]
+  if key then
+    vim.keymap.set("n", key, function()
+      self:refresh()
+    end, map_options)
+  end
 
   -- action_1 (confirm)
-  vim.keymap.set("n", "<CR>", function()
-    local node = self.tree:get_node()
-    if type(node.action_1) == "function" then
-      node.action_1()
-    end
-  end, map_options)
+  key = self.mappings["action_1"]
+  if key then
+    vim.keymap.set("n", key, function()
+      local node = self.tree:get_node()
+      if type(node.action_1) == "function" then
+        node.action_1()
+      end
+    end, map_options)
+  end
 
   -- action_2 (alter)
-  vim.keymap.set("n", "da", function()
-    local node = self.tree:get_node()
-    if type(node.action_2) == "function" then
-      node.action_2()
-    end
-  end, map_options)
+  key = self.mappings["action_2"]
+  if key then
+    vim.keymap.set("n", key, function()
+      local node = self.tree:get_node()
+      if type(node.action_2) == "function" then
+        node.action_2()
+      end
+    end, map_options)
+  end
 
   -- action_3 (remove)
-  vim.keymap.set("n", "dd", function()
-    local node = self.tree:get_node()
-    if type(node.action_3) == "function" then
-      node.action_3()
-    end
-  end, map_options)
+  key = self.mappings["action_3"]
+  if key then
+    vim.keymap.set("n", key, function()
+      local node = self.tree:get_node()
+      if type(node.action_3) == "function" then
+        node.action_3()
+      end
+    end, map_options)
+  end
 
   local function collapse_node(node)
     if node:collapse() then
@@ -214,35 +223,44 @@ function Drawer:map_keys(bufnr)
   end
 
   -- collapse current node
-  vim.keymap.set("n", "c", function()
-    local node = self.tree:get_node()
-    if not node then
-      return
-    end
-    collapse_node(node)
-  end, map_options)
+  key = self.mappings["collapse"]
+  if key then
+    vim.keymap.set("n", key, function()
+      local node = self.tree:get_node()
+      if not node then
+        return
+      end
+      collapse_node(node)
+    end, map_options)
+  end
 
   -- expand current node
-  vim.keymap.set("n", "e", function()
-    local node = self.tree:get_node()
-    if not node then
-      return
-    end
-    expand_node(node)
-  end, map_options)
+  key = self.mappings["expand"]
+  if key then
+    vim.keymap.set("n", key, function()
+      local node = self.tree:get_node()
+      if not node then
+        return
+      end
+      expand_node(node)
+    end, map_options)
+  end
 
   -- toggle collapse/expand
-  vim.keymap.set("n", "o", function()
-    local node = self.tree:get_node()
-    if not node then
-      return
-    end
-    if node:is_expanded() then
-      collapse_node(node)
-    else
-      expand_node(node)
-    end
-  end, map_options)
+  key = self.mappings["toggle"]
+  if key then
+    vim.keymap.set("n", key, function()
+      local node = self.tree:get_node()
+      if not node then
+        return
+      end
+      if node:is_expanded() then
+        collapse_node(node)
+      else
+        expand_node(node)
+      end
+    end, map_options)
+  end
 end
 
 ---@private

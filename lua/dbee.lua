@@ -51,9 +51,11 @@ function M.setup(o)
     -- submodules
     result_window_command = { opts.result.window_command, { "string", "function" } },
     editor_window_command = { opts.editor.window_command, { "string", "function" } },
+    editor_mappings = { opts.editor.mappings, "table" },
     drawer_window_command = { opts.drawer.window_command, { "string", "function" } },
     drawer_disable_icons = { opts.drawer.disable_icons, "boolean" },
     drawer_icons = { opts.drawer.icons, "table" },
+    drawer_mappings = { opts.drawer.mappings, "table" },
     -- ui
     ui_window_open_order = { opts.ui.window_open_order, "table" },
     ui_pre_open_hook = { opts.ui.pre_open_hook, "function" },
