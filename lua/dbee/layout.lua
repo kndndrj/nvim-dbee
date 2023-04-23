@@ -9,6 +9,19 @@
 
 local M = {}
 
+-- closes all currently open floating windows
+local function close_all_floating()
+  local closed_windows = {}
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    local config = vim.api.nvim_win_get_config(win)
+    if config.relative ~= "" then
+      vim.api.nvim_win_close(win, false)
+      table.insert(closed_windows, win)
+    end
+  end
+end
+
+
 -- add bufnr to leaf
 local function add_details(layout)
   if layout[1] == "leaf" then
@@ -44,6 +57,9 @@ end
 
 ---@return layoutEgg layout egg (use with restore())
 function M.save()
+  -- close any floating windows first
+  close_all_floating()
+
   local layout = vim.fn.winlayout()
   local restore_cmd = vim.fn.winrestcmd()
 

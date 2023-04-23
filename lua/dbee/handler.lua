@@ -10,7 +10,7 @@ local helpers = require("dbee.helpers")
 ---@field database? string parent database
 ---@field children? Layout[] child layout nodes
 --
----@alias handler_config { fallback_window_command: string|fun():integer }
+---@alias handler_config { window_command: string|fun():integer }
 
 -- Handler is a wrapper around the go code
 -- it is the central part of the plugin and manages connections.
@@ -56,13 +56,13 @@ function Handler:new(connections, opts)
   end
 
   local win_cmd
-  if type(opts.fallback_window_command) == "string" then
+  if type(opts.window_command) == "string" then
     win_cmd = function()
-      vim.cmd(opts.fallback_window_command)
+      vim.cmd(opts.window_command)
       return vim.api.nvim_get_current_win()
     end
-  elseif type(opts.fallback_window_command) == "function" then
-    win_cmd = opts.fallback_window_command
+  elseif type(opts.window_command) == "function" then
+    win_cmd = opts.window_command
   else
     win_cmd = function()
       vim.cmd("bo 15split")
@@ -296,11 +296,9 @@ function Handler:save(format, file, id)
 end
 
 -- fill the Ui interface - open results
----@param winid? integer
-function Handler:open(winid)
-  winid = winid or self.winid
-  if not winid or not vim.api.nvim_win_is_valid(winid) then
-    winid = self.win_cmd()
+function Handler:open()
+  if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
+    self.winid = self.win_cmd()
   end
 
   -- if buffer doesn't exist, create it
@@ -308,8 +306,8 @@ function Handler:open(winid)
   if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
     bufnr = vim.api.nvim_create_buf(false, true)
   end
-  vim.api.nvim_win_set_buf(winid, bufnr)
-  vim.api.nvim_set_current_win(winid)
+  vim.api.nvim_win_set_buf(self.winid, bufnr)
+  vim.api.nvim_set_current_win(self.winid)
   vim.api.nvim_buf_set_name(bufnr, "dbee-results-" .. tostring(os.clock()))
 
   local win_opts = {
@@ -319,19 +317,17 @@ function Handler:open(winid)
     number = false,
   }
   for opt, val in pairs(win_opts) do
-    vim.api.nvim_win_set_option(winid, opt, val)
+    vim.api.nvim_win_set_option(self.winid, opt, val)
   end
 
-  self.winid = winid
   self.bufnr = bufnr
 
   -- register in go
   vim.fn.Dbee_set_results_buf(bufnr)
 end
 
--- fill the Ui interface - close results
 function Handler:close()
-  vim.fn.Dbee_results("close")
+  pcall(vim.api.nvim_win_close, self.winid, false)
 end
 
 return Handler

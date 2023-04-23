@@ -30,7 +30,7 @@ local SCRATCHPAD_NODE_ID = "scratchpad_node"
 ---@class MasterNode: Node
 ---@field getter fun():Layout
 
----@alias drawer_config { disable_icons: boolean, icons: table<string, Icon>, fallback_window_command: string|fun():integer }
+---@alias drawer_config { disable_icons: boolean, icons: table<string, Icon>, window_command: string|fun():integer }
 
 ---@class Drawer
 ---@field private tree table NuiTree
@@ -57,13 +57,13 @@ function Drawer:new(handler, editor, opts)
   end
 
   local win_cmd
-  if type(opts.fallback_window_command) == "string" then
+  if type(opts.window_command) == "string" then
     win_cmd = function()
-      vim.cmd(opts.fallback_window_command)
+      vim.cmd(opts.window_command)
       return vim.api.nvim_get_current_win()
     end
-  elseif type(opts.fallback_window_command) == "function" then
-    win_cmd = opts.fallback_window_command
+  elseif type(opts.window_command) == "function" then
+    win_cmd = opts.window_command
   else
     win_cmd = function()
       vim.cmd("to 40vsplit")
@@ -373,11 +373,9 @@ function Drawer:refresh()
 end
 
 -- Show drawer on screen
----@param winid? integer
-function Drawer:open(winid)
-  winid = winid or self.winid
-  if not winid or not vim.api.nvim_win_is_valid(winid) then
-    winid = self.win_cmd()
+function Drawer:open()
+  if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
+    self.winid = self.win_cmd()
   end
 
   -- if buffer doesn't exist, create it
@@ -386,8 +384,8 @@ function Drawer:open(winid)
     bufnr = vim.api.nvim_create_buf(false, true)
   end
 
-  vim.api.nvim_win_set_buf(winid, bufnr)
-  vim.api.nvim_set_current_win(winid)
+  vim.api.nvim_win_set_buf(self.winid, bufnr)
+  vim.api.nvim_set_current_win(self.winid)
   vim.api.nvim_buf_set_name(bufnr, "dbee-drawer")
 
   -- set options
@@ -407,7 +405,7 @@ function Drawer:open(winid)
     vim.api.nvim_buf_set_option(bufnr, opt, val)
   end
   for opt, val in pairs(win_opts) do
-    vim.api.nvim_win_set_option(winid, opt, val)
+    vim.api.nvim_win_set_option(self.winid, opt, val)
   end
 
   -- tree
@@ -420,13 +418,12 @@ function Drawer:open(winid)
   self.tree.bufnr = bufnr
 
   self.bufnr = bufnr
-  self.winid = winid
 
   self.tree:render()
 end
 
 function Drawer:close()
-  vim.api.nvim_win_close(self.winid, false)
+  pcall(vim.api.nvim_win_close, self.winid, false)
 end
 
 return Drawer

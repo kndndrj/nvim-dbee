@@ -4,7 +4,7 @@ local SCRATCHES_DIR = vim.fn.stdpath("cache") .. "/dbee/scratches"
 
 ---@alias scratch_id string
 ---@alias scratch_details { file: string, bufnr: integer, type: "file"|"buffer", id: scratch_id }
----@alias editor_config { fallback_window_command: string|fun():integer }
+---@alias editor_config { window_command: string|fun():integer }
 
 ---@class Editor
 ---@field private handler Handler
@@ -25,13 +25,13 @@ function Editor:new(handler, opts)
   end
 
   local win_cmd
-  if type(opts.fallback_window_command) == "string" then
+  if type(opts.window_command) == "string" then
     win_cmd = function()
-      vim.cmd(opts.fallback_window_command)
+      vim.cmd(opts.window_command)
       return vim.api.nvim_get_current_win()
     end
-  elseif type(opts.fallback_window_command) == "function" then
-    win_cmd = opts.fallback_window_command
+  elseif type(opts.window_command) == "function" then
+    win_cmd = opts.window_command
   else
     win_cmd = function()
       vim.cmd("split")
@@ -224,14 +224,12 @@ function Editor:map_keys(bufnr)
   end, map_options)
 end
 
----@param winid? integer
-function Editor:open(winid)
-  winid = winid or self.winid
-  if not winid or not vim.api.nvim_win_is_valid(winid) then
-    winid = self.win_cmd()
+function Editor:open()
+  if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
+    self.winid = self.win_cmd()
   end
 
-  vim.api.nvim_set_current_win(winid)
+  vim.api.nvim_set_current_win(self.winid)
 
   -- get current scratch details
   local id = self.active_scratch
@@ -244,7 +242,7 @@ function Editor:open(winid)
   -- if file doesn't exist, open new buffer and update list on save
   if vim.fn.filereadable(s.file) ~= 1 then
     bufnr = s.bufnr or vim.api.nvim_create_buf(true, false)
-    vim.api.nvim_win_set_buf(winid, bufnr)
+    vim.api.nvim_win_set_buf(self.winid, bufnr)
 
     -- automatically fill the name of the file when saving for the first time
     vim.keymap.set("c", "w", function()
@@ -270,14 +268,13 @@ function Editor:open(winid)
   else
     -- just open the file
     bufnr = s.bufnr or vim.api.nvim_create_buf(true, false)
-    vim.api.nvim_win_set_buf(winid, bufnr)
+    vim.api.nvim_win_set_buf(self.winid, bufnr)
     vim.cmd("e " .. s.file)
   end
 
   -- set keymaps
   self:map_keys(bufnr)
 
-  self.winid = winid
   self.scratches[self.active_scratch].bufnr = bufnr
 
   -- set options
@@ -292,7 +289,7 @@ function Editor:open(winid)
 end
 
 function Editor:close()
-  vim.api.nvim_win_close(self.winid, false)
+  pcall(vim.api.nvim_win_close, self.winid, false)
 end
 
 return Editor
