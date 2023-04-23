@@ -111,7 +111,7 @@ func (c *PostgresClient) Layout() ([]conn.Layout, error) {
 			Schema: k,
 			// TODO:
 			Database: "",
-			Type:     conn.LayoutRecord,
+			Type:     conn.LayoutNone,
 			Children: v,
 		})
 	}

@@ -52,6 +52,7 @@ func (bo *BufferOutput) Write(result conn.Result) error {
 		Header: text.FormatDefault,
 		Row:    text.FormatDefault,
 	}
+	t.Style().Options.DrawBorder = false
 	render := t.Render()
 
 	scanner := bufio.NewScanner(strings.NewReader(render))

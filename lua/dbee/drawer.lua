@@ -1,10 +1,15 @@
 local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
 
+---@class Icon
+---@field icon string
+---@field highlight string
+
 ---@class Layout
 ---@field name string display name
 ---@field schema? string parent schema
 ---@field database? string parent database
+---@field type ""|"table"|"history"|"scratch"|"database" type of layout
 ---@field action_1? fun(cb: fun()) primary action - takes single arg: callback closure
 ---@field action_2? fun(cb: fun()) secondary action - takes single arg: callback closure
 ---@field action_3? fun(cb: fun()) tertiary action - takes single arg: callback closure
@@ -13,6 +18,7 @@ local NuiLine = require("nui.line")
 ---@class Node
 ---@field id string
 ---@field text string
+---@field type string type which infers icon
 ---@field is_expanded fun(self:Node):boolean
 ---@field is_master boolean
 ---@field action_1 fun() function to perform on primary event
@@ -28,12 +34,13 @@ local NuiLine = require("nui.line")
 ---@field private editor Editor
 ---@field private bufnr integer
 ---@field private winid integer
+---@field private icons table<string, Icon>
 ---@field private win_cmd fun():integer function which opens a new window and returns a window id
 local Drawer = {}
 
 local SCRATCHPAD_NODE_ID = "scratchpad_node"
 
----@param opts? { handler: Handler, editor: Editor, win_cmd: string | fun():integer }
+---@param opts? { handler: Handler, editor: Editor, icons: { enable: boolean, values: table<string, Icon> }, win_cmd: string | fun():integer }
 ---@return Drawer
 function Drawer:new(opts)
   opts = opts or {}
@@ -61,11 +68,48 @@ function Drawer:new(opts)
     end
   end
 
+  ---@type table<string, Icon>
+  local icons = {}
+  if opts.icons and opts.icons.enable then
+    icons = {
+      history = {
+        icon = "",
+        highlight = "Constant",
+      },
+      scratch = {
+        icon = "",
+        highlight = "Character",
+      },
+      database = {
+        icon = "",
+        highlight = "SpecialChar",
+      },
+      table = {
+        icon = "",
+        highlight = "Conditional",
+      },
+
+      -- if there is no type
+      -- use this for normal nodes...
+      none = {
+        icon = " ",
+      },
+      -- ...and use this for nodes with children
+      none_dir = {
+        icon = "",
+        highlight = "NonText",
+      },
+    }
+
+    icons = vim.tbl_deep_extend("force", icons, opts.icons)
+  end
+
   -- class object
   local o = {
     tree = nil,
     handler = opts.handler,
     editor = opts.editor,
+    icons = icons,
     win_cmd = win_cmd,
   }
   setmetatable(o, self)
@@ -77,21 +121,38 @@ end
 ---@return table tree
 function Drawer:create_tree(bufnr)
   return NuiTree {
-    bufnr = bufnr, -- dummy to suppress error
+    bufnr = bufnr,
     prepare_node = function(node)
       local line = NuiLine()
 
       line:append(string.rep("  ", node:get_depth() - 1))
 
       if node:has_children() or not node:get_parent_id() then
-        line:append(node:is_expanded() and " " or " ", "SpecialChar")
+        line:append(node:is_expanded() and " " or " ", "NonText")
       else
         line:append("  ")
       end
 
-      -- if connection is the active one, apply a special highlihgt on the master
+      ---@type Icon
+      local icon
+      -- special icons for nodes without type
+      if not node.type or node.type == "" then
+        if node:has_children() then
+          icon = self.icons["none_dir"]
+        else
+          icon = self.icons["none"]
+        end
+      else
+        icon = self.icons[node.type] or {}
+      end
+
+      if icon.icon then
+        line:append(" " .. icon.icon .. " ", icon.highlight)
+      end
+
+      -- if connection is the active one, apply a special highlight on the master
       if node.is_master and self.handler:connection_details().id == node.id then
-        line:append(node.text, "Title")
+        line:append(node.text, icon.highlight)
       else
         line:append(node.text)
       end
@@ -236,6 +297,7 @@ function Drawer:refresh_node(master_node_id)
         id = id,
         master_id = master_node_id,
         text = string.gsub(l.name, "\n", " "),
+        type = l.type,
         action_1 = function()
           l.action_1(function()
             self:refresh()
@@ -297,6 +359,7 @@ function Drawer:refresh()
     local node = NuiTree.Node {
       id = SCRATCHPAD_NODE_ID,
       text = "scratchpads",
+      type = "scratch",
       is_master = true,
       getter = function()
         return self.editor:layout()
@@ -313,6 +376,7 @@ function Drawer:refresh()
       local node = NuiTree.Node {
         id = con.id,
         text = con.name,
+        type = "database",
         is_master = true,
         -- set connection as active manually
         action_2 = function()

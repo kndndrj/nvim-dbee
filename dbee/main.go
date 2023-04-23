@@ -157,7 +157,7 @@ func main() {
 						logger.Error(err.Error())
 						return
 					}
-					_, err = c.PageCurrent(0, bufferOutput)
+					_, _, err = c.PageCurrent(0, bufferOutput)
 					if err != nil {
 						logger.Error(err.Error())
 						return
@@ -194,7 +194,7 @@ func main() {
 						logger.Error(err.Error())
 						return
 					}
-					_, err = c.PageCurrent(0, bufferOutput)
+					_, _, err = c.PageCurrent(0, bufferOutput)
 					if err != nil {
 						logger.Error(err.Error())
 						return
@@ -206,36 +206,37 @@ func main() {
 				return nil
 			})
 
+		// pages result to buffer output, returns current page and total pages
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_page"},
-			func(args []string) (int, error) {
+			func(args []string) ([]int, error) {
 				method := "Dbee_page"
 				logger.Debug("calling " + method)
 				if len(args) < 2 {
 					logger.Error("not enough arguments passed to " + method)
-					return 0, nil
+					return nil, nil
 				}
 
 				id := args[0]
 				page, err := strconv.Atoi(args[1])
 				if err != nil {
 					logger.Error(err.Error())
-					return 0, nil
+					return nil, nil
 				}
 
 				// Get the right connection
 				c, ok := connections[id]
 				if !ok {
 					logger.Error("connection with id " + id + " not registered")
-					return 0, nil
+					return nil, nil
 				}
 
-				currentPage, err := c.PageCurrent(page, bufferOutput)
+				currentPage, totalPages, err := c.PageCurrent(page, bufferOutput)
 				if err != nil {
 					logger.Error(err.Error())
-					return 0, nil
+					return nil, nil
 				}
 				logger.Debug(method + " returned successfully")
-				return currentPage, nil
+				return []int{currentPage, totalPages}, nil
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_save"},

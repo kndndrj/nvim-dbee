@@ -142,16 +142,16 @@ func (c *cache) set(iter IterResult) error {
 }
 
 // zero based index of page
-// returns current page
+// returns current page and total number of pages
 // writes the requested page to outputs
-func (c *cache) page(page int, outputs ...Output) (int, error) {
+func (c *cache) page(page int, outputs ...Output) (int, int, error) {
 	id := c.active
 
 	cr, _ := c.records.load(id)
 	cachedResult := cr.result
 
 	if cachedResult.Header == nil {
-		return 0, errors.New("no results to page")
+		return 0, 0, errors.New("no results to page")
 	}
 
 	var result Result
@@ -166,11 +166,12 @@ func (c *cache) page(page int, outputs ...Output) (int, error) {
 	end := c.pageSize * (page + 1)
 
 	l := len(cachedResult.Rows)
+	lastPage := l / c.pageSize
+	if l%c.pageSize == 0 && lastPage != 0 {
+		lastPage -= 1
+	}
+
 	if start >= l {
-		lastPage := l / c.pageSize
-		if l%c.pageSize == 0 && lastPage != 0 {
-			lastPage -= 1
-		}
 		start = lastPage * c.pageSize
 	}
 	if end > l {
@@ -183,12 +184,12 @@ func (c *cache) page(page int, outputs ...Output) (int, error) {
 	for _, out := range outputs {
 		err := out.Write(result)
 		if err != nil {
-			return 0, err
+			return 0, 0, err
 		}
 	}
 
 	currentPage := start / c.pageSize
-	return currentPage, nil
+	return currentPage, lastPage, nil
 }
 
 // flush writes the whole current cache to outputs

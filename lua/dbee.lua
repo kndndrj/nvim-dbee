@@ -37,7 +37,7 @@ local function lazy_setup()
     return
   end
 
-  m.drawer = Drawer:new { handler = m.handler, editor = m.editor, win_cmd = "to 40vsplit" }
+  m.drawer = Drawer:new { handler = m.handler, editor = m.editor, icons = { enable = true }, win_cmd = "to 40vsplit" }
   if not m.drawer then
     print("error in drawer setup")
     return

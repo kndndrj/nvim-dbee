@@ -222,13 +222,13 @@ func (ho *HistoryOutput) Layout() ([]Layout, error) {
 					Name:     rec.meta.Timestamp.String(),
 					Schema:   "",
 					Database: "",
-					Type:     LayoutRecord,
+					Type:     LayoutNone,
 				},
 				{
 					Name:     rec.meta.Query,
 					Schema:   "",
 					Database: "",
-					Type:     LayoutRecord,
+					Type:     LayoutNone,
 				},
 			},
 		}

@@ -5,7 +5,7 @@ local helpers = require("dbee.helpers")
 --
 ---@class _LayoutGo
 ---@field name string display name
----@field type "record"|"table"|"history" type of layout -> this infers action
+---@field type ""|"table"|"history" type of layout -> this infers action
 ---@field schema? string parent schema
 ---@field database? string parent database
 ---@field children? Layout[] child layout nodes
@@ -141,34 +141,60 @@ end
 function Handler:execute(query, id)
   id = id or self.active_connection
 
-  self:open_hook()
+  self:open_pre_hook()
   self.page_index = 0
   vim.fn.Dbee_execute(id, query)
+  self:open_post_hook()
 end
 
 ---@private
--- called when anything needs to be displayed on screen
-function Handler:open_hook()
+-- called before anything needs to be displayed on screen
+function Handler:open_pre_hook()
   self:open()
   vim.api.nvim_buf_set_option(self.bufnr, "modifiable", true)
   vim.api.nvim_buf_set_lines(self.bufnr, 0, -1, true, { "Loading..." })
   vim.api.nvim_buf_set_option(self.bufnr, "modifiable", false)
 end
 
+---@private
+-- called after anything needs to be displayed on screen
+---@param count? integer total number of pages
+function Handler:open_post_hook(count)
+  if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
+    return
+  end
+
+  local total = "?"
+  if count then
+    total = tostring(count + 1)
+  end
+  local index = "0"
+  if self.page_index then
+    index = tostring(self.page_index + 1)
+  end
+
+  -- set winbar
+  vim.api.nvim_win_set_option(self.winid, "winbar", "%=" .. index .. "/" .. total)
+end
+
 ---@param id? conn_id connection id
 function Handler:page_next(id)
   id = id or self.active_connection
 
-  self:open_hook()
-  self.page_index = vim.fn.Dbee_page(id, tostring(self.page_index + 1))
+  self:open_pre_hook()
+  local count
+  self.page_index, count = unpack(vim.fn.Dbee_page(id, tostring(self.page_index + 1)))
+  self:open_post_hook(count)
 end
 
 ---@param id? conn_id connection id
 function Handler:page_prev(id)
   id = id or self.active_connection
 
-  self:open_hook()
-  self.page_index = vim.fn.Dbee_page(id, tostring(self.page_index - 1))
+  self:open_pre_hook()
+  local count
+  self.page_index, count = unpack(vim.fn.Dbee_page(id, tostring(self.page_index - 1)))
+  self:open_post_hook(count)
 end
 
 ---@param history_id string history id
@@ -176,9 +202,10 @@ end
 function Handler:history(history_id, id)
   id = id or self.active_connection
 
-  self:open_hook()
+  self:open_pre_hook()
   self.page_index = 0
   vim.fn.Dbee_history(id, history_id)
+  self:open_post_hook()
 end
 
 -- get layout for the connection
@@ -195,10 +222,10 @@ function Handler:layout(id)
     end
 
     local _new_layouts = {}
-    for _, _lgo in ipairs(layout_go) do
+    for _, lgo in ipairs(layout_go) do
       -- action 1 executes query or history
       local action_1
-      if _lgo.type == "table" then
+      if lgo.type == "table" then
         action_1 = function(cb)
           local details = self:connection_details(id)
           local table_helpers = helpers.get(details.type)
@@ -214,7 +241,7 @@ function Handler:layout(id)
               self:execute(
                 helpers.expand_query(
                   table_helpers[selection],
-                  { table = _lgo.name, schema = _lgo.schema, dbname = _lgo.database }
+                  { table = lgo.name, schema = lgo.schema, dbname = lgo.database }
                 ),
                 id
               )
@@ -223,9 +250,9 @@ function Handler:layout(id)
           end)
           self:set_active(id)
         end
-      elseif _lgo.type == "history" then
+      elseif lgo.type == "history" then
         action_1 = function(cb)
-          self:history(_lgo.name, id)
+          self:history(lgo.name, id)
           self:set_active(id)
           cb()
         end
@@ -238,13 +265,14 @@ function Handler:layout(id)
       -- action_3 is empty
 
       local _ly = {
-        name = _lgo.name,
-        schema = _lgo.schema,
-        database = _lgo.database,
+        name = lgo.name,
+        schema = lgo.schema,
+        database = lgo.database,
+        type = lgo.type,
         action_1 = action_1,
         action_2 = action_2,
         action_3 = nil,
-        children = to_layout(_lgo.children),
+        children = to_layout(lgo.children),
       }
 
       table.insert(_new_layouts, _ly)

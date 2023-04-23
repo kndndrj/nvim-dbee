@@ -156,6 +156,7 @@ function Editor:layout()
     ---@type Layout
     local sch = {
       name = vim.fs.basename(s.file),
+      type = "scratch",
       action_1 = function(cb)
         self:set_active_scratch(s.id)
         self:open()

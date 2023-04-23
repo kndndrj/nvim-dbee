@@ -2,7 +2,6 @@ package conn
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 )
 
@@ -27,21 +26,21 @@ type (
 )
 
 const (
-	LayoutRecord LayoutType = iota
+	LayoutNone LayoutType = iota
 	LayoutTable
 	LayoutHistory
 )
 
 func (s LayoutType) String() string {
 	switch s {
-	case LayoutRecord:
-		return "record"
+	case LayoutNone:
+		return ""
 	case LayoutTable:
 		return "table"
 	case LayoutHistory:
 		return "history"
 	default:
-		return fmt.Sprintf("%d", int(s))
+		return ""
 	}
 }
 
@@ -179,7 +178,7 @@ func (c *Conn) ListHistory() ([]Layout, error) {
 	return c.history.Layout()
 }
 
-func (c *Conn) PageCurrent(page int, outputs ...Output) (int, error) {
+func (c *Conn) PageCurrent(page int, outputs ...Output) (int, int, error) {
 	return c.cache.page(page, outputs...)
 }
 
@@ -204,14 +203,14 @@ func (c *Conn) Layout() ([]Layout, error) {
 			Name:     "structure",
 			Schema:   "",
 			Database: "",
-			Type:     LayoutRecord,
+			Type:     LayoutNone,
 			Children: structure,
 		},
 		{
 			Name:     "history",
 			Schema:   "",
 			Database: "",
-			Type:     LayoutRecord,
+			Type:     LayoutNone,
 			Children: history,
 		},
 	}
