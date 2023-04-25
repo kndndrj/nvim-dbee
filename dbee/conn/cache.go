@@ -193,7 +193,7 @@ func (c *cache) page(page int, outputs ...Output) (int, int, error) {
 }
 
 // flush writes the whole current cache to outputs
-// purge controls wheather to wipe the record from cache
+// wipe controls wheather to wipe the record from cache
 func (c *cache) flush(wipe bool, outputs ...Output) {
 	id := c.active
 
@@ -208,14 +208,14 @@ func (c *cache) flush(wipe bool, outputs ...Output) {
 
 			rec, ok := c.records.load(id)
 			if !ok {
-				c.log.Debug("record " + id + " appears to be already flushed")
+				c.log.Error("record " + id + " appears to be already flushed")
 				return
 			}
 			if rec.drained {
 				break
 			}
 			if ctx.Err() != nil {
-				c.log.Debug("cache flushing timeout exceeded")
+				c.log.Error("cache flushing timeout exceeded")
 				return
 			}
 			time.Sleep(1 * time.Second)

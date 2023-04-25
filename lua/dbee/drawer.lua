@@ -290,19 +290,25 @@ function Drawer:refresh_node(master_node_id)
         text = string.gsub(l.name, "\n", " "),
         type = l.type,
         action_1 = function()
-          l.action_1(function()
-            self:refresh()
-          end)
+          if type(l.action_1) == "function" then
+            l.action_1(function()
+              self:refresh()
+            end)
+          end
         end,
         action_2 = function()
-          l.action_2(function()
-            self:refresh()
-          end)
+          if type(l.action_2) == "function" then
+            l.action_2(function()
+              self:refresh()
+            end)
+          end
         end,
         action_3 = function()
-          l.action_3(function()
-            self:refresh()
-          end)
+          if type(l.action_3) == "function" then
+            l.action_3(function()
+              self:refresh()
+            end)
+          end
         end,
         -- recurse children
       }, layout_to_tree_nodes(l.children, id))

@@ -291,7 +291,9 @@ end
 ---@param id? conn_id connection id
 function Handler:save(format, file, id)
   id = id or self.active_connection
-  -- TODO
+  if not format or not file then
+    error("save method requires format and file to be set")
+  end
   vim.fn.Dbee_save(id, format, file)
 end
 

@@ -243,12 +243,14 @@ func main() {
 			func(args []string) error {
 				method := "Dbee_save"
 				logger.Debug("calling " + method)
-				if len(args) < 1 {
+				if len(args) < 3 {
 					logger.Error("not enough arguments passed to " + method)
 					return nil
 				}
 
 				id := args[0]
+				format := args[1]
+				file := args[2]
 
 				// Get the right connection
 				c, ok := connections[id]
@@ -256,7 +258,18 @@ func main() {
 					logger.Error("connection with id " + id + " not registered")
 					return nil
 				}
-				err := c.WriteCurrent(bufferOutput)
+
+				var out conn.Output
+				switch format {
+				case "json":
+					out = output.NewJSONOutput(file, logger)
+				case "csv":
+					out = output.NewCSVOutput(file, logger)
+				default:
+					logger.Error("save format: \"" + format + "\" is not supported")
+					return nil
+				}
+				err := c.WriteCurrent(out)
 				if err != nil {
 					logger.Error(err.Error())
 					return nil

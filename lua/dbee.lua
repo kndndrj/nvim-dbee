@@ -129,6 +129,15 @@ function M.prev()
   m.handler:page_prev()
 end
 
+---@param format "csv"|"json" format of the output
+---@param file string where to save the results
+function M.save(format, file)
+  if not m.loaded then
+    lazy_setup()
+  end
+  m.handler:save(format, file)
+end
+
 ---@param command? "wget"|"curl"|"bitsadmin"|"go" preffered command
 function M.install(command)
   install.exec(command)
