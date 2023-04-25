@@ -8,7 +8,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
 type MysqlClient struct {
@@ -37,7 +37,7 @@ func NewMysql(url string) (*MysqlClient, error) {
 	}, nil
 }
 
-func (c *MysqlClient) Query(query string) (conn.IterResult, error) {
+func (c *MysqlClient) Query(query string) (models.IterResult, error) {
 
 	con, err := c.sql.Conn()
 	if err != nil {
@@ -73,7 +73,7 @@ func (c *MysqlClient) Query(query string) (conn.IterResult, error) {
 	return rows, err
 }
 
-func (c *MysqlClient) Layout() ([]conn.Layout, error) {
+func (c *MysqlClient) Layout() ([]models.Layout, error) {
 	query := `SELECT table_schema, table_name FROM information_schema.tables`
 
 	rows, err := c.Query(query)
@@ -81,7 +81,7 @@ func (c *MysqlClient) Layout() ([]conn.Layout, error) {
 		return nil, err
 	}
 
-	children := make(map[string][]conn.Layout)
+	children := make(map[string][]models.Layout)
 
 	for {
 		row, err := rows.Next()
@@ -96,25 +96,25 @@ func (c *MysqlClient) Layout() ([]conn.Layout, error) {
 		schema := row[0].(string)
 		table := row[1].(string)
 
-		children[schema] = append(children[schema], conn.Layout{
+		children[schema] = append(children[schema], models.Layout{
 			Name:   table,
 			Schema: schema,
 			// TODO:
 			Database: "",
-			Type:     conn.LayoutTable,
+			Type:     models.LayoutTable,
 		})
 
 	}
 
-	var layout []conn.Layout
+	var layout []models.Layout
 
 	for k, v := range children {
-		layout = append(layout, conn.Layout{
+		layout = append(layout, models.Layout{
 			Name:   k,
 			Schema: k,
 			// TODO:
 			Database: "",
-			Type:     conn.LayoutNone,
+			Type:     models.LayoutNone,
 			Children: v,
 		})
 	}

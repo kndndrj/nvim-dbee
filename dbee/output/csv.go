@@ -5,22 +5,22 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
 type CSVOutput struct {
 	fileName string
-	log      conn.Logger
+	log      models.Logger
 }
 
-func NewCSVOutput(fileName string, logger conn.Logger) *CSVOutput {
+func NewCSVOutput(fileName string, logger models.Logger) *CSVOutput {
 	return &CSVOutput{
 		fileName: fileName,
 		log: logger,
 	}
 }
 
-func (co *CSVOutput) Write(result conn.Result) error {
+func (co *CSVOutput) Write(result models.Result) error {
 	file, err := os.Create(co.fileName)
 	if err != nil {
 		return err

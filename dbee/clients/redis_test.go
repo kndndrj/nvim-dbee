@@ -1,7 +1,6 @@
 package clients
 
 import (
-	"fmt"
 	"testing"
 
 	"gotest.tools/assert"
@@ -90,7 +89,6 @@ func TestParseRedisCmd(t *testing.T) {
 
 	for _, tc := range testCases {
 		parsed, err := parseRedisCmd(tc.unparsed)
-		fmt.Println(parsed, err)
 		if err != nil {
 			assert.Equal(t, err.Error(), tc.expectedError.Error())
 			continue

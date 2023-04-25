@@ -3,20 +3,20 @@ package common
 import (
 	"sync"
 
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
 // Result fills conn.IterResult interface for all sql dbs
 type Result struct {
-	next     func() (conn.Row, error)
-	header   conn.Header
+	next     func() (models.Row, error)
+	header   models.Header
 	close    func()
-	meta     conn.Meta
+	meta     models.Meta
 	callback func()
 	once     sync.Once
 }
 
-func (r *Result) SetCustomHeader(header conn.Header) {
+func (r *Result) SetCustomHeader(header models.Header) {
 	r.header = header
 }
 
@@ -24,15 +24,15 @@ func (r *Result) SetCallback(callback func()) {
 	r.callback = callback
 }
 
-func (r *Result) Meta() (conn.Meta, error) {
+func (r *Result) Meta() (models.Meta, error) {
 	return r.meta, nil
 }
 
-func (r *Result) Header() (conn.Header, error) {
+func (r *Result) Header() (models.Header, error) {
 	return r.header, nil
 }
 
-func (r *Result) Next() (conn.Row, error) {
+func (r *Result) Next() (models.Row, error) {
 	rows, err := r.next()
 	if err != nil || rows == nil {
 		r.Close()
@@ -50,27 +50,27 @@ func (r *Result) Close() {
 
 // ResultBuilder builds the rows
 type ResultBuilder struct {
-	next   func() (conn.Row, error)
-	header conn.Header
+	next   func() (models.Row, error)
+	header models.Header
 	close  func()
-	meta   conn.Meta
+	meta   models.Meta
 }
 
 func NewResultBuilder() *ResultBuilder {
 	return &ResultBuilder{
-		next:   func() (conn.Row, error) { return nil, nil },
-		header: conn.Header{},
+		next:   func() (models.Row, error) { return nil, nil },
+		header: models.Header{},
 		close:  func() {},
-		meta:   conn.Meta{},
+		meta:   models.Meta{},
 	}
 }
 
-func (b *ResultBuilder) WithNextFunc(fn func() (conn.Row, error)) *ResultBuilder {
+func (b *ResultBuilder) WithNextFunc(fn func() (models.Row, error)) *ResultBuilder {
 	b.next = fn
 	return b
 }
 
-func (b *ResultBuilder) WithHeader(header conn.Header) *ResultBuilder {
+func (b *ResultBuilder) WithHeader(header models.Header) *ResultBuilder {
 	b.header = header
 	return b
 }
@@ -80,7 +80,7 @@ func (b *ResultBuilder) WithCloseFunc(fn func()) *ResultBuilder {
 	return b
 }
 
-func (b *ResultBuilder) WithMeta(meta conn.Meta) *ResultBuilder {
+func (b *ResultBuilder) WithMeta(meta models.Meta) *ResultBuilder {
 	b.meta = meta
 	return b
 }

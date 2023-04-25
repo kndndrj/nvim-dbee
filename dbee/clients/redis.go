@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -28,7 +28,7 @@ func NewRedis(url string) (*RedisClient, error) {
 	}, nil
 }
 
-func (c *RedisClient) Query(query string) (conn.IterResult, error) {
+func (c *RedisClient) Query(query string) (models.IterResult, error) {
 	cmd, err := parseRedisCmd(query)
 	if err != nil {
 		return nil, err
@@ -40,17 +40,17 @@ func (c *RedisClient) Query(query string) (conn.IterResult, error) {
 	}
 
 	// parse response
-	var rows []conn.Row
+	var rows []models.Row
 	switch rpl := resp.(type) {
 	case int64:
-		rows = []conn.Row{{rpl}}
+		rows = []models.Row{{rpl}}
 	case string:
-		rows = []conn.Row{{rpl}}
+		rows = []models.Row{{rpl}}
 	case []any:
 		rows = sliceToRows(rpl, -1)
 	case map[any]any:
 		for k, v := range rpl {
-			rows = append(rows, conn.Row{k, v})
+			rows = append(rows, models.Row{k, v})
 		}
 	case nil:
 		return nil, errors.New("no reponse from redis")
@@ -62,7 +62,7 @@ func (c *RedisClient) Query(query string) (conn.IterResult, error) {
 	max := len(rows) - 1
 	i := 0
 	result := common.NewResultBuilder().
-		WithNextFunc(func() (conn.Row, error) {
+		WithNextFunc(func() (models.Row, error) {
 			if i > max {
 				return nil, nil
 			}
@@ -70,8 +70,8 @@ func (c *RedisClient) Query(query string) (conn.IterResult, error) {
 			i++
 			return val, nil
 		}).
-		WithHeader(conn.Header{"Reply"}).
-		WithMeta(conn.Meta{
+		WithHeader(models.Header{"Reply"}).
+		WithMeta(models.Meta{
 			Query:     query,
 			Timestamp: time.Now(),
 		}).
@@ -80,13 +80,13 @@ func (c *RedisClient) Query(query string) (conn.IterResult, error) {
 	return result, err
 }
 
-func (c *RedisClient) Layout() ([]conn.Layout, error) {
-	return []conn.Layout{
+func (c *RedisClient) Layout() ([]models.Layout, error) {
+	return []models.Layout{
 		{
 			Name:     "DB",
 			Schema:   "",
 			Database: "",
-			Type:     conn.LayoutTable,
+			Type:     models.LayoutTable,
 		},
 	}, nil
 }
@@ -180,8 +180,8 @@ func parseRedisCmd(unparsed string) ([]any, error) {
 }
 
 // sliceToRows expands []any slice and any possible nested slices to multiple rows
-func sliceToRows(slice []any, level int) []conn.Row {
-	var rows []conn.Row
+func sliceToRows(slice []any, level int) []models.Row {
+	var rows []models.Row
 
 	var prefix []any
 	for i := 0; i < level; i++ {

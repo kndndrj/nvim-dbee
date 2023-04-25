@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
 // default sql client used by other specific implementations
@@ -50,7 +50,7 @@ func (c *Conn) Exec(query string) (*Result, error) {
 	first := true
 
 	rows := NewResultBuilder().
-		WithNextFunc(func() (conn.Row, error) {
+		WithNextFunc(func() (models.Row, error) {
 			if !first {
 				return nil, nil
 			}
@@ -60,11 +60,11 @@ func (c *Conn) Exec(query string) (*Result, error) {
 			if err != nil {
 				return nil, err
 			}
-			return conn.Row{affected}, nil
+			return models.Row{affected}, nil
 
 		}).
-		WithHeader(conn.Header{"Rows Affected"}).
-		WithMeta(conn.Meta{
+		WithHeader(models.Header{"Rows Affected"}).
+		WithMeta(models.Meta{
 			Query:     query,
 			Timestamp: time.Now(),
 		}).
@@ -86,7 +86,7 @@ func (c *Conn) Query(query string) (*Result, error) {
 	}
 
 	rows := NewResultBuilder().
-		WithNextFunc(func() (conn.Row, error) {
+		WithNextFunc(func() (models.Row, error) {
 			dbCols, err := dbRows.Columns()
 			if err != nil {
 				return nil, err
@@ -117,7 +117,7 @@ func (c *Conn) Query(query string) (*Result, error) {
 				return nil, err
 			}
 
-			row := make(conn.Row, len(dbCols))
+			row := make(models.Row, len(dbCols))
 			for i := range dbCols {
 				val := *columnPointers[i].(*any)
 				// fix for some strings being interpreted as bytes
@@ -134,7 +134,7 @@ func (c *Conn) Query(query string) (*Result, error) {
 		WithCloseFunc(func() {
 			dbRows.Close()
 		}).
-		WithMeta(conn.Meta{
+		WithMeta(models.Meta{
 			Query:     query,
 			Timestamp: time.Now(),
 		}).

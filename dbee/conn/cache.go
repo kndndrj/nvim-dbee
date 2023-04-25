@@ -7,10 +7,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
 type cacheRecord struct {
-	result  Result
+	result  models.Result
 	drained bool
 }
 
@@ -42,10 +43,10 @@ type cache struct {
 	active   string
 	records  cacheMap
 	pageSize int
-	log      Logger
+	log      models.Logger
 }
 
-func newCache(pageSize int, logger Logger) *cache {
+func newCache(pageSize int, logger models.Logger) *cache {
 	return &cache{
 		pageSize: pageSize,
 		records:  cacheMap{},
@@ -53,7 +54,7 @@ func newCache(pageSize int, logger Logger) *cache {
 	}
 }
 
-func (c *cache) set(iter IterResult) error {
+func (c *cache) set(iter models.IterResult) error {
 
 	// close the iterator on error
 	var err error
@@ -77,7 +78,7 @@ func (c *cache) set(iter IterResult) error {
 	}
 
 	// create a new result
-	result := Result{}
+	result := models.Result{}
 	result.Header = header
 	result.Meta = meta
 
@@ -154,7 +155,7 @@ func (c *cache) page(page int, outputs ...Output) (int, int, error) {
 		return 0, 0, errors.New("no results to page")
 	}
 
-	var result Result
+	var result models.Result
 	result.Header = cachedResult.Header
 	result.Meta = cachedResult.Meta
 

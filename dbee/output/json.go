@@ -5,22 +5,22 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
 type JSONOutput struct {
 	fileName string
-	log      conn.Logger
+	log      models.Logger
 }
 
-func NewJSONOutput(fileName string, logger conn.Logger) *JSONOutput {
+func NewJSONOutput(fileName string, logger models.Logger) *JSONOutput {
 	return &JSONOutput{
 		fileName: fileName,
 		log:      logger,
 	}
 }
 
-func (jo *JSONOutput) Write(result conn.Result) error {
+func (jo *JSONOutput) Write(result models.Result) error {
 	file, err := os.Create(jo.fileName)
 	if err != nil {
 		return err

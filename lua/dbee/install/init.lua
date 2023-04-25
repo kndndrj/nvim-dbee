@@ -1,5 +1,12 @@
 local M = {}
 
+local function log_error(mes)
+  require("dbee.utils").log("error", mes, "install")
+end
+local function log_info(mes)
+  require("dbee.utils").log("info", mes, "install")
+end
+
 function M.path()
   return vim.fn.stdpath("data") .. "/dbee/bin"
 end
@@ -54,7 +61,7 @@ local function get_version()
   local version = "latest"
   local ok, m = pcall(require, "dbee.install.__manifest")
   if not ok or type(m) ~= "table" or vim.tbl_isempty(m) then
-    print("error reading install manifest. using version: " .. version)
+    log_error("could not read install manifest. using version: " .. version)
     return version
   end
 
@@ -158,7 +165,7 @@ local function run_jobs(jobs, index)
   if not job then
     return
   end
-  print("running command: " .. job.cmd)
+  log_info("running command: " .. job.cmd)
   local uv = vim.loop
   -- set env and save the previous values
   -- for some reason setting env on uv.spawn doesnt work
@@ -186,18 +193,18 @@ local function run_jobs(jobs, index)
     handle:close()
     if code == 0 then
       if index >= #jobs then
-        print("successfully installed")
+        log_info("successfully installed")
         return
       end
       run_jobs(jobs, index + 1)
     else
-      print("installation error")
+      log_error("command: " .. job.cmd .. " exited with code " .. tostring(code))
     end
     cleanup()
   end)
 
   if not handle then
-    print("installation error")
+    log_error("could not spawn command: " .. job.cmd)
     cleanup()
   end
 end
@@ -211,7 +218,7 @@ function M.exec(command)
   for _, j in ipairs(jobs) do
     msg = msg .. " " .. j.cmd
   end
-  print("installing dbee with: " .. msg)
+  log_info("installing dbee with: " .. msg)
 
   run_jobs(jobs, 1)
 end

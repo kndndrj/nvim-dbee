@@ -201,7 +201,6 @@ function Editor:set_active_scratch(id)
   self.active_scratch = id
 end
 
----TODO
 ---@private
 function Editor:map_keys(bufnr)
   local map_options = { noremap = true, nowait = true, buffer = bufnr }

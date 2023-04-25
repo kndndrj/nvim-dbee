@@ -2,8 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"log"
-	"os"
 	"strconv"
 	"time"
 
@@ -33,17 +31,10 @@ func main() {
 
 	plugin.Main(func(p *plugin.Plugin) error {
 
-		// TODO: find a better place for logs
-		logFile, err := os.OpenFile("/tmp/nvim-dbee.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-		if err != nil {
-			return err
-		}
-		dl := log.New(logFile, "", log.Ldate|log.Ltime)
-		logger := nvimlog.New(p.Nvim, dl)
+		logger := nvimlog.New(p.Nvim)
 
-		logger.Debug("Starting up...")
 		deferer(func() {
-			logger.Debug("Shutting down...")
+			logger.Close()
 		})
 
 		// Call clients from lua via id (string)
@@ -53,7 +44,6 @@ func main() {
 			for _, c := range connections {
 				c.Close()
 			}
-			logFile.Close()
 		})
 
 		bufferOutput := output.NewBufferOutput(p.Nvim)

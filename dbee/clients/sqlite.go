@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/models"
 	_ "modernc.org/sqlite"
 )
 
@@ -25,7 +25,7 @@ func NewSqlite(url string) (*SqliteClient, error) {
 	}, nil
 }
 
-func (c *SqliteClient) Query(query string) (conn.IterResult, error) {
+func (c *SqliteClient) Query(query string) (models.IterResult, error) {
 
 	con, err := c.c.Conn()
 	if err != nil {
@@ -61,7 +61,7 @@ func (c *SqliteClient) Query(query string) (conn.IterResult, error) {
 	return rows, err
 }
 
-func (c *SqliteClient) Layout() ([]conn.Layout, error) {
+func (c *SqliteClient) Layout() ([]models.Layout, error) {
 	query := `SELECT name FROM sqlite_schema WHERE type ='table'`
 
 	rows, err := c.Query(query)
@@ -69,7 +69,7 @@ func (c *SqliteClient) Layout() ([]conn.Layout, error) {
 		return nil, err
 	}
 
-	var schema []conn.Layout
+	var schema []models.Layout
 	for {
 		row, err := rows.Next()
 		if row == nil {
@@ -81,12 +81,12 @@ func (c *SqliteClient) Layout() ([]conn.Layout, error) {
 
 		// We know for a fact there is only one string field (see query above)
 		table := row[0].(string)
-		schema = append(schema, conn.Layout{
+		schema = append(schema, models.Layout{
 			Name:   table,
 			Schema: "",
 			// TODO:
 			Database: "",
-			Type:     conn.LayoutTable,
+			Type:     models.LayoutTable,
 		})
 	}
 

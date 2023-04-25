@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/models"
 	_ "github.com/lib/pq"
 )
 
@@ -25,7 +25,7 @@ func NewPostgres(url string) (*PostgresClient, error) {
 	}, nil
 }
 
-func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
+func (c *PostgresClient) Query(query string) (models.IterResult, error) {
 
 	con, err := c.c.Conn()
 	if err != nil {
@@ -61,14 +61,14 @@ func (c *PostgresClient) Query(query string) (conn.IterResult, error) {
 		return nil, err
 	}
 	if len(h) == 0 {
-		rows.SetCustomHeader(conn.Header{"No Results"})
+		rows.SetCustomHeader(models.Header{"No Results"})
 	}
 	rows.SetCallback(cb)
 
 	return rows, nil
 }
 
-func (c *PostgresClient) Layout() ([]conn.Layout, error) {
+func (c *PostgresClient) Layout() ([]models.Layout, error) {
 	query := `
 		SELECT table_schema, table_name FROM information_schema.tables UNION ALL
 		SELECT schemaname, matviewname FROM pg_matviews;
@@ -79,7 +79,7 @@ func (c *PostgresClient) Layout() ([]conn.Layout, error) {
 		return nil, err
 	}
 
-	children := make(map[string][]conn.Layout)
+	children := make(map[string][]models.Layout)
 
 	for {
 		row, err := rows.Next()
@@ -94,24 +94,24 @@ func (c *PostgresClient) Layout() ([]conn.Layout, error) {
 		schema := row[0].(string)
 		table := row[1].(string)
 
-		children[schema] = append(children[schema], conn.Layout{
+		children[schema] = append(children[schema], models.Layout{
 			Name:   table,
 			Schema: schema,
 			// TODO:
 			Database: "",
-			Type:     conn.LayoutTable,
+			Type:     models.LayoutTable,
 		})
 	}
 
-	var layout []conn.Layout
+	var layout []models.Layout
 
 	for k, v := range children {
-		layout = append(layout, conn.Layout{
+		layout = append(layout, models.Layout{
 			Name:   k,
 			Schema: k,
 			// TODO:
 			Database: "",
-			Type:     conn.LayoutNone,
+			Type:     models.LayoutNone,
 			Children: v,
 		})
 	}

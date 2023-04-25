@@ -6,7 +6,7 @@ import (
 
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"github.com/neovim/go-client/nvim"
 )
 
@@ -26,7 +26,7 @@ func (bo *BufferOutput) SetBuffer(buffer nvim.Buffer) {
 	bo.buffer = buffer
 }
 
-func (bo *BufferOutput) Write(result conn.Result) error {
+func (bo *BufferOutput) Write(result models.Result) error {
 	_, err := bo.vim.IsBufferValid(bo.buffer)
 	if err != nil {
 		return err
