@@ -62,6 +62,13 @@ local function redis()
   }
 end
 
+---@return table_helpers helpers list of table helpers
+local function mongo()
+  return {
+    List = '{"find": "{table}"}',
+  }
+end
+
 ---@param type string
 ---@return table_helpers helpers list of table helpers
 function M.get(type)
@@ -74,6 +81,8 @@ function M.get(type)
     hs = sqlite()
   elseif type == "redis" then
     hs = redis()
+  elseif type == "mongo" then
+    hs = mongo()
   end
 
   if not hs then

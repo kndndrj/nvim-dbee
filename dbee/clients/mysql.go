@@ -3,7 +3,6 @@ package clients
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"regexp"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -19,7 +18,7 @@ func NewMysql(url string) (*MysqlClient, error) {
 	// add multiple statements support parameter
 	match, err := regexp.MatchString(`[\?][\w]+=[\w-]+`, url)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	if match {
 		url = url + "&multiStatements=true"

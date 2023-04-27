@@ -18,6 +18,8 @@ function M.type_alias(alias)
   local aliases = {
     ["postgresql"] = "postgres",
     ["pg"] = "postgres",
+    ["sqlite3"] = "sqlite",
+    ["mongodb"] = "mongo",
   }
   return aliases[alias] or alias or ""
 end

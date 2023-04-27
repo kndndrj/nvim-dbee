@@ -106,6 +106,12 @@ func main() {
 						logger.Error(err.Error())
 						return nil
 					}
+				case "mongo":
+					client, err = clients.NewMongo(url)
+					if err != nil {
+						logger.Error(err.Error())
+						return nil
+					}
 				default:
 					logger.Error("database of type \"" + typ + "\" is not supported")
 					return nil
