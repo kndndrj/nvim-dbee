@@ -95,18 +95,13 @@ function Handler:add_connection(connection)
 
   connection.name = connection.name or "[empty name]"
 
-  local id = connection.name .. connection.type
-
-  for _, con in pairs(self.connections) do
-    if con.id == id then
-      return
-    end
-  end
+  connection.id = connection.name .. connection.type
 
   -- register in go
-  vim.fn.Dbee_register_connection(id, connection.url, connection.type)
+  vim.fn.Dbee_register_connection(connection.id, connection.url, connection.type)
 
-  self.connections[id] = connection
+  self.connections[connection.id] = connection
+  self.active_connection = connection.id
 end
 
 ---@param id conn_id connection id
@@ -235,6 +230,7 @@ function Handler:layout(id)
           for k, _ in pairs(table_helpers) do
             table.insert(helper_keys, k)
           end
+          table.sort(helper_keys)
           -- select a helper to execute
           vim.ui.select(helper_keys, {
             prompt = "select a helper to execute:",

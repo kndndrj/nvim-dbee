@@ -3,6 +3,8 @@ local layout = require("dbee.layout")
 local M = {}
 local m = {}
 
+---@alias mapping {key: string, mode: string}
+
 ---@class UiConfig
 ---@field window_open_order table example: { "result", "editor", "drawer" } - in which order are the windows open
 ---@field pre_open_hook fun() execute this before opening ui
@@ -12,7 +14,7 @@ local m = {}
 
 -- configuration object
 ---@class Config
----@field connections { name: string, type: string, url: string }[] list of configured database connections
+---@field connections connection_details[] list of configured database connections
 ---@field lazy boolean lazy load the plugin or not?
 ---@field drawer drawer_config
 ---@field editor editor_config
@@ -28,13 +30,13 @@ M.default = {
     window_command = "to 40vsplit",
     disable_icons = false,
     mappings = {
-      refresh = "r",
-      action_1 = "<CR>",
-      action_2 = "da",
-      action_3 = "dd",
-      collapse = "c",
-      expand = "e",
-      toggle = "o",
+      refresh = { key = "r", mode = "n" },
+      action_1 = { key = "<CR>", mode = "n" },
+      action_2 = { key = "da", mode = "n" },
+      action_3 = { key = "dd", mode = "n" },
+      collapse = { key = "c", mode = "n" },
+      expand = { key = "e", mode = "n" },
+      toggle = { key = "o", mode = "n" },
     },
     icons = {
       history = {
@@ -77,8 +79,8 @@ M.default = {
       return vim.api.nvim_get_current_win()
     end,
     mappings = {
-      run_selection = "BB",
-      run_file = "BB",
+      run_selection = { key = "BB", mode = "v" },
+      run_file = { key = "BB", mode = "n" },
     },
   },
   ui = {

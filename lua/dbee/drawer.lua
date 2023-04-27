@@ -30,13 +30,13 @@ local SCRATCHPAD_NODE_ID = "scratchpad_node"
 ---@class MasterNode: Node
 ---@field getter fun():Layout
 
----@alias drawer_config { disable_icons: boolean, icons: table<string, Icon>, mappings: table<string, string>, window_command: string|fun():integer }
+---@alias drawer_config { disable_icons: boolean, icons: table<string, Icon>, mappings: table<string, mapping>, window_command: string|fun():integer }
 
 ---@class Drawer
 ---@field private tree table NuiTree
 ---@field private handler Handler
 ---@field private editor Editor
----@field private mappings table<string, string>
+---@field private mappings table<string, mapping>
 ---@field private bufnr integer
 ---@field private winid integer
 ---@field private icons table<string, Icon>
@@ -143,53 +143,8 @@ function Drawer:create_tree(bufnr)
   }
 end
 
--- Map keybindings to split window
----@private
----@param bufnr integer which buffer to map the keys in
-function Drawer:map_keys(bufnr)
-  local map_options = { noremap = true, nowait = true, buffer = bufnr }
-
-  -- manual refresh
-  local key = self.mappings["refresh"]
-  if key then
-    vim.keymap.set("n", key, function()
-      self:refresh()
-    end, map_options)
-  end
-
-  -- action_1 (confirm)
-  key = self.mappings["action_1"]
-  if key then
-    vim.keymap.set("n", key, function()
-      local node = self.tree:get_node()
-      if type(node.action_1) == "function" then
-        node.action_1()
-      end
-    end, map_options)
-  end
-
-  -- action_2 (alter)
-  key = self.mappings["action_2"]
-  if key then
-    vim.keymap.set("n", key, function()
-      local node = self.tree:get_node()
-      if type(node.action_2) == "function" then
-        node.action_2()
-      end
-    end, map_options)
-  end
-
-  -- action_3 (remove)
-  key = self.mappings["action_3"]
-  if key then
-    vim.keymap.set("n", key, function()
-      local node = self.tree:get_node()
-      if type(node.action_3) == "function" then
-        node.action_3()
-      end
-    end, map_options)
-  end
-
+---@return table<string, fun()>
+function Drawer:actions()
   local function collapse_node(node)
     if node:collapse() then
       self.tree:render()
@@ -222,34 +177,43 @@ function Drawer:map_keys(bufnr)
     end
   end
 
-  -- collapse current node
-  key = self.mappings["collapse"]
-  if key then
-    vim.keymap.set("n", key, function()
+  return {
+    refresh = function()
+      self:refresh()
+    end,
+    action_1 = function()
+      local node = self.tree:get_node()
+      if type(node.action_1) == "function" then
+        node.action_1()
+      end
+    end,
+    action_2 = function()
+      local node = self.tree:get_node()
+      if type(node.action_2) == "function" then
+        node.action_2()
+      end
+    end,
+    action_3 = function()
+      local node = self.tree:get_node()
+      if type(node.action_3) == "function" then
+        node.action_3()
+      end
+    end,
+    collapse = function()
       local node = self.tree:get_node()
       if not node then
         return
       end
       collapse_node(node)
-    end, map_options)
-  end
-
-  -- expand current node
-  key = self.mappings["expand"]
-  if key then
-    vim.keymap.set("n", key, function()
+    end,
+    expand = function()
       local node = self.tree:get_node()
       if not node then
         return
       end
       expand_node(node)
-    end, map_options)
-  end
-
-  -- toggle collapse/expand
-  key = self.mappings["toggle"]
-  if key then
-    vim.keymap.set("n", key, function()
+    end,
+    toggle = function()
       local node = self.tree:get_node()
       if not node then
         return
@@ -259,7 +223,23 @@ function Drawer:map_keys(bufnr)
       else
         expand_node(node)
       end
-    end, map_options)
+    end,
+  }
+end
+
+-- Map keybindings to split window
+---@private
+---@param bufnr integer which buffer to map the keys in
+function Drawer:map_keys(bufnr)
+  local map_options = { noremap = true, nowait = true, buffer = bufnr }
+
+  local actions = self:actions()
+
+  for act, map in pairs(self.mappings) do
+    local action = actions[act]
+    if action and type(action) == "function" then
+      vim.keymap.set(map.mode, map.key, action, map_options)
+    end
   end
 end
 

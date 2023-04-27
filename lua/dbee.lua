@@ -74,6 +74,14 @@ function M.setup(o)
   pcall_lazy_setup()
 end
 
+---@param connection connection_details
+function M.add_connection(connection)
+  if not pcall_lazy_setup() then
+    return
+  end
+  m.handler:add_connection(connection)
+end
+
 function M.open()
   if not pcall_lazy_setup() then
     return
@@ -152,5 +160,8 @@ end
 function M.install(command)
   install.exec(command)
 end
+
+-- experimental and subject to change!
+M.api = m
 
 return M
