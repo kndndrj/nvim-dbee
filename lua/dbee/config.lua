@@ -15,6 +15,7 @@ local m = {}
 -- configuration object
 ---@class Config
 ---@field connections connection_details[] list of configured database connections
+---@field extra_helpers table<string, table_helpers> extra table helpers to provide besides built-ins. example: { postgres = { List = "select..." }
 ---@field lazy boolean lazy load the plugin or not?
 ---@field drawer drawer_config
 ---@field editor editor_config
@@ -25,6 +26,7 @@ local m = {}
 ---@type Config
 M.default = {
   connections = {},
+  extra_helpers = {},
   lazy = false,
   drawer = {
     window_command = "to 40vsplit",

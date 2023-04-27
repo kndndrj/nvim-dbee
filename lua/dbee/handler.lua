@@ -1,4 +1,5 @@
 local helpers = require("dbee.helpers")
+local utils = require("dbee.utils")
 
 ---@alias conn_id string
 ---@alias connection_details { name: string, type: string, url: string, id: conn_id }
@@ -40,6 +41,7 @@ function Handler:new(connections, opts)
     if not conn.type then
       error("no type")
     end
+    conn.type = utils.type_alias(conn.type)
 
     conn.name = conn.name or "[empty name]"
     local id = conn.name .. conn.type

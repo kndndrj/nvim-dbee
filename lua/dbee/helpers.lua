@@ -1,6 +1,14 @@
+local utils = require("dbee.utils")
+
 local M = {}
 
----@return { string: string } helpers list of table helpers
+-- extra helpers per type
+---@type table<string, table_helpers>
+local extras = {}
+
+---@alias table_helpers table<string, string>
+
+---@return table_helpers helpers list of table helpers
 local function postgres()
   local basic_constraint_query = [[
     SELECT tc.constraint_name, tc.table_name, kcu.column_name, ccu.table_name AS foreign_table_name, ccu.column_name AS foreign_column_name, rc.update_rule, rc.delete_rule
@@ -26,7 +34,7 @@ local function postgres()
   }
 end
 
----@return { string: string } helpers list of table helpers
+---@return table_helpers helpers list of table helpers
 local function mysql()
   return {
     List = "SELECT * from `{table}` LIMIT 500",
@@ -37,7 +45,7 @@ local function mysql()
   }
 end
 
----@return { string: string } helpers list of table helpers
+---@return table_helpers helpers list of table helpers
 local function sqlite()
   return {
     List = 'select * from "{table}" LIMIT 500',
@@ -47,7 +55,7 @@ local function sqlite()
   }
 end
 
----@return { string: string } helpers list of table helpers
+---@return table_helpers helpers list of table helpers
 local function redis()
   return {
     List = "KEYS *",
@@ -55,19 +63,27 @@ local function redis()
 end
 
 ---@param type string
----@return { string: string } helpers list of table helpers
+---@return table_helpers helpers list of table helpers
 function M.get(type)
+  local hs
   if type == "postgres" then
-    return postgres()
+    hs = postgres()
   elseif type == "mysql" then
-    return mysql()
+    hs = mysql()
   elseif type == "sqlite" then
-    return sqlite()
+    hs = sqlite()
   elseif type == "redis" then
-    return redis()
+    hs = redis()
   end
-  error("unsupported table type for helpers: " .. type)
-  return {}
+
+  if not hs then
+    error("unsupported table type for helpers: " .. type)
+  end
+
+  -- apply extras
+  local ex = extras[type] or {}
+
+  return vim.tbl_deep_extend("force", hs, ex)
 end
 
 ---@param unexpanded_query string
@@ -79,6 +95,15 @@ function M.expand_query(unexpanded_query, vars)
     ret = ret:gsub("{" .. key .. "}", val)
   end
   return ret
+end
+
+---@param helpers table<string, table_helpers> extra helpers to add (per type)
+function M.add(helpers)
+  local ext = {}
+  for t, hs in pairs(helpers) do
+    ext[utils.type_alias(t)] = hs
+  end
+  extras = vim.tbl_deep_extend("force", extras, ext)
 end
 
 return M

@@ -21,7 +21,6 @@ local function close_all_floating()
   end
 end
 
-
 -- add bufnr to leaf
 local function add_details(layout)
   if layout[1] == "leaf" then

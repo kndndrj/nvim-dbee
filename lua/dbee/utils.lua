@@ -11,6 +11,17 @@ function M.random_key(tbl)
   -- luacheck: pop
 end
 
+-- Get type from alias
+---@param alias string
+---@return string type
+function M.type_alias(alias)
+  local aliases = {
+    ["postgresql"] = "postgres",
+    ["pg"] = "postgres",
+  }
+  return aliases[alias] or alias or ""
+end
+
 -- Get cursor range of current selection
 ---@return integer start row
 ---@return integer start column

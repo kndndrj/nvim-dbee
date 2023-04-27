@@ -4,6 +4,7 @@ local Handler = require("dbee.handler")
 local install = require("dbee.install")
 local utils = require("dbee.utils")
 local default_config = require("dbee.config").default
+local helpers = require("dbee.helpers")
 
 -- public and private module objects
 local M = {}
@@ -24,6 +25,8 @@ local function lazy_setup()
   m.handler = Handler:new(m.config.connections, m.config.result)
   m.editor = Editor:new(m.handler, m.config.editor)
   m.drawer = Drawer:new(m.handler, m.editor, m.config.drawer)
+
+  helpers.add(m.config.extra_helpers)
 end
 
 ---@return boolean ok was setup successful?
@@ -45,11 +48,13 @@ end
 ---@param o Config
 function M.setup(o)
   o = o or {}
+  ---@type Config
   local opts = vim.tbl_deep_extend("force", default_config, o)
   -- validate config
   vim.validate {
     connections = { opts.connections, "table" },
     lazy = { opts.lazy, "boolean" },
+    extra_helpers = { opts.extra_helpers, "table" },
     -- submodules
     result_window_command = { opts.result.window_command, { "string", "function" } },
     editor_window_command = { opts.editor.window_command, { "string", "function" } },

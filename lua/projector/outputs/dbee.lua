@@ -1,5 +1,6 @@
 local Output = require("projector.contract.output")
 local dbee = require("dbee")
+local dbee_helpers = require("dbee.helpers")
 
 ---@type Output
 local DbeeOutput = Output:new()
@@ -17,9 +18,8 @@ function DbeeOutput:init(configuration)
       for _, db in ipairs(config) do
         dbee.add_connection(db)
       end
-    -- TODO: support custom table helpers
     elseif setting == "queries" then
-      vim.g["db_ui_table_helpers"] = config
+      dbee_helpers.add(config)
     end
   end
 
@@ -55,7 +55,7 @@ function DbeeOutput:list_actions()
   for name, action in pairs(dbee.api.editor:actions()) do
     -- prettier format for labels
     local label = name:gsub("_", " ")
-    label = string.gsub(" "..label, "%W%l", string.upper):sub(2)
+    label = string.gsub(" " .. label, "%W%l", string.upper):sub(2)
     table.insert(actions, {
       label = label,
       action = action,
