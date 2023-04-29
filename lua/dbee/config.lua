@@ -24,23 +24,53 @@ local m = {}
 
 -- default configuration
 ---@type Config
+-- DOCGEN START
 M.default = {
-  connections = {},
-  extra_helpers = {},
+  -- list of connections
+  -- don't commit that, use something like nvim-projector for project specific config.
+  connections = {
+    -- example:
+    -- {
+    --   name = "example-pg",
+    --   type = "postgres",
+    --   url = "postgres://user:password@localhost:5432/db?sslmode=disable",
+    -- },
+  },
+  -- extra table helpers per connection type
+  extra_helpers = {
+    -- example:
+    -- ["postgres"] = {
+    --   ["List All"] = "select * from {table}",
+    -- },
+  },
+  -- lazy load the plugin or not?
   lazy = false,
+
+  -- drawer window config
   drawer = {
+    -- command that opens the window if the window is closed
+    -- string or function
     window_command = "to 40vsplit",
-    disable_icons = false,
+    -- mappings for the buffer
     mappings = {
+      -- manually refresh drawer
       refresh = { key = "r", mode = "n" },
+      -- actions perform different stuff depending on the node:
+      -- action_1 opens a scratchpad or executes a helper
       action_1 = { key = "<CR>", mode = "n" },
+      -- action_2 renames a scratchpad or sets the connection as active manually
       action_2 = { key = "da", mode = "n" },
+      -- action_3 deletes a scratchpad
       action_3 = { key = "dd", mode = "n" },
+      -- these are self-explanatory:
       collapse = { key = "c", mode = "n" },
       expand = { key = "e", mode = "n" },
       toggle = { key = "o", mode = "n" },
     },
+    -- icon settings:
+    disable_icons = false,
     icons = {
+      -- these are what's available for now:
       history = {
         icon = "",
         highlight = "Constant",
@@ -70,23 +100,45 @@ M.default = {
       },
     },
   },
+
+  -- results window config
   result = {
+    -- command that opens the window if the window is closed
+    -- string or function
     window_command = "bo 15split",
   },
+
+  -- editor window config
   editor = {
+    -- command that opens the window if the window is closed
+    -- string or function
     window_command = function()
       vim.cmd("new")
       vim.cmd("only")
       m.tmp_buf = vim.api.nvim_get_current_buf()
       return vim.api.nvim_get_current_win()
     end,
+    -- mappings for the buffer
     mappings = {
+      -- run what's currently selected on the active connection
       run_selection = { key = "BB", mode = "v" },
+      -- run the whole file on the active connection
       run_file = { key = "BB", mode = "n" },
     },
   },
+
+  -- general UI config
+  -- Default configuration uses a "layout" helper to save the existing ui before opening any windows,
+  -- then makes a new empty window for the editor and then opens result and drawer.
+  -- When later calling dbee.close(), the previously saved layout is restored.
+  -- NOTE: "m" is just a global object - nothing special about it - you might as well just use global vars.
+  --
+  -- You can probably do anything you imagine with this - for example all floating windows, tiled/floating mix etc.
   ui = {
+    -- how to open windows in order (with specified "window_command"s -- see above)
     window_open_order = { "editor", "result", "drawer" },
+
+    -- hooks before/after dbee.open()/.close()
     pre_open_hook = function()
       -- save layout before opening ui
       m.egg = layout.save()
@@ -102,5 +154,6 @@ M.default = {
     end,
   },
 }
+-- DOCGEN END
 
 return M
