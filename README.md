@@ -1,6 +1,6 @@
 <!-- Any html tags, badges etc. go before this tag. -->
 
-<!--docgen-start-->
+<!--DOCGEN_START-->
 
 # Neovim DBee
 
@@ -38,9 +38,9 @@ use {
 
 ## Quick Start
 
-Call the `setup()` function with an optional config parameter.
-If you are not using your plugin manager to lazy load for you, make sure to
-specify `{ lazy = true }` in the config.
+Call the `setup()` function with an optional config parameter. If you are not
+using your plugin manager to lazy load for you, make sure to specify
+`{ lazy = true }` in the config.
 
 Here is a brief refference of the most useful functions:
 
@@ -59,20 +59,23 @@ As mentioned, you can pass an optional table parameter to `setup()` function.
 
 Here are the defaults:
 
-<!--docgen-config-start-->
+<!--DOCGEN_CONFIG_START-->
 
-<!-- Contents from lua/dbee/config.lua are inserted between these tags. -->
+<!-- Contents from lua/dbee/config.lua are inserted between these tags for docgen. -->
 
 [`config.lua`](lua/dbee/config.lua)
 
-<!--docgen-config-end-->
+<!--DOCGEN_CONFIG_END-->
 
 ## Projector Integration
 
-DBee is compatible with my other plugin [nvim-projector](https://github.com/kndndrj/nvim-projector), a code-runner/project-configurator.
+DBee is compatible with my other plugin
+[nvim-projector](https://github.com/kndndrj/nvim-projector), a
+code-runner/project-configurator.
 
 To use dbee with it, simply use `"dbee"` as one of it's outputs.
 
 ## Development
 
-Reffer to [ARCHITECTURE.md](ARCHITECTURE.md) for a brief overview of the architecture.
+Reffer to [ARCHITECTURE.md](ARCHITECTURE.md) for a brief overview of the
+architecture.

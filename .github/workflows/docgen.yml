@@ -17,7 +17,7 @@ jobs:
           pip install mdformat-gfm
       - name: Markdown Style Check
         run: |
-          mdformat --number --wrap 80 --check README.md
+          mdformat --number --wrap 80 --check README.md ARCHITECTURE.md
 
   generate-docs:
     runs-on: ubuntu-20.04
@@ -31,7 +31,25 @@ jobs:
           tar -xzvf md2vim.tar.gz
       - name: Generate Vim Help from Markdown
         run: |
-          ./md2vim -desc "Database client for NeoVim" <(sed '0,/docgen-start/d' README.md) doc/dbee.txt
+          TEMP_CONFIG="$(mktemp)"
+          TEMP_README="$(mktemp)"
+          # Retrieve default config and put it in a temp file
+          {
+            echo '```lua'
+            awk '/DOCGEN_END/{f=0} f; /DOCGEN_START/{f=1}' lua/dbee/config.lua
+            echo '```'
+          } > "$TEMP_CONFIG"
+          # Insert the default config between DOCGEN_CONFIG tags in the README
+          {
+            sed -e '
+              /DOCGEN_CONFIG_START/,/DOCGEN_CONFIG_END/!b
+              /DOCGEN_CONFIG_START/r '"$TEMP_CONFIG"'
+              /DOCGEN_CONFIG_END:/!d
+            ' <(sed '0,/DOCGEN_START/d' README.md)
+            cat ARCHITECTURE.md
+          } > "$TEMP_README"
+          # Generate docs
+          ./md2vim -desc "Database Client for NeoVim" "$TEMP_README" doc/dbee.txt
       - name: Commit the Generated Help
         uses: EndBug/add-and-commit@v9
         with:

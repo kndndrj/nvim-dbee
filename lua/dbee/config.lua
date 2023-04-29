@@ -24,7 +24,7 @@ local m = {}
 
 -- default configuration
 ---@type Config
--- DOCGEN START
+-- DOCGEN_START
 M.default = {
   -- list of connections
   -- don't commit that, use something like nvim-projector for project specific config.
@@ -154,6 +154,6 @@ M.default = {
     end,
   },
 }
--- DOCGEN END
+-- DOCGEN_END
 
 return M
