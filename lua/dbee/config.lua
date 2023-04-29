@@ -1,4 +1,4 @@
-local layout = require("dbee.layout")
+local layout = require("dbee.utils").layout
 
 local M = {}
 local m = {}

@@ -1,5 +1,8 @@
 local M = {}
 
+-- layout exposed through here
+M.layout = require("dbee.utils.layout")
+
 -- Get random key from table
 ---@param tbl table key-value table
 ---@return any|nil key
