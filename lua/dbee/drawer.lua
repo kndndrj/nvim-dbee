@@ -102,7 +102,11 @@ function Drawer:create_tree(bufnr)
       line:append(string.rep("  ", node:get_depth() - 1))
 
       if node:has_children() or not node:get_parent_id() then
-        line:append(node:is_expanded() and " " or " ", "NonText")
+        local icon = self.icons["node_closed"] or { icon = ">", highlight = "NonText" }
+        if node:is_expanded() then
+          icon = self.icons["node_expanded"] or { icon = "v", highlight = "NonText" }
+        end
+        line:append(icon.icon .. " ", icon.highlight)
       else
         line:append("  ")
       end

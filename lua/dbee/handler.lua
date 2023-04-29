@@ -11,7 +11,7 @@ local utils = require("dbee.utils")
 ---@field database? string parent database
 ---@field children? Layout[] child layout nodes
 --
----@alias handler_config { window_command: string|fun():integer }
+---@alias handler_config { page_size: integer, window_command: string|fun():integer }
 
 -- Handler is a wrapper around the go code
 -- it is the central part of the plugin and manages connections.
@@ -23,6 +23,7 @@ local utils = require("dbee.utils")
 ---@field private winid integer
 ---@field private bufnr integer
 ---@field private win_cmd fun():integer function which opens a new window and returns a window id
+---@field private page_size integer number of rows per page
 local Handler = {}
 
 ---@param connections? connection_details[]
@@ -31,6 +32,8 @@ local Handler = {}
 function Handler:new(connections, opts)
   connections = connections or {}
   opts = opts or {}
+
+  local page_size = opts.page_size or 100
 
   local active = "ž" -- this MUST get overwritten
   local conns = {}
@@ -52,7 +55,7 @@ function Handler:new(connections, opts)
     end
 
     -- register in go
-    vim.fn.Dbee_register_connection(id, conn.url, conn.type)
+    vim.fn.Dbee_register_connection(id, conn.url, conn.type, tostring(page_size))
 
     conns[id] = conn
   end
@@ -78,6 +81,7 @@ function Handler:new(connections, opts)
     active_connection = active,
     page_index = 0,
     win_cmd = win_cmd,
+    page_size = page_size,
   }
   setmetatable(o, self)
   self.__index = self
@@ -100,7 +104,7 @@ function Handler:add_connection(connection)
   connection.id = connection.name .. connection.type
 
   -- register in go
-  vim.fn.Dbee_register_connection(connection.id, connection.url, connection.type)
+  vim.fn.Dbee_register_connection(connection.id, connection.url, connection.type, tostring(self.page_size))
 
   self.connections[connection.id] = connection
   self.active_connection = connection.id

@@ -26,6 +26,9 @@ local m = {}
 ---@type Config
 -- DOCGEN_START
 M.default = {
+  -- lazy load the plugin or not?
+  lazy = false,
+
   -- list of connections
   -- don't commit that, use something like nvim-projector for project specific config.
   connections = {
@@ -43,8 +46,6 @@ M.default = {
     --   ["List All"] = "select * from {table}",
     -- },
   },
-  -- lazy load the plugin or not?
-  lazy = false,
 
   -- drawer window config
   drawer = {
@@ -98,6 +99,16 @@ M.default = {
         icon = "",
         highlight = "NonText",
       },
+
+      -- chevron icons for expanded/closed nodes
+      node_expanded = {
+        icon = "",
+        highlight = "NonText",
+      },
+      node_closed = {
+        icon = "",
+        highlight = "NonText",
+      },
     },
   },
 
@@ -106,6 +117,8 @@ M.default = {
     -- command that opens the window if the window is closed
     -- string or function
     window_command = "bo 15split",
+    -- number of rows per page
+    page_size = 100,
   },
 
   -- editor window config

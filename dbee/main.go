@@ -69,7 +69,7 @@ func main() {
 			func(args []string) error {
 				method := "Dbee_register_connection"
 				logger.Debug("calling " + method)
-				if len(args) < 3 {
+				if len(args) < 4 {
 					logger.Error("not enough arguments passed to " + method)
 					return nil
 				}
@@ -77,10 +77,14 @@ func main() {
 				id := args[0]
 				url := args[1]
 				typ := args[2]
+				pageSize, err := strconv.Atoi(args[3])
+				if err != nil {
+					logger.Error(err.Error())
+					return nil
+				}
 
 				// Get the right client
 				var client conn.Client
-				var err error
 				switch typ {
 				case "postgres":
 					client, err = clients.NewPostgres(url)
@@ -119,7 +123,7 @@ func main() {
 
 				h := conn.NewHistory(id, logger)
 
-				c := conn.New(client, 100, h, logger)
+				c := conn.New(client, pageSize, h, logger)
 
 				connections[id] = c
 
