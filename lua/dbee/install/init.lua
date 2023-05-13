@@ -91,7 +91,7 @@ local function get_job(command)
       return {
         {
           cmd = "wget",
-          args = { "-O", install_binary, get_url(osys, arch) },
+          args = { "-qO", install_binary, get_url(osys, arch) },
           env = {},
         },
         chmod,
