@@ -130,7 +130,8 @@ function Drawer:create_tree(bufnr)
       end
 
       -- if connection is the active one, apply a special highlight on the master
-      if node.is_master and self.handler:connection_details().id == node.id then
+      local active = self.handler:connection_details()
+      if node.is_master and active and active.id == node.id then
         line:append(node.text, icon.highlight)
       else
         line:append(node.text)
