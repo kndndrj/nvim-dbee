@@ -119,6 +119,12 @@ M.default = {
     window_command = "bo 15split",
     -- number of rows per page
     page_size = 100,
+    -- mappings for the buffer
+    mappings = {
+      -- next/previous page
+      page_next = { key = "L", mode = "" },
+      page_prev = { key = "H", mode = "" },
+    },
   },
 
   -- editor window config

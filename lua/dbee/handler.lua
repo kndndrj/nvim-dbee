@@ -11,7 +11,7 @@ local utils = require("dbee.utils")
 ---@field database? string parent database
 ---@field children? Layout[] child layout nodes
 --
----@alias handler_config { page_size: integer, window_command: string|fun():integer }
+---@alias handler_config { mappings: table<string, mapping>, page_size: integer, window_command: string|fun():integer }
 
 -- Handler is a wrapper around the go code
 -- it is the central part of the plugin and manages connections.
@@ -24,6 +24,7 @@ local utils = require("dbee.utils")
 ---@field private bufnr integer
 ---@field private win_cmd fun():integer function which opens a new window and returns a window id
 ---@field private page_size integer number of rows per page
+---@field private mappings table<string, mapping>
 local Handler = {}
 
 ---@param connections? connection_details[]
@@ -82,6 +83,7 @@ function Handler:new(connections, opts)
     page_index = 0,
     win_cmd = win_cmd,
     page_size = page_size,
+    mappings = opts.mappings or {},
   }
   setmetatable(o, self)
   self.__index = self
@@ -299,6 +301,32 @@ function Handler:save(format, file, id)
   vim.fn.Dbee_save(id, format, file)
 end
 
+---@return table<string, fun()>
+function Handler:actions()
+  return {
+    page_next = function()
+      self:page_next()
+    end,
+    page_prev = function()
+      self:page_prev()
+    end,
+  }
+end
+
+---@private
+function Handler:map_keys(bufnr)
+  local map_options = { noremap = true, nowait = true, buffer = bufnr }
+
+  local actions = self:actions()
+
+  for act, map in pairs(self.mappings) do
+    local action = actions[act]
+    if action and type(action) == "function" then
+      vim.keymap.set(map.mode, map.key, action, map_options)
+    end
+  end
+end
+
 -- fill the Ui interface - open results
 function Handler:open()
   if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
@@ -313,6 +341,9 @@ function Handler:open()
   vim.api.nvim_win_set_buf(self.winid, bufnr)
   vim.api.nvim_set_current_win(self.winid)
   vim.api.nvim_buf_set_name(bufnr, "dbee-results-" .. tostring(os.clock()))
+
+  -- set keymaps
+  self:map_keys(bufnr)
 
   local win_opts = {
     wrap = false,

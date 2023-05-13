@@ -1,4 +1,5 @@
 <!-- Any html tags, badges etc. go before this tag. -->
+
 ![Linting Status](https://img.shields.io/github/actions/workflow/status/kndndrj/nvim-dbee/lint.yml?label=linting&style=for-the-badge)
 ![Docgen Status](https://img.shields.io/github/actions/workflow/status/kndndrj/nvim-dbee/docgen.yml?label=docgen&logo=neovim&logoColor=white&style=for-the-badge)
 ![Backend](https://img.shields.io/badge/go-backend-lightblue?style=for-the-badge&logo=go&logoColor=white)
@@ -26,19 +27,46 @@
 
 ## Installation
 
-Using Packer:
+- packer.nvim:
 
-```lua
-use {
-  "kndndrj/nvim-dbee",
-  requires = {
-    "MunifTanjim/nui.nvim",
+  ```lua
+  use {
+    "kndndrj/nvim-dbee",
+    requires = {
+      "MunifTanjim/nui.nvim",
+    },
+    run = function()
+      -- Install tries to automatically detect the install method.
+      -- if it fails, try calling it with one of these parameters:
+      --    "curl", "wget", "bitsadmin", "go"
+      require("dbee").install()
+    end,
+    config = function()
+      require("dbee").setup(--[[optional config]])
+    end
+  }
+  ```
+
+- lazy.nvim:
+
+  ```lua
+  {
+    "kndndrj/nvim-dbee",
+    dir = require("secrets").get("dbee_path"),
+    dependencies = {
+      "MunifTanjim/nui.nvim",
+    },
+    build = function()
+      -- Install tries to automatically detect the install method.
+      -- if it fails, try calling it with one of these parameters:
+      --    "curl", "wget", "bitsadmin", "go"
+      require("dbee").install()
+    end,
+    config = function()
+      require("dbee").setup(--[[optional config]])
+    end,
   },
-  config = function()
-    require("dbee").setup()
-  end
-}
-```
+  ```
 
 ## Quick Start
 
@@ -49,12 +77,17 @@ using your plugin manager to lazy load for you, make sure to specify
 Here is a brief refference of the most useful functions:
 
 ```lua
-require("dbee").open() -- open UI
-require("dbee").close() -- close UI
-require("dbee").next() -- next page when results are ready
-require("dbee").prev() -- previous page when results are ready
-require("dbee").execute(query) -- run a query on the active connection directly
-require("dbee").save(format, file) -- save the current result to file (format is either "csv" or "json" for now).
+-- Open/close the UI.
+require("dbee").open()
+require("dbee").close()
+-- Next/previou page of the results (there are the same mappings that work just inside the results buffer
+-- available in config).
+require("dbee").next()
+require("dbee").prev()
+-- Run a query on the active connection directly.
+require("dbee").execute(query)
+-- Save the current result to file (format is either "csv" or "json" for now).
+require("dbee").save(format, file)
 ```
 
 ## Configuration
