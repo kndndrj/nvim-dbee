@@ -52,7 +52,6 @@
   ```lua
   {
     "kndndrj/nvim-dbee",
-    dir = require("secrets").get("dbee_path"),
     dependencies = {
       "MunifTanjim/nui.nvim",
     },
@@ -77,7 +76,8 @@ platforms).
 The CI pipeline tries building the binary for all possible GOARCH/GOOS
 combinations - the ones that succeed are stored in a
 [remote bucket](https://github.com/kndndrj/nvim-dbee-bucket) on it's own branch.
-Additionally, the [install manifest](lua/dbee/install/__manifest.lua) gets created.
+Additionally, the [install manifest](lua/dbee/install/__manifest.lua) gets
+created.
 
 So to check if your platform is currently supported, check out the mentioned
 manifest
