@@ -68,6 +68,47 @@
   },
   ```
 
+### Platform Support
+
+This project aims to be as cross-platform as possible, but there are some
+limitations (for example some of the go dependencies only work on certain
+platforms).
+
+The CI pipeline tries building the binary for all possible GOARCH/GOOS
+combinations - the ones that succeed are stored in a
+[remote bucket](https://github.com/kndndrj/nvim-dbee-bucket) on it's own branch.
+Additionally, the [install manifest](lua/install/__manifest.lua) gets created.
+
+So to check if your platform is currently supported, check out the mentioned
+manifest
+
+### Manual Binary Installation
+
+The installation examples include the `build`/`run` functions, which get
+triggered once the plugin updates. This should be sufficient for the majority of
+users. If that doesn't include you, then you have a few options:
+
+- just install with the `"go"` option (this performs `go install` under the
+  hood):
+  ```lua
+  require("dbee").install("go")
+  ```
+- Download an already compiled binary from one of urls in the
+  [install manifest](lua/install/__manifest.lua)
+- `go install` (the install location will vary depending on your local go
+  configuration):
+  ```sh
+  go install github.com/kndndrj/nvim-dbee/dbee@<version>
+  ```
+- Clone and build
+  ```sh
+  # Clone the repository and cd into the "go subfolder"
+  git clone <this_repo>
+  cd <this_repo>/dbee
+  # Build the binary (optional output path)
+  go build [-o ~/.local/share/nvim/dbee/bin/dbee]
+  ```
+
 ## Quick Start
 
 Call the `setup()` function with an optional config parameter. If you are not
