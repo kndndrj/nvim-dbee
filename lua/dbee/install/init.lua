@@ -1,10 +1,11 @@
 local M = {}
 
+-- NOTE: don't use vim.notify in loop callbacks
 local function log_error(mes)
-  require("dbee.utils").log("error", mes, "install")
+  print("[dbee install - error]: " .. mes)
 end
 local function log_info(mes)
-  require("dbee.utils").log("info", mes, "install")
+  print("[dbee install]: " .. mes)
 end
 
 function M.path()
