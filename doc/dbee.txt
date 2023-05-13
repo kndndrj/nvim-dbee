@@ -1,13 +1,419 @@
-dbee.txt                                              Database client for NeoVim
+dbee.txt                                              Database Client for NeoVim
 
 
 ================================================================================
 CONTENTS                                                           *dbee-contents*
 
 1. Neovim DBee..................................................|dbee-neovim_dbee|
+    1.1. Installation..........................................|dbee-installation|
+    1.2. Quick Start............................................|dbee-quick_start|
+    1.3. Configuration........................................|dbee-configuration|
+    1.4. Projector Integration........................|dbee-projector_integration|
+    1.5. Development............................................|dbee-development|
+2. DBee Architecture Overview....................|dbee-dbee_architecture_overview|
+    2.1. Lua Architecture..................................|dbee-lua_architecture|
+    2.2. Go Architecture....................................|dbee-go_architecture|
 
 ================================================================================
 NEOVIM DBEE                                                     *dbee-neovim_dbee*
 
-Database client for NeoVim
+Database Client for NeoVim!
+
+Execute Your Favourite Queries From the Comfort of Your Editor!
+
+Backend in Go!
+
+Frontend in Lua!
+
+Get Results FAST With Under-the-hood Iterator!
+
+Integrates with nvim-projector!
+
+Bees Love It!
+
+Alpha Software - Expect Breaking Changes!
+
+--------------------------------------------------------------------------------
+INSTALLATION                                                   *dbee-installation*
+
+*   packer.nvim:
+>
+        use {
+        "kndndrj/nvim-dbee",
+        requires = {
+          "MunifTanjim/nui.nvim",
+        },
+        run = function()
+          -- Install tries to automatically detect the install method.
+          -- if it fails, try calling it with one of these parameters:
+          --    "curl", "wget", "bitsadmin", "go"
+          require("dbee").install()
+        end,
+        config = function()
+          require("dbee").setup(--[[optional config]])
+        end
+        }
+<
+*   lazy.nvim:
+>
+        {
+        "kndndrj/nvim-dbee",
+        dir = require("secrets").get("dbee_path"),
+        dependencies = {
+          "MunifTanjim/nui.nvim",
+        },
+        build = function()
+          -- Install tries to automatically detect the install method.
+          -- if it fails, try calling it with one of these parameters:
+          --    "curl", "wget", "bitsadmin", "go"
+          require("dbee").install()
+        end,
+        config = function()
+          require("dbee").setup(--[[optional config]])
+        end,
+        },
+<
+
+--------------------------------------------------------------------------------
+QUICK START                                                     *dbee-quick_start*
+
+Call the `setup()` function with an optional config parameter. If you are not
+using your plugin manager to lazy load for you, make sure to specify
+`{ lazy = true }` in the config.
+
+Here is a brief refference of the most useful functions:
+>
+    -- Open/close the UI.
+    require("dbee").open()
+    require("dbee").close()
+    -- Next/previou page of the results (there are the same mappings that work just inside the results buffer
+    -- available in config).
+    require("dbee").next()
+    require("dbee").prev()
+    -- Run a query on the active connection directly.
+    require("dbee").execute(query)
+    -- Save the current result to file (format is either "csv" or "json" for now).
+    require("dbee").save(format, file)
+<
+
+--------------------------------------------------------------------------------
+CONFIGURATION                                                 *dbee-configuration*
+
+As mentioned, you can pass an optional table parameter to `setup()` function.
+
+Here are the defaults:
+>
+    M.default = {
+      -- lazy load the plugin or not?
+      lazy = false,
+      -- list of connections
+      -- don't commit that, use something like nvim-projector for project specific config.
+      connections = {
+        -- example:
+        -- {
+        --   name = "example-pg",
+        --   type = "postgres",
+        --   url = "postgres://user:password@localhost:5432/db?sslmode=disable",
+        -- },
+      },
+      -- extra table helpers per connection type
+      extra_helpers = {
+        -- example:
+        -- ["postgres"] = {
+        --   ["List All"] = "select * from {table}",
+        -- },
+      },
+      -- drawer window config
+      drawer = {
+        -- command that opens the window if the window is closed
+        -- string or function
+        window_command = "to 40vsplit",
+        -- mappings for the buffer
+        mappings = {
+          -- manually refresh drawer
+          refresh = { key = "r", mode = "n" },
+          -- actions perform different stuff depending on the node:
+          -- action_1 opens a scratchpad or executes a helper
+          action_1 = { key = "<CR>", mode = "n" },
+          -- action_2 renames a scratchpad or sets the connection as active manually
+          action_2 = { key = "da", mode = "n" },
+          -- action_3 deletes a scratchpad
+          action_3 = { key = "dd", mode = "n" },
+          -- these are self-explanatory:
+          collapse = { key = "c", mode = "n" },
+          expand = { key = "e", mode = "n" },
+          toggle = { key = "o", mode = "n" },
+        },
+        -- icon settings:
+        disable_icons = false,
+        icons = {
+          -- these are what's available for now:
+          history = {
+            icon = "",
+            highlight = "Constant",
+          },
+          scratch = {
+            icon = "",
+            highlight = "Character",
+          },
+          database = {
+            icon = "",
+            highlight = "SpecialChar",
+          },
+          table = {
+            icon = "",
+            highlight = "Conditional",
+          },
+          -- if there is no type
+          -- use this for normal nodes...
+          none = {
+            icon = " ",
+          },
+          -- ...and use this for nodes with children
+          none_dir = {
+            icon = "",
+            highlight = "NonText",
+          },
+          -- chevron icons for expanded/closed nodes
+          node_expanded = {
+            icon = "",
+            highlight = "NonText",
+          },
+          node_closed = {
+            icon = "",
+            highlight = "NonText",
+          },
+        },
+      },
+      -- results window config
+      result = {
+        -- command that opens the window if the window is closed
+        -- string or function
+        window_command = "bo 15split",
+        -- number of rows per page
+        page_size = 100,
+        -- mappings for the buffer
+        mappings = {
+          -- next/previous page
+          page_next = { key = "L", mode = "" },
+          page_prev = { key = "H", mode = "" },
+        },
+      },
+      -- editor window config
+      editor = {
+        -- command that opens the window if the window is closed
+        -- string or function
+        window_command = function()
+          vim.cmd("new")
+          vim.cmd("only")
+          m.tmp_buf = vim.api.nvim_get_current_buf()
+          return vim.api.nvim_get_current_win()
+        end,
+        -- mappings for the buffer
+        mappings = {
+          -- run what's currently selected on the active connection
+          run_selection = { key = "BB", mode = "v" },
+          -- run the whole file on the active connection
+          run_file = { key = "BB", mode = "n" },
+        },
+      },
+      -- general UI config
+      -- Default configuration uses a "layout" helper to save the existing ui before opening any windows,
+      -- then makes a new empty window for the editor and then opens result and drawer.
+      -- When later calling dbee.close(), the previously saved layout is restored.
+      -- NOTE: "m" is just a global object - nothing special about it - you might as well just use global vars.
+      --
+      -- You can probably do anything you imagine with this - for example all floating windows, tiled/floating mix etc.
+      ui = {
+        -- how to open windows in order (with specified "window_command"s -- see above)
+        window_open_order = { "editor", "result", "drawer" },
+        -- hooks before/after dbee.open()/.close()
+        pre_open_hook = function()
+          -- save layout before opening ui
+          m.egg = layout.save()
+        end,
+        post_open_hook = function()
+          -- delete temporary editor buffer
+          vim.cmd("bd " .. m.tmp_buf)
+        end,
+        pre_close_hook = function() end,
+        post_close_hook = function()
+          layout.restore(m.egg)
+          m.egg = nil
+        end,
+      },
+    }
+<
+
+--------------------------------------------------------------------------------
+PROJECTOR INTEGRATION                                 *dbee-projector_integration*
+
+DBee is compatible with my other plugin
+nvim-projector (https://github.com/kndndrj/nvim-projector), a
+code-runner/project-configurator.
+
+To use dbee with it, simply use `"dbee"` as one of it's outputs.
+
+--------------------------------------------------------------------------------
+DEVELOPMENT                                                     *dbee-development*
+
+Reffer to ARCHITECTURE.md (ARCHITECTURE.md) for a brief overview of the
+architecture.
+
+================================================================================
+DBEE ARCHITECTURE OVERVIEW                       *dbee-dbee_architecture_overview*
+
+The plugin is created from 2 parts:
+
+*   Lua frontend
+*   Go backend
+
+These two parts should have clearly defined borders and not "leak"
+responsibilities.
+
+--------------------------------------------------------------------------------
+LUA ARCHITECTURE                                           *dbee-lua_architecture*
+>
+                             │                                           ┌─────────────┐             ┌─────────┐
+                             │    "dbee"            ┌────────────────────►             ├─────────────►         │
+                             │                      │                    │   handler   │   mapping   │   Go    │
+                             │                      │                 ┌──►             ├─────────────►         │
+                             │                      │                 │  └─────────────┘             └─────────┘
+                             │      ┌────────────┐  │                 │
+                             │      │            │  │                 │
+    ┌───────────────┐        │      │   drawer   ├──┤                 │
+    │               │        │      │            │  │                 │
+    │   projector   │        │      └────────────┘  │  ┌────────────┐ │
+    │   extension   ├────────►                      │  │            │ │
+    │               │        │                      └──►   editor   ├─┘
+    └───────────────┘        │                         │            │
+                             │                         └────────────┘
+                             │
+                             │
+                             │
+                             │      ┌─────────────┐
+                             │      │             │
+                             │      │   install   │
+                             │      │             │
+                             │      └─────────────┘
+                             │
+<
+
+Description:
+
+*   The "dbee" package consists of 3 major functional packages, 1 install package
+    and additional "helper" packages.
+*   `install` package is independent of the other packages and is used for
+    installation of the compiled go binary using the manifest generated by the CI
+    pipeline.
+*   `drawer` is the "tree" view in UI - it consumes the editor (to provide
+    scratchpad view and to manage scratchpads) and the handler (for managing
+    connections and providing layout of each database).
+*   `editor` is the "scratchpad" window in the UI and is used for managing
+    scratchpads. It also consumes the handler in order to execute selected
+    queries.
+*   `handler` is a mapping to Go backend - it holds all connections (a connection
+    is an instance of the database) and manages them all calls to backend go
+    through here. Handler also manages the "results" window in UI. handler is also
+    responsible for providing layouts of databases to drawer.
+*   `projector extension` acts as an outside "client" and registers dbee as an
+    output for nvim-projector.
+
+--------------------------------------------------------------------------------
+GO ARCHITECTURE                                             *dbee-go_architecture*
+
+As We said, the Go backend is accessed exclusively through `handler` in lua. The
+handler reads configurations for databases, remembers them and registers them in
+the backend as well. This way, both `handler` and go's `main()` function have
+knowledge of active connections.
+
+When a handler wants to perform an action on a specific connection, it sends the
+connection's id in the request to go.
+>
+                                │
+                                │    "main.go"
+                                │
+                                │    ┌──────────────────────────────┐
+                                │    │ map of                       │
+                                │    │ connections                  │             ┌──────┐
+                                │    │                              │             │┼┼┼┼┼┼│
+                                │    │ ┌──────────────────────────┐ │             └──────┤
+                                │    │ │ postgres_xyz             │ │    ┌────────►  DB  │
+                                │    │ │                          │ │    │        ┌──────┤
+                                │    │ │  ┌─────────────────────┐ │ │    │        │┼┼┼┼┼┼│
+                                │    │ │  │clients (postgres)   ├────────┘        └──────┘
+                                │    │ │  └────────┬────────────┘ │ │
+                                │    │ │           │              │ │
+                                │    │ │         iter     ┌─ ── ── ── ── ── ─iter ── ── ── ── ── ── ──
+                                │    │ │           │      │       │ │                                 │
+                                │    │ │ ┌─────────▼──────▼─────┐ │ │
+                                │    │ │ │cache                 │ │ │                                 │
+                                │    │ │ │                      │ │ │                ┌─────────────┐
+                                │    │ │ │ - read first page ──────────────buffer────►             │  │
+    ┌─────────────────┐         │    │ │ │ - read rest in bg    │ │ │                │             │
+    │                 │         │    │ │ │                   ┌─────────────json──────►             │  │
+    │   handler.lua   ├─────────►    │ │ │                   │  │ │ │                │   outputs   │
+    │                 │         │    │ │ │ - idle ...  ──────┼─────────────csv───────►             │  │
+    └─────────────────┘         │    │ │ │                   │  │ │ │                │             │
+                                │    │ │ │                   └─────────────buffer────►             │  │
+                                │    │ │ │                      │ │ │                └─────────────┘
+                                │    │ │ │                      │ │ │                                 │
+                                │    │ │ │                      │ │ │                ┌─────────────┐
+                                │    │ │ │  - flush ─────────────────────────────────►   history   ├ ─┘
+                                │    │ │ │                      │ │ │                │   output    │
+                                │    │ │ └──────────────────────┘ │ │                └─────────────┘
+                                │    │ │                          │ │
+                                │    │ └──────────────────────────┘ │
+                                │    │                              │
+                                │    │ ┌──────────────────────────┐ │
+                                │    │ │ sqlite_123               │ │
+                                │    │ │  ┌────────────────┐      │ │
+                                │    │ │  │clients (sqlite)│      │ │
+                                │    │ │  └────────────────┘      │ │
+                                │    │ │                          │ │
+                                │    │ └──────────────────────────┘ │
+                                │    │                              │
+                                │    │            ...               │
+                                │    │                              │
+                                │    └──────────────────────────────┘
+                                │
+<
+
+Now that we have a map of connections, we can focus on how each connection is
+structured:
+
+There are 2 primarily used result types in the connection:
+
+*   `IterResult` - result in a form of an iterator returned by the specific
+    driver.
+*   `Result` - full in-memory result set, which is sent in full or in chunks to
+    outputs.
+
+Each connection has a specific driver implementation (`clients`) which are
+required to implement "query" functionality and return an `IterResult` which is
+an iterator over the results returned from the database.
+
+Then the client's internal `cache` reads the ammount of results required for the
+first page (specified as a parameter) in the main thread and it immediately
+sends it (drained first page `Result`) to the specified output (`buffer`) - this
+makes an impression that results are available right away.
+
+As soon as the first page is read, a background process is spawned which drains
+the remaining results to connections's internal cache.
+
+When the iterator is drained and all results are in cache, we can do a few
+things with it:
+
+*   send a chunk of `Result` to an output (e.g. page of the result) - usually used
+    by `buffer` output
+*   send a full `Result` to an output - useful for "saving" (e.g. json or csv
+    output)
+
+When a user makes a new request to the client (executes a query), the in-memory
+`Result` is flushed to history output, which saves it on disk for possible
+latter consumption.
+
+Note: `buffer`, `json` and `csv` all implement the same `Output` interface and
+could be used interchangably. Simillarly, `clients` and `history` implement the
+same `Input` interface.
 
