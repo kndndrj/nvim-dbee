@@ -55,7 +55,7 @@ func (c *RedisClient) Query(query string) (models.IterResult, error) {
 	case nil:
 		return nil, errors.New("no reponse from redis")
 	default:
-		return nil, fmt.Errorf("unknown type reponse from redis: %T!\n", rpl)
+		return nil, fmt.Errorf("unknown type reponse from redis: %T", rpl)
 	}
 
 	// build result

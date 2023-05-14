@@ -1,6 +1,12 @@
 name: Compile and Upload Binaries
 
-on: [push, pull_request]
+on:
+  push:
+    paths:
+      - "dbee/**"
+  pull_request:
+    paths:
+      - "dbee/**"
 
 env:
   BUCKET_REPOSITORY_PUBLISH_USER: "${{ secrets.BUCKET_REPOSITORY_PUBLISH_USER }}"

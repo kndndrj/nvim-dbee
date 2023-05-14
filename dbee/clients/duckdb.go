@@ -6,25 +6,25 @@ import (
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
-	_ "modernc.org/sqlite"
+	_ "github.com/marcboeker/go-duckdb"
 )
 
-type SqliteClient struct {
+type DuckDBClient struct {
 	c *common.Client
 }
 
-func NewSqlite(url string) (*SqliteClient, error) {
-	db, err := sql.Open("sqlite", url)
+func NewDuckDB(url string) (*DuckDBClient, error) {
+	db, err := sql.Open("duckdb", url)
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to sqlite database: %v", err)
+		return nil, fmt.Errorf("unable to connect to duckdb database: %v", err)
 	}
 
-	return &SqliteClient{
+	return &DuckDBClient{
 		c: common.NewClient(db),
 	}, nil
 }
 
-func (c *SqliteClient) Query(query string) (models.IterResult, error) {
+func (c *DuckDBClient) Query(query string) (models.IterResult, error) {
 
 	con, err := c.c.Conn()
 	if err != nil {
@@ -43,25 +43,12 @@ func (c *SqliteClient) Query(query string) (models.IterResult, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	h, err := rows.Header()
-	if err != nil {
-		return nil, err
-	}
-	if len(h) > 0 {
-		rows.SetCallback(cb)
-		return rows, nil
-	}
-	rows.Close()
-
-	// empty header means no result -> get affected rows
-	rows, err = con.Query("select changes() as 'Rows Affected'")
 	rows.SetCallback(cb)
-	return rows, err
+	return rows, nil
 }
 
-func (c *SqliteClient) Layout() ([]models.Layout, error) {
-	query := `SELECT name FROM sqlite_schema WHERE type ='table'`
+func (c *DuckDBClient) Layout() ([]models.Layout, error) {
+	query := `SHOW TABLES;`
 
 	rows, err := c.Query(query)
 	if err != nil {
@@ -92,6 +79,6 @@ func (c *SqliteClient) Layout() ([]models.Layout, error) {
 	return schema, nil
 }
 
-func (c *SqliteClient) Close() {
+func (c *DuckDBClient) Close() {
 	c.c.Close()
 }

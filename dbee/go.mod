@@ -7,6 +7,7 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/lib/pq v1.10.7
+	github.com/marcboeker/go-duckdb v1.2.3
 	github.com/neovim/go-client v1.2.1
 	github.com/redis/go-redis/v9 v9.0.2
 	go.mongodb.org/mongo-driver v1.11.6
@@ -25,6 +26,7 @@ require (
 	github.com/klauspost/compress v1.13.6 // indirect
 	github.com/mattn/go-isatty v0.0.16 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
+	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/montanaflynn/stats v0.0.0-20171201202039-1bf9dbcd8cbe // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect

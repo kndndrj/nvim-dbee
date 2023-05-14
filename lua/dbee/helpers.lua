@@ -69,6 +69,16 @@ local function mongo()
   }
 end
 
+---@return table_helpers helpers list of table helpers
+local function duckdb()
+  return {
+    List = "SELECT * FROM '{table}' LIMIT 500",
+    Columns = 'DESCRIBE "{table}"',
+    Indexes = "SELECT * FROM duckdb_indexes() WHERE table_name = '{table}'",
+    Constraints = "SELECT * FROM duckdb_constraints() WHERE table_name = '{table}'",
+  }
+end
+
 ---@param type string
 ---@return table_helpers helpers list of table helpers
 function M.get(type)
@@ -83,6 +93,8 @@ function M.get(type)
     hs = redis()
   elseif type == "mongo" then
     hs = mongo()
+  elseif type == "duckdb" then
+    hs = duckdb()
   end
 
   if not hs then

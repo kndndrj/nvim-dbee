@@ -28,7 +28,7 @@ func NewMysql(url string) (*MysqlClient, error) {
 
 	db, err := sql.Open("mysql", url)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to connect to database: %v\n", err)
+		return nil, fmt.Errorf("unable to connect to mysql database: %v", err)
 	}
 
 	return &MysqlClient{

@@ -116,6 +116,12 @@ func main() {
 						logger.Error(err.Error())
 						return nil
 					}
+				case "duckdb":
+					client, err = clients.NewDuckDB(url)
+					if err != nil {
+						logger.Error(err.Error())
+						return nil
+					}
 				default:
 					logger.Error("database of type \"" + typ + "\" is not supported")
 					return nil
