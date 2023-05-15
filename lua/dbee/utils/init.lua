@@ -72,4 +72,25 @@ function M.log(level, message, subtitle)
   vim.notify(subtitle .. " " .. message, l, { title = "nvim-dbee" })
 end
 
+-- Replaces {{ env.SOMETHING }} with environment or empty string
+---@param obj string|table
+---@return string|table
+function M.expand_environmet(obj)
+  local function expand(o)
+    if type(o) ~= "string" then
+      return o
+    end
+    local ret = o:gsub("{{%s*env.([%w_]*)%s*}}", function(v)
+      return os.getenv(v) or ""
+    end)
+    return ret
+  end
+
+  if type(obj) == "table" then
+    return vim.tbl_map(expand, obj)
+  end
+
+  return expand(obj)
+end
+
 return M

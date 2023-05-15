@@ -102,7 +102,7 @@ function Handler:add_connection(connection)
   end
 
   connection.name = connection.name or "[empty name]"
-
+  connection.type = utils.type_alias(connection.type)
   connection.id = connection.name .. connection.type
 
   -- register in go

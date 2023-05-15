@@ -79,12 +79,32 @@ function M.setup(o)
   pcall_lazy_setup()
 end
 
+---@param from "file"|"env"
+---@param opt? string path to file or environment variable
+function M.load_connections(from, opt)
+  if not pcall_lazy_setup() then
+    return
+  end
+
+  local conns = {}
+  local loader = require("dbee.loader")
+  if from == "file" then
+    conns = loader.from_file(opt)
+  elseif from == "env" then
+    conns = loader.from_env(opt)
+  end
+
+  for _, conn in ipairs(conns) do
+    m.handler:add_connection(utils.expand_environmet(conn) --[[@as connection_details]])
+  end
+end
+
 ---@param connection connection_details
 function M.add_connection(connection)
   if not pcall_lazy_setup() then
     return
   end
-  m.handler:add_connection(connection)
+  m.handler:add_connection(utils.expand_environmet(connection) --[[@as connection_details]])
 end
 
 function M.open()
