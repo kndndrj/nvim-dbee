@@ -226,7 +226,7 @@ function Handler:layout(id)
       return {}
     end
 
-    local _new_layouts = {}
+    local new_layouts = {}
     for _, lgo in ipairs(layout_go) do
       -- action 1 executes query or history
       local action_1
@@ -270,7 +270,7 @@ function Handler:layout(id)
       end
       -- action_3 is empty
 
-      local _ly = {
+      local ly = {
         name = lgo.name,
         schema = lgo.schema,
         database = lgo.database,
@@ -281,10 +281,10 @@ function Handler:layout(id)
         children = to_layout(lgo.children),
       }
 
-      table.insert(_new_layouts, _ly)
+      table.insert(new_layouts, ly)
     end
 
-    return _new_layouts
+    return new_layouts
   end
 
   return to_layout(vim.fn.json_decode(vim.fn.Dbee_layout(id)))

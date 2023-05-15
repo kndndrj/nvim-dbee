@@ -1,7 +1,9 @@
 local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
+local utils = require("dbee.utils")
 
 local SCRATCHPAD_NODE_ID = "scratchpad_node"
+local ADD_CONNECTION_NODE_ID = "add_connection_node"
 
 ---@class Icon
 ---@field icon string
@@ -350,6 +352,32 @@ function Drawer:refresh()
     self.tree:add_node(node)
   end
 
+  -- new connection
+  if not exists(ADD_CONNECTION_NODE_ID) then
+    ---@type MasterNode
+    local node = NuiTree.Node {
+      id = ADD_CONNECTION_NODE_ID,
+      text = "- add connection -",
+      type = "",
+      is_master = true,
+      action_1 = function()
+        local prompt = {
+          "name",
+          "type",
+          "url",
+        }
+        require("dbee.prompt").open(prompt, {
+          title = "Add Connection",
+          callback = function(result)
+            self.handler:add_connection(utils.expand_environmet(result) --[[@as connection_details]])
+            self:refresh()
+          end,
+        })
+      end,
+    }
+    self.tree:add_node(node)
+  end
+
   -- connections
   local cons = self.handler:list_connections()
   for _, con in ipairs(cons) do
@@ -379,6 +407,7 @@ function Drawer:refresh()
       self:refresh_node(n.id)
     end
   end
+  self.tree:render()
 end
 
 -- Show drawer on screen
