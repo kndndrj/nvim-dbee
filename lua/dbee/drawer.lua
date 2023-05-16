@@ -306,9 +306,9 @@ end
 function Drawer:refresh()
   -- whitespace between nodes
   ---@return Layout
-  local seperator = function()
+  local separator = function()
     return {
-      id = "__seperator_layout__" .. tostring(math.random()),
+      id = "__separator_layout__" .. tostring(math.random()),
       name = "",
       type = "",
     }
@@ -342,11 +342,11 @@ function Drawer:refresh()
   for _, ly in ipairs(self.editor:layout()) do
     table.insert(layouts, ly)
   end
-  table.insert(layouts, seperator())
+  table.insert(layouts, separator())
   for _, ly in ipairs(self.handler:layout()) do
     table.insert(layouts, ly)
   end
-  table.insert(layouts, seperator())
+  table.insert(layouts, separator())
   table.insert(layouts, help)
 
   self:set_layout(layouts)

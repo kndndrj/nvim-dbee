@@ -93,6 +93,12 @@ function M.open(prompt, opts)
   vim.keymap.set("n", "q", function()
     vim.api.nvim_win_close(winid, true)
   end, { silent = true, buffer = bufnr })
+
+  vim.keymap.set("i", "<CR>", function()
+    -- write and return to normal mode
+    vim.cmd(":w")
+    vim.api.nvim_input("<C-\\><C-N>")
+  end, { silent = true, buffer = bufnr })
 end
 
 return M

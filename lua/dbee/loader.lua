@@ -1,12 +1,14 @@
 local utils = require("dbee.utils")
 
+local DEFAULT_PERSISTENCE_FILE = vim.fn.stdpath("cache") .. "/dbee/persistence.json"
+
 local M = {}
 
 -- Parses json file with connections
 ---@param path? string path to file
 ---@return connection_details[]
 function M.from_file(path)
-  path = path or vim.fn.getcwd() .. "/.vim/dbee.json"
+  path = path or DEFAULT_PERSISTENCE_FILE
 
   ---@type connection_details[]
   local conns = {}
@@ -25,7 +27,7 @@ function M.from_file(path)
   local contents = table.concat(lines, "\n")
   local ok, data = pcall(vim.fn.json_decode, contents)
   if not ok then
-    utils.log("error", 'Could not parse json file: "' .. path .. '".', "loader")
+    utils.log("warn", 'Could not parse json file: "' .. path .. '".', "loader")
     return {}
   end
 
@@ -54,7 +56,7 @@ function M.from_env(var)
 
   local ok, data = pcall(vim.fn.json_decode, raw)
   if not ok then
-    utils.log("error", 'Could not parse connections from env: "' .. var .. '".', "loader")
+    utils.log("warn", 'Could not parse connections from env: "' .. var .. '".', "loader")
     return {}
   end
 
@@ -65,6 +67,34 @@ function M.from_env(var)
   end
 
   return conns
+end
+
+-- saves connection_details to a file
+---@param connections connection_details[]
+---@param path? string path to save file
+function M.to_file(connections, path)
+  path = path or DEFAULT_PERSISTENCE_FILE
+
+  if not connections or vim.tbl_isempty(connections) then
+    return
+  end
+
+  local existing = M.from_file(path)
+
+  for _, conn in ipairs(connections) do
+    table.insert(existing, conn)
+  end
+
+  local ok, json = pcall(vim.fn.json_encode, existing)
+  if not ok then
+    utils.log("error", "Could not convert connection list to json", "loader")
+    return
+  end
+
+  -- overwrite file
+  local file = assert(io.open(path, "w+"), "could not open file")
+  file:write(json)
+  file:close()
 end
 
 return M

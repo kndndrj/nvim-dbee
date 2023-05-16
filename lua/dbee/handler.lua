@@ -94,11 +94,9 @@ end
 function Handler:add_connection(connection)
   if not connection.url then
     error("url needs to be set!")
-    return
   end
   if not connection.type or connection.type == "" then
     error("no type")
-    return
   end
 
   connection.name = connection.name or "[empty name]"
@@ -108,7 +106,7 @@ function Handler:add_connection(connection)
   -- register in go
   local ok = vim.fn.Dbee_register_connection(connection.id, connection.url, connection.type, tostring(self.page_size))
   if not ok then
-    return
+    error("problem adding connection")
   end
 
   self.connections[connection.id] = connection
@@ -335,7 +333,10 @@ function Handler:layout()
       require("dbee.prompt").open(prompt, {
         title = "Add Connection",
         callback = function(result)
-          self:add_connection(utils.expand_environmet(result) --[[@as connection_details]])
+          local ok = pcall(self.add_connection, self, utils.expand_environmet(result) --[[@as connection_details]])
+          if ok then
+            require("dbee.loader").to_file { result }
+          end
           cb()
         end,
       })
