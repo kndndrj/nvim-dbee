@@ -1,35 +1,23 @@
 local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
-local utils = require("dbee.utils")
-
-local SCRATCHPAD_NODE_ID = "scratchpad_node"
-local ADD_CONNECTION_NODE_ID = "add_connection_node"
 
 ---@class Icon
 ---@field icon string
 ---@field highlight string
 
 ---@class Layout
+---@field id string unique identifier
 ---@field name string display name
+---@field type ""|"table"|"history"|"scratch"|"database" type of layout
 ---@field schema? string parent schema
 ---@field database? string parent database
----@field type ""|"table"|"history"|"scratch"|"database" type of layout
 ---@field action_1? fun(cb: fun()) primary action - takes single arg: callback closure
 ---@field action_2? fun(cb: fun()) secondary action - takes single arg: callback closure
 ---@field action_3? fun(cb: fun()) tertiary action - takes single arg: callback closure
----@field children? Layout[] child layout nodes
+---@field children? Layout[]|fun():Layout[] child layout nodes
 
----@class Node
----@field id string
----@field text string
----@field type string type which infers icon
----@field is_expanded fun(self:Node):boolean
----@field is_master boolean
----@field action_1 fun() function to perform on primary event
----@field action_2 fun() function to perform on secondary event
----@field action_3 fun() function to perform on tertiary event
-
----@class MasterNode: Node
+-- node is Layout converted to NuiTreeNode
+---@class Node: Layout
 ---@field getter fun():Layout
 
 ---@alias drawer_config { disable_icons: boolean, icons: table<string, Icon>, mappings: table<string, mapping>, window_command: string|fun():integer }
@@ -133,10 +121,10 @@ function Drawer:create_tree(bufnr)
 
       -- if connection is the active one, apply a special highlight on the master
       local active = self.handler:connection_details()
-      if node.is_master and active and active.id == node.id then
-        line:append(node.text, icon.highlight)
+      if active and active.id == node.id then
+        line:append(node.name, icon.highlight)
       else
-        line:append(node.text)
+        line:append(node.name)
       end
 
       return line
@@ -173,8 +161,9 @@ function Drawer:actions()
 
     expand_all_single(node)
 
-    if node.is_master then
-      self:refresh_node(node.id)
+    -- if function for getting layout exist, call it
+    if not expanded and type(node.getter) == "function" then
+      node.getter()
     end
 
     node:expand()
@@ -191,19 +180,25 @@ function Drawer:actions()
     action_1 = function()
       local node = self.tree:get_node()
       if type(node.action_1) == "function" then
-        node.action_1()
+        node.action_1(function()
+          self:refresh()
+        end)
       end
     end,
     action_2 = function()
       local node = self.tree:get_node()
       if type(node.action_2) == "function" then
-        node.action_2()
+        node.action_2(function()
+          self:refresh()
+        end)
       end
     end,
     action_3 = function()
       local node = self.tree:get_node()
       if type(node.action_3) == "function" then
-        node.action_3()
+        node.action_3(function()
+          self:refresh()
+        end)
       end
     end,
     collapse = function()
@@ -250,59 +245,54 @@ function Drawer:map_keys(bufnr)
   end
 end
 
+-- sets layout to tree
 ---@private
----@param master_node_id string master node id
-function Drawer:refresh_node(master_node_id)
+---@param layout Layout[] layout to add to tree
+---@param node_id? string layout is set as children to this id or root
+function Drawer:set_layout(layout, node_id)
+  --- recursed over Layout[] and sets it to the tree
   ---@param layouts Layout[]
-  ---@param parent_id? string
-  ---@return table nodes list of NuiTreeNodes
-  local function layout_to_tree_nodes(layouts, parent_id)
-    parent_id = parent_id or ""
-
+  ---@return Node[] nodes list of NuiTreeNodes
+  local function to_node(layouts)
     if not layouts then
       return {}
     end
 
-    -- sort keys
-    table.sort(layouts, function(k1, k2)
-      return k1.name < k2.name
-    end)
-
     local nodes = {}
     for _, l in ipairs(layouts) do
-      local id = parent_id .. l.name
-      local node = NuiTree.Node({
-        id = id,
-        master_id = master_node_id,
-        text = string.gsub(l.name, "\n", " "),
-        type = l.type,
-        action_1 = function()
-          if type(l.action_1) == "function" then
-            l.action_1(function()
-              self:refresh()
-            end)
+
+      -- get children or set getter
+      local getter
+      local children
+      if type(l.children) == "function" then
+        getter = function()
+          local exists = self.tree:get_node(l.id)
+          if exists then
+            self.tree:set_nodes(to_node(l.children()), l.id)
           end
-        end,
-        action_2 = function()
-          if type(l.action_2) == "function" then
-            l.action_2(function()
-              self:refresh()
-            end)
-          end
-        end,
-        action_3 = function()
-          if type(l.action_3) == "function" then
-            l.action_3(function()
-              self:refresh()
-            end)
-          end
-        end,
-        -- recurse children
-      }, layout_to_tree_nodes(l.children, id))
+        end
+      else
+        children = l.children
+      end
+
+      -- all other fields stay the same
+      local n = vim.fn.copy(l)
+      n.name = string.gsub(l.name, "\n", " ")
+      n.getter = getter
 
       -- get existing node from the current tree and check if it is expanded
-      local ex_node = self.tree:get_node(id)
+      local expanded = false
+      local ex_node = self.tree:get_node(l.id)
       if ex_node and ex_node:is_expanded() then
+        expanded = true
+        -- if getter exists, and node is expanded, we call it
+        if getter then
+          children = l.children()
+        end
+      end
+      -- recurse children
+      local node = NuiTree.Node(n, to_node(children --[[@as Layout[] ]]))
+      if expanded then
         node:expand()
       end
 
@@ -312,101 +302,16 @@ function Drawer:refresh_node(master_node_id)
     return nodes
   end
 
-  ---@type MasterNode
-  local master_node = self.tree:get_node(master_node_id)
-
-  local layout = master_node.getter()
-
-  local children = layout_to_tree_nodes(layout, tostring(master_node_id))
-
-  self.tree:set_nodes(children, master_node_id)
-  self.tree:render()
+  -- recurse layout
+  self.tree:set_nodes(to_node(layout), node_id)
 end
 
 function Drawer:refresh()
-  ---@type MasterNode[]
-  local existing_nodes = self.tree:get_nodes()
+  ---@type Layout[]
+  local layouts = { unpack(self.editor:layout()), unpack(self.handler:layout()) }
 
-  ---@param id string
-  local function exists(id)
-    for _, n in ipairs(existing_nodes) do
-      if n.id == id then
-        return true
-      end
-    end
-    return false
-  end
+  self:set_layout(layouts)
 
-  -- scratchpads
-  if not exists(SCRATCHPAD_NODE_ID) then
-    ---@type MasterNode
-    local node = NuiTree.Node {
-      id = SCRATCHPAD_NODE_ID,
-      text = "scratchpads",
-      type = "scratch",
-      is_master = true,
-      getter = function()
-        return self.editor:layout()
-      end,
-    }
-    self.tree:add_node(node)
-  end
-
-  -- new connection
-  if not exists(ADD_CONNECTION_NODE_ID) then
-    ---@type MasterNode
-    local node = NuiTree.Node {
-      id = ADD_CONNECTION_NODE_ID,
-      text = "- add connection -",
-      type = "",
-      is_master = true,
-      action_1 = function()
-        local prompt = {
-          "name",
-          "type",
-          "url",
-        }
-        require("dbee.prompt").open(prompt, {
-          title = "Add Connection",
-          callback = function(result)
-            self.handler:add_connection(utils.expand_environmet(result) --[[@as connection_details]])
-            self:refresh()
-          end,
-        })
-      end,
-    }
-    self.tree:add_node(node)
-  end
-
-  -- connections
-  local cons = self.handler:list_connections()
-  for _, con in ipairs(cons) do
-    if not exists(con.id) then
-      ---@type MasterNode
-      local node = NuiTree.Node {
-        id = con.id,
-        text = con.name,
-        type = "database",
-        is_master = true,
-        -- set connection as active manually
-        action_2 = function()
-          self.handler:set_active(con.id)
-          self:refresh_node(con.id)
-        end,
-        getter = function()
-          return self.handler:layout(con.id)
-        end,
-      }
-      self.tree:add_node(node)
-    end
-  end
-
-  -- refresh open master nodes
-  for _, n in ipairs(existing_nodes) do
-    if n:is_expanded() then
-      self:refresh_node(n.id)
-    end
-  end
   self.tree:render()
 end
 

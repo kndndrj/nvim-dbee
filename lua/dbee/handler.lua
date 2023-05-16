@@ -48,7 +48,7 @@ function Handler:new(connections, opts)
     conn.type = utils.type_alias(conn.type)
 
     conn.name = conn.name or "[empty name]"
-    local id = conn.name .. conn.type
+    local id = "__master_connection_id_" .. conn.name .. conn.type .. "__"
 
     conn.id = id
     if id < active then
@@ -103,7 +103,7 @@ function Handler:add_connection(connection)
 
   connection.name = connection.name or "[empty name]"
   connection.type = utils.type_alias(connection.type)
-  connection.id = connection.name .. connection.type
+  connection.id = "__master_connection_id_" .. connection.name .. connection.type .. "__"
 
   -- register in go
   vim.fn.Dbee_register_connection(connection.id, connection.url, connection.type, tostring(self.page_size))
@@ -214,17 +214,23 @@ function Handler:history(history_id, id)
 end
 
 -- get layout for the connection
+---@private
 ---@param id? conn_id connection id
 ---@return Layout[]
-function Handler:layout(id)
+function Handler:get_connection_layout(id)
   id = id or self.active_connection
 
   ---@param layout_go _LayoutGo[] layout from go
   ---@return Layout[] layout with actions
-  local function to_layout(layout_go)
+  local function to_layout(layout_go, parent_id)
     if not layout_go or layout_go == vim.NIL then
       return {}
     end
+
+    -- sort keys
+    table.sort(layout_go, function(k1, k2)
+      return k1.name < k2.name
+    end)
 
     local new_layouts = {}
     for _, lgo in ipairs(layout_go) do
@@ -270,7 +276,9 @@ function Handler:layout(id)
       end
       -- action_3 is empty
 
+      local l_id = (parent_id or "") .. "__connection_" .. lgo.name .. lgo.schema .. lgo.type .. "__"
       local ly = {
+        id = l_id,
         name = lgo.name,
         schema = lgo.schema,
         database = lgo.database,
@@ -278,7 +286,7 @@ function Handler:layout(id)
         action_1 = action_1,
         action_2 = action_2,
         action_3 = nil,
-        children = to_layout(lgo.children),
+        children = to_layout(lgo.children, l_id),
       }
 
       table.insert(new_layouts, ly)
@@ -287,7 +295,51 @@ function Handler:layout(id)
     return new_layouts
   end
 
-  return to_layout(vim.fn.json_decode(vim.fn.Dbee_layout(id)))
+  return to_layout(vim.fn.json_decode(vim.fn.Dbee_layout(id)), id)
+end
+
+---@return Layout[]
+function Handler:layout()
+  ---@type Layout[]
+  local layout = {}
+
+  for _, conn in ipairs(self:list_connections()) do
+    table.insert(layout, {
+      id = conn.id,
+      name = conn.name,
+      type = "database",
+      -- set connection as active manually
+      action_2 = function(cb)
+        self:set_active(conn.id)
+        cb()
+      end,
+      children = function()
+        return self:get_connection_layout(conn.id)
+      end,
+    })
+  end
+
+  table.insert(layout, {
+    id = "__add_connection__",
+    name = "- add connection -",
+    type = "",
+    action_1 = function(cb)
+      local prompt = {
+        "name",
+        "type",
+        "url",
+      }
+      require("dbee.prompt").open(prompt, {
+        title = "Add Connection",
+        callback = function(result)
+          self:add_connection(utils.expand_environmet(result) --[[@as connection_details]])
+          cb()
+        end,
+      })
+    end,
+  })
+
+  return layout
 end
 
 ---@param format "csv"|"json" how to format the result

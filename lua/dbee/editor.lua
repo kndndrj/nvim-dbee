@@ -155,7 +155,9 @@ function Editor:layout()
   ---@type Layout[]
   local scratches = {
     {
+      id = "__new_scratchpad__",
       name = "- new -",
+      type = "",
       action_1 = function(cb)
         self:new_scratch()
         self:open()
@@ -167,6 +169,7 @@ function Editor:layout()
   for _, s in pairs(self.scratches) do
     ---@type Layout
     local sch = {
+      id = "__scratchpad_" .. s.file .. "__",
       name = vim.fs.basename(s.file),
       type = "scratch",
       action_1 = function(cb)
@@ -198,7 +201,12 @@ function Editor:layout()
     table.insert(scratches, sch)
   end
 
-  return scratches
+  return { {
+    id = "__master_scratchpad__",
+    name = "scratchpads",
+    type = "scratch",
+    children = scratches,
+  } }
 end
 
 ---@param id scratch_id scratch id - name
