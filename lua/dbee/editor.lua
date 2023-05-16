@@ -156,8 +156,8 @@ function Editor:layout()
   local scratches = {
     {
       id = "__new_scratchpad__",
-      name = "- new -",
-      type = "",
+      name = "new",
+      type = "add",
       action_1 = function(cb)
         self:new_scratch()
         self:open()

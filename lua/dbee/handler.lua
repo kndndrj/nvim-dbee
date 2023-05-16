@@ -96,7 +96,7 @@ function Handler:add_connection(connection)
     error("url needs to be set!")
     return
   end
-  if not connection.type then
+  if not connection.type or connection.type == "" then
     error("no type")
     return
   end
@@ -106,7 +106,10 @@ function Handler:add_connection(connection)
   connection.id = "__master_connection_id_" .. connection.name .. connection.type .. "__"
 
   -- register in go
-  vim.fn.Dbee_register_connection(connection.id, connection.url, connection.type, tostring(self.page_size))
+  local ok = vim.fn.Dbee_register_connection(connection.id, connection.url, connection.type, tostring(self.page_size))
+  if not ok then
+    return
+  end
 
   self.connections[connection.id] = connection
   self.active_connection = connection.id
@@ -321,8 +324,8 @@ function Handler:layout()
 
   table.insert(layout, {
     id = "__add_connection__",
-    name = "- add connection -",
-    type = "",
+    name = "add connection",
+    type = "add",
     action_1 = function(cb)
       local prompt = {
         "name",

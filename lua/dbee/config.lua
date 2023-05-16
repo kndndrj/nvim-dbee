@@ -88,6 +88,18 @@ M.default = {
         icon = "",
         highlight = "Conditional",
       },
+      add = {
+        icon = "",
+        highlight = "String",
+      },
+      remove = {
+        icon = "󰆴",
+        highlight = "SpellBad",
+      },
+      help = {
+        icon = "󰋖",
+        highlight = "NormalFloat",
+      },
 
       -- if there is no type
       -- use this for normal nodes...

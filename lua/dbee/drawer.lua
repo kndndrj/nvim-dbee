@@ -8,7 +8,7 @@ local NuiLine = require("nui.line")
 ---@class Layout
 ---@field id string unique identifier
 ---@field name string display name
----@field type ""|"table"|"history"|"scratch"|"database" type of layout
+---@field type ""|"table"|"history"|"scratch"|"database"|"add"|"remove"|"help" type of layout
 ---@field schema? string parent schema
 ---@field database? string parent database
 ---@field action_1? fun(cb: fun()) primary action - takes single arg: callback closure
@@ -91,7 +91,7 @@ function Drawer:create_tree(bufnr)
 
       line:append(string.rep("  ", node:get_depth() - 1))
 
-      if node:has_children() or not node:get_parent_id() then
+      if node:has_children() or node.getter then
         local icon = self.icons["node_closed"] or { icon = ">", highlight = "NonText" }
         if node:is_expanded() then
           icon = self.icons["node_expanded"] or { icon = "v", highlight = "NonText" }
@@ -168,9 +168,7 @@ function Drawer:actions()
 
     node:expand()
 
-    if expanded ~= node:is_expanded() then
-      self.tree:render()
-    end
+    self.tree:render()
   end
 
   return {
@@ -260,7 +258,6 @@ function Drawer:set_layout(layout, node_id)
 
     local nodes = {}
     for _, l in ipairs(layouts) do
-
       -- get children or set getter
       local getter
       local children
@@ -307,8 +304,50 @@ function Drawer:set_layout(layout, node_id)
 end
 
 function Drawer:refresh()
+  -- whitespace between nodes
+  ---@return Layout
+  local seperator = function()
+    return {
+      id = "__seperator_layout__" .. tostring(math.random()),
+      name = "",
+      type = "",
+    }
+  end
+
+  -- help node
+  local help_children = {}
+  for act, map in pairs(self.mappings) do
+    table.insert(help_children, {
+      id = "__help_action_" .. act,
+      name = act .. " = " .. map.key .. " (" .. map.mode .. ")",
+      type = "",
+    })
+  end
+
+  table.sort(help_children, function(k1, k2)
+    return k1.id < k2.id
+  end)
+
+  ---@type Layout
+  local help = {
+    id = "__help_layout__",
+    name = "help",
+    type = "help",
+    children = help_children,
+  }
+
+  -- assemble tree layout
   ---@type Layout[]
-  local layouts = { unpack(self.editor:layout()), unpack(self.handler:layout()) }
+  local layouts = {}
+  for _, ly in ipairs(self.editor:layout()) do
+    table.insert(layouts, ly)
+  end
+  table.insert(layouts, seperator())
+  for _, ly in ipairs(self.handler:layout()) do
+    table.insert(layouts, ly)
+  end
+  table.insert(layouts, seperator())
+  table.insert(layouts, help)
 
   self:set_layout(layouts)
 
