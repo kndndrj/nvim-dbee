@@ -330,7 +330,7 @@ function Handler:layout()
         "type",
         "url",
       }
-      require("dbee.prompt").open(prompt, {
+      utils.prompt.open(prompt, {
         title = "Add Connection",
         callback = function(result)
           local ok = pcall(self.add_connection, self, utils.expand_environmet(result) --[[@as connection_details]])
