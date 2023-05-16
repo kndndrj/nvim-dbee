@@ -11,7 +11,8 @@ local utils = require("dbee.utils")
 ---@field database? string parent database
 ---@field children? Layout[] child layout nodes
 --
----@alias handler_config { mappings: table<string, mapping>, page_size: integer, window_command: string|fun():integer }
+---@alias result_config { mappings: table<string, mapping>, page_size: integer, window_command: string|fun():integer }
+---@alias loader_config { save: fun(conns: connection_details[]), load: fun():connection_details[] }
 
 -- Handler is a wrapper around the go code
 -- it is the central part of the plugin and manages connections.
@@ -25,50 +26,27 @@ local utils = require("dbee.utils")
 ---@field private win_cmd fun():integer function which opens a new window and returns a window id
 ---@field private page_size integer number of rows per page
 ---@field private mappings table<string, mapping>
+---@field private loader_save fun(conns: connection_details[]) function to save connections
+---@field private loader_load fun():connection_details[] function to load connections
 local Handler = {}
 
----@param connections? connection_details[]
----@param opts? handler_config
+---@param opts? { result: result_config, loader: loader_config }
 ---@return Handler
-function Handler:new(connections, opts)
-  connections = connections or {}
+function Handler:new(opts)
   opts = opts or {}
+  opts.result = opts.result or {}
+  opts.loader = opts.loader or {}
 
-  local page_size = opts.page_size or 100
-
-  local active = "ž" -- this MUST get overwritten
-  local conns = {}
-  for _, conn in ipairs(connections) do
-    if not conn.url then
-      error("url needs to be set!")
-    end
-    if not conn.type then
-      error("no type")
-    end
-    conn.type = utils.type_alias(conn.type)
-
-    conn.name = conn.name or "[empty name]"
-    local id = "__master_connection_id_" .. conn.name .. conn.type .. "__"
-
-    conn.id = id
-    if id < active then
-      active = id
-    end
-
-    -- register in go
-    vim.fn.Dbee_register_connection(id, conn.url, conn.type, tostring(page_size))
-
-    conns[id] = conn
-  end
+  local page_size = opts.result.page_size or 100
 
   local win_cmd
-  if type(opts.window_command) == "string" then
+  if type(opts.result.window_command) == "string" then
     win_cmd = function()
-      vim.cmd(opts.window_command)
+      vim.cmd(opts.result.window_command)
       return vim.api.nvim_get_current_win()
     end
-  elseif type(opts.window_command) == "function" then
-    win_cmd = opts.window_command
+  elseif type(opts.result.window_command) == "function" then
+    win_cmd = opts.result.window_command
   else
     win_cmd = function()
       vim.cmd("bo 15split")
@@ -78,15 +56,24 @@ function Handler:new(connections, opts)
 
   -- class object
   local o = {
-    connections = conns,
-    active_connection = active,
+    connections = {},
+    active_connection = "",
     page_index = 0,
     win_cmd = win_cmd,
     page_size = page_size,
-    mappings = opts.mappings or {},
+    mappings = opts.result.mappings or {},
+    loader_save = opts.loader.save or function() end,
+    loader_load = opts.loader.load or function() end,
   }
   setmetatable(o, self)
   self.__index = self
+
+  -- initialize connections from loader
+  local conns = o.loader_load()
+  for _, conn in ipairs(conns) do
+    pcall(o.add_connection, o, conn)
+  end
+
   return o
 end
 
@@ -320,6 +307,7 @@ function Handler:layout()
     })
   end
 
+  -- add connection dialog
   table.insert(layout, {
     id = "__add_connection__",
     name = "add connection",
@@ -335,7 +323,7 @@ function Handler:layout()
         callback = function(result)
           local ok = pcall(self.add_connection, self, utils.expand_environmet(result) --[[@as connection_details]])
           if ok then
-            require("dbee.loader").to_file { result }
+            self.loader_save { result }
           end
           cb()
         end,

@@ -21,8 +21,21 @@ local function lazy_setup()
   -- add install binary to path
   vim.env.PATH = install.path() .. ":" .. vim.env.PATH
 
+  -- join loader.load and listed connections
+  local load = function()
+    local conns = m.config.connections or {}
+    if type(m.config.loader.load) == "function" then
+      local ok, loaded = pcall(m.config.loader.load)
+      if ok then
+        conns = vim.list_extend(conns, loaded)
+      end
+    end
+    return conns
+  end
+  local loader_config = { save = m.config.loader.save, load = load }
+
   -- set up modules
-  m.handler = Handler:new(m.config.connections, m.config.result)
+  m.handler = Handler:new { result = m.config.result, loader = loader_config }
   m.editor = Editor:new(m.handler, m.config.editor)
   m.drawer = Drawer:new(m.handler, m.editor, m.config.drawer)
 
@@ -53,6 +66,8 @@ function M.setup(o)
   -- validate config
   vim.validate {
     connections = { opts.connections, "table" },
+    loader_load = { opts.loader.load, "function" },
+    loader_save = { opts.loader.save, "function" },
     lazy = { opts.lazy, "boolean" },
     extra_helpers = { opts.extra_helpers, "table" },
     -- submodules
@@ -77,26 +92,6 @@ function M.setup(o)
     return
   end
   pcall_lazy_setup()
-end
-
----@param from "file"|"env"
----@param opt? string path to file or environment variable
-function M.load_connections(from, opt)
-  if not pcall_lazy_setup() then
-    return
-  end
-
-  local conns = {}
-  local loader = require("dbee.loader")
-  if from == "file" then
-    conns = loader.from_file(opt)
-  elseif from == "env" then
-    conns = loader.from_env(opt)
-  end
-
-  for _, conn in ipairs(conns) do
-    m.handler:add_connection(utils.expand_environmet(conn) --[[@as connection_details]])
-  end
 end
 
 ---@param connection connection_details

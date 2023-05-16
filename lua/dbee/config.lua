@@ -15,11 +15,12 @@ local m = {}
 -- configuration object
 ---@class Config
 ---@field connections connection_details[] list of configured database connections
+---@field loader { save: fun(conns: connection_details[]), load: fun():connection_details[] } list of configured database connections
 ---@field extra_helpers table<string, table_helpers> extra table helpers to provide besides built-ins. example: { postgres = { List = "select..." }
 ---@field lazy boolean lazy load the plugin or not?
 ---@field drawer drawer_config
 ---@field editor editor_config
----@field result handler_config
+---@field result result_config
 ---@field ui UiConfig
 
 -- default configuration
@@ -29,8 +30,7 @@ M.default = {
   -- lazy load the plugin or not?
   lazy = false,
 
-  -- list of connections
-  -- don't commit that, use something like nvim-projector for project specific config.
+  -- list of manually specified connections
   connections = {
     -- example:
     -- {
@@ -38,6 +38,24 @@ M.default = {
     --   type = "postgres",
     --   url = "postgres://user:password@localhost:5432/db?sslmode=disable",
     -- },
+    --
+  },
+  -- load/save functionality for connectoins
+  -- you can use defaults or come up with your own source
+  loader = {
+    -- you can control what happens with this function,
+    -- when the application wants to save connections - for example from "Add Connection" prompt
+    save = function(connections)
+      -- save to default file
+      require("dbee.loader").to_file(connections)
+    end,
+    -- use this function to provide different connections from files, env...
+    load = function()
+      -- load from default env var and file
+      local file_conns = require("dbee.loader").from_file()
+      local env_conns = require("dbee.loader").from_env()
+      return vim.tbl_deep_extend("keep", file_conns, env_conns)
+    end,
   },
   -- extra table helpers per connection type
   extra_helpers = {
