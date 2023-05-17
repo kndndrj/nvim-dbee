@@ -71,7 +71,7 @@ function Handler:new(opts)
   -- initialize connections from loader
   local conns = o.loader_load()
   for _, conn in ipairs(conns) do
-    pcall(o.add_connection, o, conn)
+    pcall(o.add_connection, o, utils.expand_environment(conn))
   end
 
   return o
@@ -321,7 +321,7 @@ function Handler:layout()
       utils.prompt.open(prompt, {
         title = "Add Connection",
         callback = function(result)
-          local ok = pcall(self.add_connection, self, utils.expand_environmet(result) --[[@as connection_details]])
+          local ok = pcall(self.add_connection, self, utils.expand_environment(result) --[[@as connection_details]])
           if ok then
             self.loader_save { result }
           end

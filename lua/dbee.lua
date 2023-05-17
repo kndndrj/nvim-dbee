@@ -99,7 +99,7 @@ function M.add_connection(connection)
   if not pcall_lazy_setup() then
     return
   end
-  m.handler:add_connection(utils.expand_environmet(connection) --[[@as connection_details]])
+  m.handler:add_connection(utils.expand_environment(connection) --[[@as connection_details]])
 end
 
 function M.open()

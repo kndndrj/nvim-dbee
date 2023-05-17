@@ -78,7 +78,7 @@ end
 -- Replaces {{ env.SOMETHING }} with environment or empty string
 ---@param obj string|table
 ---@return string|table
-function M.expand_environmet(obj)
+function M.expand_environment(obj)
   local function expand(o)
     if type(o) ~= "string" then
       return o

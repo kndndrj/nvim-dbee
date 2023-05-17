@@ -109,7 +109,7 @@ users. If that doesn't include you, then you have a few options:
   go build [-o ~/.local/share/nvim/dbee/bin/dbee]
   ```
 
-## Quick Start
+## Usage
 
 Call the `setup()` function with an optional config parameter. If you are not
 using your plugin manager to lazy load for you, make sure to specify
@@ -129,6 +129,130 @@ require("dbee").prev()
 require("dbee").execute(query)
 -- Save the current result to file (format is either "csv" or "json" for now).
 require("dbee").save(format, file)
+```
+
+### Specifying Connections
+
+Connection represents an instance of the database client (i.e. one database).
+This is how it looks like:
+
+```lua
+{
+  name = "My Database",
+  type = "sqlite", -- type of database driver
+  url = "~/path/to/mydb.db",
+}
+```
+
+There are a few different ways you can use to specify the connection parameters
+for DBee:
+
+- Using the `setup()` function:
+
+  The most straightforward (but probably the most useless) way is to just add
+  them to your configuration in `init.lua` like this:
+
+  ```lua
+  require("dbee").setup {
+  connections = {
+    {
+      name = "My Database",
+      type = "sqlite", -- type of database driver
+      url = "~/path/to/mydb.db",
+    },
+    -- ...
+  },
+  -- ... the rest of your config
+  }
+  ```
+
+- Use the prompt at runtime:
+
+  You can add connections manually using the "add connection" item in the
+  drawer. Fill in the values and write the buffer (`:w`) to save the connection.
+  By default, this will save the connection to the global connections file and
+  will persist over restarts.
+
+- Use an env variable. This variable is `DBEE_CONNECTIONS` by default:
+
+  You can export an environment variable with connections from your shell like
+  this:
+
+  ```sh
+    export DBEE_CONNECTIONS='[
+        {
+            "name": "DB from env",
+            "url": "mysql://...",
+            "type": "mysql"
+        }
+    ]'
+  ```
+
+- Use a custom load function:
+
+  If you aren't satisfied with the default capabilities, you can provide your
+  own `load` function in the config at setup. This example uses a
+  project-specific connections config file:
+
+  ```lua
+  local file = vim.fn.getcwd() .. "/.dbee.json"
+
+  require("dbee").setup {
+    loader = {
+      -- this function must return a list of connections and it doesn't
+      -- care about anything else
+      load = function()
+        return require("dbee.loader").from_file(file)
+      end,
+
+      -- just as an example you can also specify this function to save any
+      -- connections from the prompt input to the same file
+      save = function(connections)
+        require("dbee.loader").to_file(file)
+      end,
+    },
+    -- ... the rest of your config
+  }
+  ```
+
+#### Secrets
+
+If you don't want to have secrets laying around your disk in plain text, you can
+use the special placeholders in connection strings (this works using any method
+for specifying connections).
+
+NOTE: *Currently only envirnoment variables are supported*
+
+Example:
+
+Using the `DBEE_CONNECTIONS` environment variable for specifying connections and
+exporting secrets to environment:
+
+```sh
+# Define connections
+export DBEE_CONNECTIONS='[
+    {
+        "name": "{{ env.SECRET_DB_NAME }}",
+        "url": "postgres://{{ env.SECRET_DB_USER }}:{{ env.SECRET_DB_PASS }}@localhost:5432/{{ env.SECRET_DB_NAME }}?sslmode=disable",
+        "type": "postgres"
+    }
+]'
+
+# Export secrets
+export SECRET_DB_NAME="secretdb"
+export SECRET_DB_USER="secretuser"
+export SECRET_DB_PASS="secretpass"
+```
+
+If you start neovim in the same shell, this will evaluate to the following
+connection:
+
+```lua
+{ {
+  name = "secretdb",
+  url = "postgres://secretuser:secretpass@localhost:5432/secretdb?sslmode=disable",
+  type = "postgres",
+} }
 ```
 
 ## Configuration
