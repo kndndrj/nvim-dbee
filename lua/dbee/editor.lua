@@ -201,12 +201,14 @@ function Editor:layout()
     table.insert(scratches, sch)
   end
 
-  return { {
-    id = "__master_scratchpad__",
-    name = "scratchpads",
-    type = "scratch",
-    children = scratches,
-  } }
+  return {
+    {
+      id = "__master_scratchpad__",
+      name = "scratchpads",
+      type = "scratch",
+      children = scratches,
+    },
+  }
 end
 
 ---@param id scratch_id scratch id - name
