@@ -138,6 +138,8 @@ This is how it looks like:
 
 ```lua
 {
+  id = "optional_identifier" -- useful to set manually if you want to remove from the file (see below)
+                             -- IT'S YOUR JOB TO KEEP THESE UNIQUE!
   name = "My Database",
   type = "sqlite", -- type of database driver
   url = "~/path/to/mydb.db",
@@ -202,13 +204,16 @@ for DBee:
       -- this function must return a list of connections and it doesn't
       -- care about anything else
       load = function()
-        return require("dbee.loader").from_file(file)
+        return require("dbee.loader").load_from_file(file)
       end,
-
       -- just as an example you can also specify this function to save any
-      -- connections from the prompt input to the same file
-      save = function(connections)
-        require("dbee.loader").to_file(file)
+      -- connections from the prompt input to the same file as they are being loaded from
+      add = function(connections)
+        require("dbee.loader").add_to_file(file)
+      end,
+      -- and this to remove them
+      remove = function(connections)
+        require("dbee.loader").remove_from_file(file)
       end,
     },
     -- ... the rest of your config

@@ -7,7 +7,7 @@ local M = {}
 -- Parses json file with connections
 ---@param path? string path to file
 ---@return connection_details[]
-function M.from_file(path)
+function M.load_from_file(path)
   path = path or DEFAULT_PERSISTENCE_FILE
 
   ---@type connection_details[]
@@ -43,7 +43,7 @@ end
 -- Parses env variable if it exists
 ---@param var? string env var to check - default: DBEE_CONNECTIONS
 ---@return connection_details[]
-function M.from_env(var)
+function M.load_from_env(var)
   var = var or "DBEE_CONNECTIONS"
 
   ---@type connection_details[]
@@ -69,20 +69,50 @@ function M.from_env(var)
   return conns
 end
 
--- saves connection_details to a file
+-- appends connection_details to a json
 ---@param connections connection_details[]
 ---@param path? string path to save file
-function M.to_file(connections, path)
+function M.add_to_file(connections, path)
   path = path or DEFAULT_PERSISTENCE_FILE
 
   if not connections or vim.tbl_isempty(connections) then
     return
   end
 
-  local existing = M.from_file(path)
+  local existing = M.load_from_file(path)
 
-  for _, conn in ipairs(connections) do
-    table.insert(existing, conn)
+  existing = vim.list_extend(existing, connections)
+
+  local ok, json = pcall(vim.fn.json_encode, existing)
+  if not ok then
+    utils.log("error", "Could not convert connection list to json", "loader")
+    return
+  end
+
+  -- overwrite file
+  local file = assert(io.open(path, "w+"), "could not open file")
+  file:write(json)
+  file:close()
+end
+
+-- removes connection_details from a json file
+---@param connections connection_details[]
+---@param path? string path to save file
+function M.remove_from_file(connections, path)
+  path = path or DEFAULT_PERSISTENCE_FILE
+
+  if not connections or vim.tbl_isempty(connections) then
+    return
+  end
+
+  local existing = M.load_from_file(path)
+
+  for _, to_remove in ipairs(connections) do
+    for i, ex_conn in ipairs(existing) do
+      if to_remove.id == ex_conn.id then
+        table.remove(existing, i)
+      end
+    end
   end
 
   local ok, json = pcall(vim.fn.json_encode, existing)

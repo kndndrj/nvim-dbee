@@ -15,12 +15,12 @@ local m = {}
 -- configuration object
 ---@class Config
 ---@field connections connection_details[] list of configured database connections
----@field loader { save: fun(conns: connection_details[]), load: fun():connection_details[] } list of configured database connections
 ---@field extra_helpers table<string, table_helpers> extra table helpers to provide besides built-ins. example: { postgres = { List = "select..." }
 ---@field lazy boolean lazy load the plugin or not?
 ---@field drawer drawer_config
 ---@field editor editor_config
 ---@field result result_config
+---@field loader loader_config
 ---@field ui UiConfig
 
 -- default configuration
@@ -38,23 +38,32 @@ M.default = {
     --   type = "postgres",
     --   url = "postgres://user:password@localhost:5432/db?sslmode=disable",
     -- },
-    --
   },
   -- load/save functionality for connectoins
-  -- you can use defaults or come up with your own source
+  -- you can use helper function from require("dbee.loader")
+  -- or come up with something completly different
   loader = {
     -- you can control what happens with this function,
     -- when the application wants to save connections - for example from "Add Connection" prompt
-    save = function(connections)
-      -- save to default file
-      require("dbee.loader").to_file(connections)
+    -- recieves a list of connections
+    add = function(connections)
+      -- append to default file
+      require("dbee.loader").add_to_file(connections)
+    end,
+    -- you can control what happens with this function,
+    -- when the application wants to remove connections - for example from drawer action
+    -- recieves a list of connections
+    remove = function(connections)
+      -- remove from default file
+      require("dbee.loader").remove_from_file(connections)
     end,
     -- use this function to provide different connections from files, env...
+    -- must return a list of connections
     load = function()
       -- load from default env var and file
-      local file_conns = require("dbee.loader").from_file()
-      local env_conns = require("dbee.loader").from_env()
-      return vim.tbl_deep_extend("keep", file_conns, env_conns)
+      local file_conns = require("dbee.loader").load_from_file()
+      local env_conns = require("dbee.loader").load_from_env()
+      return vim.list_extend(file_conns, env_conns)
     end,
   },
   -- extra table helpers per connection type
@@ -79,7 +88,7 @@ M.default = {
       action_1 = { key = "<CR>", mode = "n" },
       -- action_2 renames a scratchpad or sets the connection as active manually
       action_2 = { key = "da", mode = "n" },
-      -- action_3 deletes a scratchpad
+      -- action_3 deletes a scratchpad or connection (removes connection from the file if you configured it like so)
       action_3 = { key = "dd", mode = "n" },
       -- these are self-explanatory:
       collapse = { key = "c", mode = "n" },

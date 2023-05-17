@@ -32,7 +32,7 @@ local function lazy_setup()
     end
     return conns
   end
-  local loader_config = { save = m.config.loader.save, load = load }
+  local loader_config = { add = m.config.loader.add, remove = m.config.loader.remove, load = load }
 
   -- set up modules
   m.handler = Handler:new { result = m.config.result, loader = loader_config }
@@ -67,7 +67,8 @@ function M.setup(o)
   vim.validate {
     connections = { opts.connections, "table" },
     loader_load = { opts.loader.load, "function" },
-    loader_save = { opts.loader.save, "function" },
+    loader_save = { opts.loader.add, "function" },
+    loader_remove = { opts.loader.remove, "function" },
     lazy = { opts.lazy, "boolean" },
     extra_helpers = { opts.extra_helpers, "table" },
     -- submodules

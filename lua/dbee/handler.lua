@@ -12,7 +12,7 @@ local utils = require("dbee.utils")
 ---@field children? Layout[] child layout nodes
 --
 ---@alias result_config { mappings: table<string, mapping>, page_size: integer, window_command: string|fun():integer }
----@alias loader_config { save: fun(conns: connection_details[]), load: fun():connection_details[] }
+---@alias loader_config { add: fun(conns: connection_details[]), remove: fun(conns: connection_details[]), load: fun():connection_details[] }
 
 -- Handler is a wrapper around the go code
 -- it is the central part of the plugin and manages connections.
@@ -26,8 +26,9 @@ local utils = require("dbee.utils")
 ---@field private win_cmd fun():integer function which opens a new window and returns a window id
 ---@field private page_size integer number of rows per page
 ---@field private mappings table<string, mapping>
----@field private loader_save fun(conns: connection_details[]) function to save connections
----@field private loader_load fun():connection_details[] function to load connections
+---@field private loader_add fun(conns: connection_details[]) function to add connections to external source
+---@field private loader_remove fun(conns: connection_details[]) function to remove connections from external source
+---@field private loader_load fun():connection_details[] function to load connections from external source
 local Handler = {}
 
 ---@param opts? { result: result_config, loader: loader_config }
@@ -62,7 +63,8 @@ function Handler:new(opts)
     win_cmd = win_cmd,
     page_size = page_size,
     mappings = opts.result.mappings or {},
-    loader_save = opts.loader.save or function() end,
+    loader_add = opts.loader.add or function() end,
+    loader_remove = opts.loader.remove or function() end,
     loader_load = opts.loader.load or function() end,
   }
   setmetatable(o, self)
@@ -78,6 +80,7 @@ function Handler:new(opts)
 end
 
 ---@param connection connection_details
+---@return conn_id # id of the added connection
 function Handler:add_connection(connection)
   if not connection.url then
     error("url needs to be set!")
@@ -88,7 +91,7 @@ function Handler:add_connection(connection)
 
   connection.name = connection.name or "[empty name]"
   connection.type = utils.type_alias(connection.type)
-  connection.id = "__master_connection_id_" .. connection.name .. connection.type .. "__"
+  connection.id = connection.id or ("__master_connection_id_" .. connection.name .. connection.type .. "__")
 
   -- register in go
   local ok = vim.fn.Dbee_register_connection(connection.id, connection.url, connection.type, tostring(self.page_size))
@@ -98,6 +101,21 @@ function Handler:add_connection(connection)
 
   self.connections[connection.id] = connection
   self.active_connection = connection.id
+
+  return connection.id
+end
+
+-- removes/unregisters connection
+---@param id conn_id connection id
+function Handler:remove_connection(id)
+  if not id then
+    return
+  end
+
+  self.connections[id] = nil
+  if self.active_connection == id then
+    self.active_connection = utils.random_key(self.connections)
+  end
 end
 
 ---@param id conn_id connection id
@@ -301,6 +319,17 @@ function Handler:layout()
         self:set_active(conn.id)
         cb()
       end,
+      -- remove connection (also trigger the loader function)
+      action_3 = function(cb)
+        vim.ui.input({ prompt = 'confirm deletion of "' .. conn.name .. '"', default = "Y" }, function(input)
+          if not input or string.lower(input) ~= "y" then
+            return
+          end
+          self:remove_connection(conn.id)
+          self.loader_remove { conn }
+          cb()
+        end)
+      end,
       children = function()
         return self:get_connection_layout(conn.id)
       end,
@@ -321,9 +350,11 @@ function Handler:layout()
       utils.prompt.open(prompt, {
         title = "Add Connection",
         callback = function(result)
-          local ok = pcall(self.add_connection, self, utils.expand_environment(result) --[[@as connection_details]])
+          local ok, added_id =
+            pcall(self.add_connection, self, utils.expand_environment(result) --[[@as connection_details]])
           if ok then
-            self.loader_save { result }
+            result.id = added_id
+            self.loader_add { result }
           end
           cb()
         end,
