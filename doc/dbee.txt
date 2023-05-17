@@ -8,7 +8,9 @@ CONTENTS                                                           *dbee-content
     1.1. Installation..........................................|dbee-installation|
         1.1.1. Platform Support............................|dbee-platform_support|
         1.1.2. Manual Binary Installation........|dbee-manual_binary_installation|
-    1.2. Quick Start............................................|dbee-quick_start|
+    1.2. Usage........................................................|dbee-usage|
+        1.2.1. Specifying Connections................|dbee-specifying_connections|
+            1.2.1.1. Secrets........................................|dbee-secrets|
     1.3. Configuration........................................|dbee-configuration|
     1.4. Projector Integration........................|dbee-projector_integration|
     1.5. Development............................................|dbee-development|
@@ -118,7 +120,7 @@ users. If that doesn't include you, then you have a few options:
 <
 
 --------------------------------------------------------------------------------
-QUICK START                                                     *dbee-quick_start*
+USAGE                                                                 *dbee-usage*
 
 Call the `setup()` function with an optional config parameter. If you are not
 using your plugin manager to lazy load for you, make sure to specify
@@ -139,6 +141,127 @@ Here is a brief refference of the most useful functions:
     require("dbee").save(format, file)
 <
 
+SPECIFYING CONNECTIONS                               *dbee-specifying_connections*
+
+Connection represents an instance of the database client (i.e. one database).
+This is how it looks like:
+>
+    {
+      id = "optional_identifier" -- useful to set manually if you want to remove from the file (see below)
+                                 -- IT'S YOUR JOB TO KEEP THESE UNIQUE!
+      name = "My Database",
+      type = "sqlite", -- type of database driver
+      url = "~/path/to/mydb.db",
+    }
+<
+
+There are a few different ways you can use to specify the connection parameters
+for DBee:
+
+*   Using the `setup()` function:
+
+The most straightforward (but probably the most useless) way is to just add
+  them to your configuration in `init.lua` like this:
+>
+      require("dbee").setup {
+      connections = {
+        {
+          name = "My Database",
+          type = "sqlite", -- type of database driver
+          url = "~/path/to/mydb.db",
+        },
+        -- ...
+      },
+      -- ... the rest of your config
+      }
+<
+
+*   Use the prompt at runtime:
+
+You can add connections manually using the "add connection" item in the
+  drawer. Fill in the values and write the buffer (`:w`) to save the connection.
+  By default, this will save the connection to the global connections file and
+  will persist over restarts.
+
+*   Use an env variable. This variable is `DBEE_CONNECTIONS` by default:
+
+You can export an environment variable with connections from your shell like
+  this:
+>
+        export DBEE_CONNECTIONS='[
+            {
+                "name": "DB from env",
+                "url": "mysql://...",
+                "type": "mysql"
+            }
+        ]'
+<
+
+*   Use a custom load function:
+
+If you aren't satisfied with the default capabilities, you can provide your
+  own `load` function in the config at setup. This example uses a
+  project-specific connections config file:
+>
+      local file = vim.fn.getcwd() .. "/.dbee.json"
+      require("dbee").setup {
+        loader = {
+          -- this function must return a list of connections and it doesn't
+          -- care about anything else
+          load = function()
+            return require("dbee.loader").load_from_file(file)
+          end,
+          -- just as an example you can also specify this function to save any
+          -- connections from the prompt input to the same file as they are being loaded from
+          add = function(connections)
+            require("dbee.loader").add_to_file(file)
+          end,
+          -- and this to remove them
+          remove = function(connections)
+            require("dbee.loader").remove_from_file(file)
+          end,
+        },
+        -- ... the rest of your config
+      }
+<
+
+SECRETS                                                             *dbee-secrets*
+
+If you don't want to have secrets laying around your disk in plain text, you can
+use the special placeholders in connection strings (this works using any method
+for specifying connections).
+
+NOTE: Currently only envirnoment variables are supported
+
+Example:
+
+Using the `DBEE_CONNECTIONS` environment variable for specifying connections and
+exporting secrets to environment:
+>
+    # Define connections
+    export DBEE_CONNECTIONS='[
+        {
+            "name": "{{ env.SECRET_DB_NAME }}",
+            "url": "postgres://{{ env.SECRET_DB_USER }}:{{ env.SECRET_DB_PASS }}@localhost:5432/{{ env.SECRET_DB_NAME }}?sslmode=disable",
+            "type": "postgres"
+        }
+    ]'
+    # Export secrets
+    export SECRET_DB_NAME="secretdb"
+    export SECRET_DB_USER="secretuser"
+    export SECRET_DB_PASS="secretpass"
+<
+
+If you start neovim in the same shell, this will evaluate to the following
+connection:
+>
+    { {
+      name = "secretdb",
+      url = "postgres://secretuser:secretpass@localhost:5432/secretdb?sslmode=disable",
+      type = "postgres",
+    } }
+<
+
 --------------------------------------------------------------------------------
 CONFIGURATION                                                 *dbee-configuration*
 
@@ -149,8 +272,7 @@ Here are the defaults:
     M.default = {
       -- lazy load the plugin or not?
       lazy = false,
-      -- list of connections
-      -- don't commit that, use something like nvim-projector for project specific config.
+      -- list of manually specified connections
       connections = {
         -- example:
         -- {
@@ -158,6 +280,33 @@ Here are the defaults:
         --   type = "postgres",
         --   url = "postgres://user:password@localhost:5432/db?sslmode=disable",
         -- },
+      },
+      -- load/save functionality for connectoins
+      -- you can use helper function from require("dbee.loader")
+      -- or come up with something completly different
+      loader = {
+        -- you can control what happens with this function,
+        -- when the application wants to save connections - for example from "Add Connection" prompt
+        -- recieves a list of connections
+        add = function(connections)
+          -- append to default file
+          require("dbee.loader").add_to_file(connections)
+        end,
+        -- you can control what happens with this function,
+        -- when the application wants to remove connections - for example from drawer action
+        -- recieves a list of connections
+        remove = function(connections)
+          -- remove from default file
+          require("dbee.loader").remove_from_file(connections)
+        end,
+        -- use this function to provide different connections from files, env...
+        -- must return a list of connections
+        load = function()
+          -- load from default env var and file
+          local file_conns = require("dbee.loader").load_from_file()
+          local env_conns = require("dbee.loader").load_from_env()
+          return vim.list_extend(file_conns, env_conns)
+        end,
       },
       -- extra table helpers per connection type
       extra_helpers = {
@@ -180,7 +329,7 @@ Here are the defaults:
           action_1 = { key = "<CR>", mode = "n" },
           -- action_2 renames a scratchpad or sets the connection as active manually
           action_2 = { key = "da", mode = "n" },
-          -- action_3 deletes a scratchpad
+          -- action_3 deletes a scratchpad or connection (removes connection from the file if you configured it like so)
           action_3 = { key = "dd", mode = "n" },
           -- these are self-explanatory:
           collapse = { key = "c", mode = "n" },
@@ -206,6 +355,18 @@ Here are the defaults:
           table = {
             icon = "",
             highlight = "Conditional",
+          },
+          add = {
+            icon = "",
+            highlight = "String",
+          },
+          remove = {
+            icon = "󰆴",
+            highlight = "SpellBad",
+          },
+          help = {
+            icon = "󰋖",
+            highlight = "NormalFloat",
           },
           -- if there is no type
           -- use this for normal nodes...
