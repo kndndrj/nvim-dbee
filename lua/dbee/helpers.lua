@@ -69,6 +69,13 @@ local function mongo()
   }
 end
 
+---@return table_helpers helpers list of table helpers
+local function spanner()
+  return {
+    List = "SELECT * from `{table}` LIMIT 500",
+  }
+end
+
 ---@param type string
 ---@return table_helpers helpers list of table helpers
 function M.get(type)
@@ -83,6 +90,8 @@ function M.get(type)
     hs = redis()
   elseif type == "mongo" then
     hs = mongo()
+  elseif type == "spanner" then
+    hs = spanner()
   end
 
   if not hs then
