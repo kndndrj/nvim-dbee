@@ -20,46 +20,33 @@ local NuiLine = require("nui.line")
 ---@class Node: Layout
 ---@field getter fun():Layout
 
----@alias drawer_config { disable_icons: boolean, icons: table<string, Icon>, mappings: table<string, mapping>, window_command: string|fun():integer }
+---@alias drawer_config { disable_icons: boolean, icons: table<string, Icon>, mappings: table<string, mapping> }
 
 ---@class Drawer
+---@field private ui Ui
 ---@field private tree table NuiTree
 ---@field private handler Handler
 ---@field private editor Editor
 ---@field private mappings table<string, mapping>
----@field private bufnr integer
----@field private winid integer
 ---@field private icons table<string, Icon>
----@field private win_cmd fun():integer function which opens a new window and returns a window id
 local Drawer = {}
 
+---@param ui Ui
 ---@param handler Handler
 ---@param editor Editor
 ---@param opts? drawer_config
 ---@return Drawer
-function Drawer:new(handler, editor, opts)
+function Drawer:new(ui, handler, editor, opts)
   opts = opts or {}
 
+  if not ui then
+    error("no Ui provided to Drawer")
+  end
   if not handler then
-    error("no Handler provided to drawer")
+    error("no Handler provided to Drawer")
   end
   if not editor then
-    error("no Editor provided to drawer")
-  end
-
-  local win_cmd
-  if type(opts.window_command) == "string" then
-    win_cmd = function()
-      vim.cmd(opts.window_command)
-      return vim.api.nvim_get_current_win()
-    end
-  elseif type(opts.window_command) == "function" then
-    win_cmd = opts.window_command
-  else
-    win_cmd = function()
-      vim.cmd("to 40vsplit")
-      return vim.api.nvim_get_current_win()
-    end
+    error("no Editor provided to Drawer")
   end
 
   local icons = {}
@@ -69,12 +56,12 @@ function Drawer:new(handler, editor, opts)
 
   -- class object
   local o = {
+    ui = ui,
     tree = nil,
     handler = handler,
     editor = editor,
     mappings = opts.mappings or {},
     icons = icons,
-    win_cmd = win_cmd,
   }
   setmetatable(o, self)
   self.__index = self
@@ -120,8 +107,7 @@ function Drawer:create_tree(bufnr)
       end
 
       -- if connection is the active one, apply a special highlight on the master
-      local active = self.handler:connection_details()
-      if active and active.id == node.id then
+      if self.handler:current_connection():details().id == node.id then
         line:append(node.name, icon.highlight)
       else
         line:append(node.name)
@@ -227,7 +213,6 @@ function Drawer:actions()
   }
 end
 
--- Map keybindings to split window
 ---@private
 ---@param bufnr integer which buffer to map the keys in
 function Drawer:map_keys(bufnr)
@@ -356,39 +341,7 @@ end
 
 -- Show drawer on screen
 function Drawer:open()
-  if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
-    self.winid = self.win_cmd()
-  end
-
-  -- if buffer doesn't exist, create it
-  local bufnr = self.bufnr
-  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
-    bufnr = vim.api.nvim_create_buf(false, true)
-  end
-
-  vim.api.nvim_win_set_buf(self.winid, bufnr)
-  vim.api.nvim_set_current_win(self.winid)
-  vim.api.nvim_buf_set_name(bufnr, "dbee-drawer")
-
-  -- set options
-  local buf_opts = {
-    buflisted = false,
-    bufhidden = "delete",
-    buftype = "nofile",
-    swapfile = false,
-  }
-  local win_opts = {
-    wrap = false,
-    winfixheight = true,
-    winfixwidth = true,
-    number = false,
-  }
-  for opt, val in pairs(buf_opts) do
-    vim.api.nvim_buf_set_option(bufnr, opt, val)
-  end
-  for opt, val in pairs(win_opts) do
-    vim.api.nvim_win_set_option(self.winid, opt, val)
-  end
+  local _, bufnr = self.ui:open()
 
   -- tree
   if not self.tree then
@@ -399,13 +352,11 @@ function Drawer:open()
   self:map_keys(bufnr)
   self.tree.bufnr = bufnr
 
-  self.bufnr = bufnr
-
   self.tree:render()
 end
 
 function Drawer:close()
-  pcall(vim.api.nvim_win_close, self.winid, false)
+  self.ui:close()
 end
 
 return Drawer

@@ -4,9 +4,11 @@ local M = {}
 local m = {}
 
 ---@alias mapping {key: string, mode: string}
+---@alias wincmd string|fun():integer
 
 ---@class UiConfig
----@field window_open_order table example: { "result", "editor", "drawer" } - in which order are the windows open
+---@field window_commands { editor: wincmd, drawer: wincmd, result: wincmd }
+---@field window_open_order string[] example: { "result", "editor", "drawer" } - in which order are the windows open
 ---@field pre_open_hook fun() execute this before opening ui
 ---@field post_open_hook fun() execute this after opening ui
 ---@field pre_close_hook fun() execute this before closing ui
@@ -15,12 +17,12 @@ local m = {}
 -- configuration object
 ---@class Config
 ---@field connections connection_details[] list of configured database connections
+---@field connection_sources { files: string[], env_vars: string[] }
 ---@field extra_helpers table<string, table_helpers> extra table helpers to provide besides built-ins. example: { postgres = { List = "select..." }
 ---@field lazy boolean lazy load the plugin or not?
 ---@field drawer drawer_config
 ---@field editor editor_config
 ---@field result result_config
----@field loader loader_config
 ---@field ui UiConfig
 
 -- default configuration
@@ -39,32 +41,12 @@ M.default = {
     --   url = "postgres://user:password@localhost:5432/db?sslmode=disable",
     -- },
   },
-  -- load/save functionality for connectoins
-  -- you can use helper function from require("dbee.loader")
-  -- or come up with something completly different
-  loader = {
-    -- you can control what happens with this function,
-    -- when the application wants to save connections - for example from "Add Connection" prompt
-    -- recieves a list of connections
-    add = function(connections)
-      -- append to default file
-      require("dbee.loader").add_to_file(connections)
-    end,
-    -- you can control what happens with this function,
-    -- when the application wants to remove connections - for example from drawer action
-    -- recieves a list of connections
-    remove = function(connections)
-      -- remove from default file
-      require("dbee.loader").remove_from_file(connections)
-    end,
-    -- use this function to provide different connections from files, env...
-    -- must return a list of connections
-    load = function()
-      -- load from default env var and file
-      local file_conns = require("dbee.loader").load_from_file()
-      local env_conns = require("dbee.loader").load_from_env()
-      return vim.list_extend(file_conns, env_conns)
-    end,
+  -- loads connections from files and environment variables
+  connection_sources = {
+    -- list of files to load connections from
+    files = {},
+    -- list of env vars to load connections from
+    env_vars = {},
   },
   -- extra table helpers per connection type
   extra_helpers = {
@@ -76,9 +58,6 @@ M.default = {
 
   -- drawer window config
   drawer = {
-    -- command that opens the window if the window is closed
-    -- string or function
-    window_command = "to 40vsplit",
     -- mappings for the buffer
     mappings = {
       -- manually refresh drawer
@@ -153,9 +132,6 @@ M.default = {
 
   -- results window config
   result = {
-    -- command that opens the window if the window is closed
-    -- string or function
-    window_command = "bo 15split",
     -- number of rows per page
     page_size = 100,
     -- mappings for the buffer
@@ -168,14 +144,6 @@ M.default = {
 
   -- editor window config
   editor = {
-    -- command that opens the window if the window is closed
-    -- string or function
-    window_command = function()
-      vim.cmd("new")
-      vim.cmd("only")
-      m.tmp_buf = vim.api.nvim_get_current_buf()
-      return vim.api.nvim_get_current_win()
-    end,
     -- mappings for the buffer
     mappings = {
       -- run what's currently selected on the active connection
@@ -193,6 +161,18 @@ M.default = {
   --
   -- You can probably do anything you imagine with this - for example all floating windows, tiled/floating mix etc.
   ui = {
+    -- commands that opens the window if the window is closed - for drawer/editor/result
+    -- string or function
+    window_commands = {
+      drawer = "to 40vsplit",
+      result = "bo 15split",
+      editor = function()
+        vim.cmd("new")
+        vim.cmd("only")
+        m.tmp_buf = vim.api.nvim_get_current_buf()
+        return vim.api.nvim_get_current_win()
+      end,
+    },
     -- how to open windows in order (with specified "window_command"s -- see above)
     window_open_order = { "editor", "result", "drawer" },
 

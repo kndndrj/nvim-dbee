@@ -1,6 +1,11 @@
 local Drawer = require("dbee.drawer")
 local Editor = require("dbee.editor")
+local Result = require("dbee.result")
+local Ui = require("dbee.ui")
 local Handler = require("dbee.handler")
+local MemoryLoader = require("dbee.loader").MemoryLoader
+local EnvLoader = require("dbee.loader").EnvLoader
+local FileLoader = require("dbee.loader").FileLoader
 local install = require("dbee.install")
 local utils = require("dbee.utils")
 local default_config = require("dbee.config").default
@@ -21,23 +26,52 @@ local function lazy_setup()
   -- add install binary to path
   vim.env.PATH = install.path() .. ":" .. vim.env.PATH
 
-  -- join loader.load and listed connections
-  local load = function()
-    local conns = m.config.connections or {}
-    if type(m.config.loader.load) == "function" then
-      local ok, loaded = pcall(m.config.loader.load)
-      if ok then
-        conns = vim.list_extend(conns, loaded)
-      end
-    end
-    return conns
+  -- set up UIs
+  local result_ui = Ui:new {
+    window_command = m.config.ui.window_commands.result,
+    window_options = {
+      wrap = false,
+      winfixheight = true,
+      winfixwidth = true,
+      number = false,
+    },
+  }
+  local editor_ui = Ui:new {
+    window_command = m.config.ui.window_commands.editor,
+  }
+  local drawer_ui = Ui:new {
+    window_command = m.config.ui.window_commands.drawer,
+    buffer_options = {
+      buflisted = false,
+      bufhidden = "delete",
+      buftype = "nofile",
+      swapfile = false,
+    },
+    window_options = {
+      wrap = false,
+      winfixheight = true,
+      winfixwidth = true,
+      number = false,
+    },
+  }
+
+  -- handler and loaders
+  -- memory loader loads configs from setup() and is also a default loader
+  local mem_loader = MemoryLoader:new(m.config.connections)
+
+  local loaders = {}
+  for _, file in ipairs(m.config.connection_sources.files) do
+    table.insert(loaders, FileLoader:new(file))
   end
-  local loader_config = { add = m.config.loader.add, remove = m.config.loader.remove, load = load }
+  for _, var in ipairs(m.config.connection_sources.env_vars) do
+    table.insert(loaders, EnvLoader:new(var))
+  end
 
   -- set up modules
-  m.handler = Handler:new { result = m.config.result, loader = loader_config }
-  m.editor = Editor:new(m.handler, m.config.editor)
-  m.drawer = Drawer:new(m.handler, m.editor, m.config.drawer)
+  m.handler = Handler:new(result_ui, mem_loader, loaders)
+  m.result = Result:new(result_ui, m.config.result)
+  m.editor = Editor:new(editor_ui, m.handler, m.config.editor)
+  m.drawer = Drawer:new(drawer_ui, m.handler, m.editor, m.config.drawer)
 
   helpers.add(m.config.extra_helpers)
 end
@@ -66,20 +100,21 @@ function M.setup(o)
   -- validate config
   vim.validate {
     connections = { opts.connections, "table" },
-    loader_load = { opts.loader.load, "function" },
-    loader_save = { opts.loader.add, "function" },
-    loader_remove = { opts.loader.remove, "function" },
+    connection_sources = { opts.connection_sources, "table" },
+    connection_sources_files = { opts.connection_sources.files, "table" },
+    connection_sources_env_vars = { opts.connection_sources.env_vars, "table" },
     lazy = { opts.lazy, "boolean" },
     extra_helpers = { opts.extra_helpers, "table" },
     -- submodules
-    result_window_command = { opts.result.window_command, { "string", "function" } },
-    editor_window_command = { opts.editor.window_command, { "string", "function" } },
     editor_mappings = { opts.editor.mappings, "table" },
-    drawer_window_command = { opts.drawer.window_command, { "string", "function" } },
     drawer_disable_icons = { opts.drawer.disable_icons, "boolean" },
     drawer_icons = { opts.drawer.icons, "table" },
     drawer_mappings = { opts.drawer.mappings, "table" },
     -- ui
+    ui_window_commands = { opts.ui.window_commands, "table" },
+    ui_window_commands_drawer = { opts.ui.window_commands.drawer, { "string", "function" } },
+    ui_window_commands_result = { opts.ui.window_commands.result, { "string", "function" } },
+    ui_window_commands_editor = { opts.ui.window_commands.editor, { "string", "function" } },
     ui_window_open_order = { opts.ui.window_open_order, "table" },
     ui_pre_open_hook = { opts.ui.pre_open_hook, "function" },
     ui_post_open_hook = { opts.ui.post_open_hook, "function" },
@@ -100,7 +135,7 @@ function M.add_connection(connection)
   if not pcall_lazy_setup() then
     return
   end
-  m.handler:add_connection(utils.expand_environment(connection) --[[@as connection_details]])
+  m.handler:add_connection(connection)
 end
 
 function M.open()
@@ -116,7 +151,7 @@ function M.open()
 
   local order_map = {
     drawer = m.drawer,
-    result = m.handler,
+    result = m.result,
     editor = m.editor,
   }
 
@@ -138,7 +173,7 @@ function M.close()
 
   m.config.ui.pre_close_hook()
 
-  m.handler:close()
+  m.result:close()
   m.drawer:close()
   m.editor:close()
 
@@ -150,14 +185,14 @@ function M.next()
   if not pcall_lazy_setup() then
     return
   end
-  m.handler:page_next()
+  m.handler:current_connection():page_next()
 end
 
 function M.prev()
   if not pcall_lazy_setup() then
     return
   end
-  m.handler:page_prev()
+  m.handler:current_connection():page_prev()
 end
 
 ---@param query string query to execute on currently selected connection
@@ -165,7 +200,7 @@ function M.execute(query)
   if not pcall_lazy_setup() then
     return
   end
-  m.handler:execute(query)
+  m.handler:current_connection():execute(query)
 end
 
 ---@param format "csv"|"json" format of the output
@@ -174,7 +209,7 @@ function M.save(format, file)
   if not pcall_lazy_setup() then
     return
   end
-  m.handler:save(format, file)
+  m.handler:current_connection():save(format, file)
 end
 
 ---@param command? "wget"|"curl"|"bitsadmin"|"go" preffered command

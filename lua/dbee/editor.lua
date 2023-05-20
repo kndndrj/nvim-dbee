@@ -4,40 +4,28 @@ local SCRATCHES_DIR = vim.fn.stdpath("cache") .. "/dbee/scratches"
 
 ---@alias scratch_id string
 ---@alias scratch_details { file: string, bufnr: integer, type: "file"|"buffer", id: scratch_id }
----@alias editor_config { mappings: table<string, mapping>, window_command: string|fun():integer }
+---@alias editor_config { mappings: table<string, mapping> }
 
 ---@class Editor
+---@field private ui Ui
 ---@field private handler Handler
 ---@field private mappings table<string, mapping>
 ---@field private scratches table<scratch_id, scratch_details> id - scratch mapping
 ---@field private active_scratch scratch_id id of the current scratch
----@field private winid integer
----@field private win_cmd fun():integer function which opens a new window and returns a window id
 local Editor = {}
 
+---@param ui Ui
 ---@param handler Handler
 ---@param opts? editor_config
 ---@return Editor
-function Editor:new(handler, opts)
+function Editor:new(ui, handler, opts)
   opts = opts or {}
 
-  if not handler then
-    error("no Handler provided to editor")
+  if not ui then
+    error("no Ui provided to Editor")
   end
-
-  local win_cmd
-  if type(opts.window_command) == "string" then
-    win_cmd = function()
-      vim.cmd(opts.window_command)
-      return vim.api.nvim_get_current_win()
-    end
-  elseif type(opts.window_command) == "function" then
-    win_cmd = opts.window_command
-  else
-    win_cmd = function()
-      vim.cmd("split")
-      return vim.api.nvim_get_current_win()
-    end
+  if not handler then
+    error("no Handler provided to Editor")
   end
 
   -- check for any existing scratches
@@ -60,24 +48,15 @@ function Editor:new(handler, opts)
 
   -- class object
   local o = {
+    ui = ui,
     handler = handler,
-    winid = nil,
     scratches = scratches,
     active_scratch = active,
     mappings = opts.mappings or {},
-    win_cmd = win_cmd,
   }
   setmetatable(o, self)
   self.__index = self
   return o
-end
-
----@return boolean
-function Editor:is_current_window()
-  if self.winid == vim.api.nvim_get_current_win() then
-    return true
-  end
-  return false
 end
 
 function Editor:new_scratch()
@@ -227,7 +206,7 @@ function Editor:actions()
       local lines = vim.api.nvim_buf_get_lines(bnr, 0, -1, false)
       local query = table.concat(lines, "\n")
 
-      self.handler:execute(query)
+      self.handler:current_connection():execute(query)
     end,
     run_selection = function()
       local srow, scol, erow, ecol = utils.visual_selection()
@@ -235,7 +214,7 @@ function Editor:actions()
       local selection = vim.api.nvim_buf_get_text(0, srow, scol, erow, ecol, {})
       local query = table.concat(selection, "\n")
 
-      self.handler:execute(query)
+      self.handler:current_connection():execute(query)
     end,
   }
 end
@@ -255,11 +234,10 @@ function Editor:map_keys(bufnr)
 end
 
 function Editor:open()
-  if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
-    self.winid = self.win_cmd()
-  end
+  -- each scratchpad is it's own buffer, so we can ignore ui's bufnr
+  local winid, _ = self.ui:open()
 
-  vim.api.nvim_set_current_win(self.winid)
+  vim.api.nvim_set_current_win(winid)
 
   -- get current scratch details
   local id = self.active_scratch
@@ -272,7 +250,7 @@ function Editor:open()
   -- if file doesn't exist, open new buffer and update list on save
   if vim.fn.filereadable(s.file) ~= 1 then
     bufnr = s.bufnr or vim.api.nvim_create_buf(true, false)
-    vim.api.nvim_win_set_buf(self.winid, bufnr)
+    vim.api.nvim_win_set_buf(winid, bufnr)
 
     -- automatically fill the name of the file when saving for the first time
     vim.keymap.set("c", "w", function()
@@ -298,7 +276,7 @@ function Editor:open()
   else
     -- just open the file
     bufnr = s.bufnr or vim.api.nvim_create_buf(true, false)
-    vim.api.nvim_win_set_buf(self.winid, bufnr)
+    vim.api.nvim_win_set_buf(winid, bufnr)
     vim.cmd("e " .. s.file)
   end
 
@@ -319,7 +297,7 @@ function Editor:open()
 end
 
 function Editor:close()
-  pcall(vim.api.nvim_win_close, self.winid, false)
+  self.ui:close()
 end
 
 return Editor
