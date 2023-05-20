@@ -9,7 +9,6 @@ local FileLoader = require("dbee.loader").FileLoader
 local install = require("dbee.install")
 local utils = require("dbee.utils")
 local default_config = require("dbee.config").default
-local helpers = require("dbee.helpers")
 
 -- public and private module objects
 local M = {}
@@ -73,7 +72,7 @@ local function lazy_setup()
   m.editor = Editor:new(editor_ui, m.handler, m.config.editor)
   m.drawer = Drawer:new(drawer_ui, m.handler, m.editor, m.config.drawer)
 
-  helpers.add(m.config.extra_helpers)
+  m.handler:add_helpers(m.config.extra_helpers)
 end
 
 ---@return boolean ok was setup successful?

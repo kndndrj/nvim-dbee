@@ -1,4 +1,3 @@
-local helpers = require("dbee.helpers")
 local utils = require("dbee.utils")
 
 ---@alias conn_id string
@@ -14,6 +13,7 @@ local utils = require("dbee.utils")
 -- Conn is a 1:1 mapping to go's connections
 ---@class Conn
 ---@field private ui Ui
+---@field private helpers Helpers
 ---@field private __original connection_details original unmodified fields passed on initialization (params)
 ---@field private id conn_id
 ---@field private name string
@@ -24,10 +24,11 @@ local utils = require("dbee.utils")
 local Conn = {}
 
 ---@param ui Ui
+---@param helpers Helpers
 ---@param params connection_details
 ---@param opts? { on_exec: fun() }
 ---@return Conn
-function Conn:new(ui, params, opts)
+function Conn:new(ui, helpers, params, opts)
   params = params or {}
   opts = opts or {}
 
@@ -36,6 +37,9 @@ function Conn:new(ui, params, opts)
   -- validation
   if not ui then
     error("no Ui provided to Conn!")
+  end
+  if not helpers then
+    error("no Helpers provided to Conn!")
   end
   if not expanded.url then
     error("url needs to be set!")
@@ -64,6 +68,7 @@ function Conn:new(ui, params, opts)
   -- class object
   local o = {
     ui = ui,
+    helpers = helpers,
     __original = params,
     id = id,
     name = name,
@@ -174,23 +179,12 @@ function Conn:layout()
       local action_1
       if lgo.type == "table" then
         action_1 = function(cb)
-          local table_helpers = helpers.get(self.type)
-          local helper_keys = {}
-          for k, _ in pairs(table_helpers) do
-            table.insert(helper_keys, k)
-          end
-          table.sort(helper_keys)
-          -- select a helper to execute
-          vim.ui.select(helper_keys, {
+          local helpers = self.helpers:get(self.type, { table = lgo.name, schema = lgo.schema, dbname = lgo.database })
+          vim.ui.select(utils.sorted_keys(helpers), {
             prompt = "select a helper to execute:",
           }, function(selection)
             if selection then
-              self:execute(
-                helpers.expand_query(
-                  table_helpers[selection],
-                  { table = lgo.name, schema = lgo.schema, dbname = lgo.database }
-                )
-              )
+              self:execute(helpers[selection])
             end
             cb()
           end)

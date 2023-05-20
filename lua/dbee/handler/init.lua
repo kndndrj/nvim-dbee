@@ -1,13 +1,15 @@
 local utils = require("dbee.utils")
 local Conn = require("dbee.handler.conn")
+local Helpers = require("dbee.handler.helpers")
 local Lookup = require("dbee.handler.lookup")
 
----@alias handler_config { expand_help: boolean, default_page_size: integer }
+---@alias handler_config { default_page_size: integer }
 
 -- Handler is an aggregator of connections
 ---@class Handler
 ---@field private ui Ui ui for results
 ---@field private lookup Lookup lookup for loaders and connections
+---@field private helpers Helpers query helpers
 ---@field private default_loader_id string
 ---@field private opts handler_config
 local Handler = {}
@@ -29,6 +31,7 @@ function Handler:new(ui, default_loader, other_loaders, opts)
   local o = {
     ui = ui,
     lookup = Lookup:new(),
+    helpers = Helpers:new(),
     default_loader_id = default_loader:name(),
     opts = opts or {},
   }
@@ -75,7 +78,7 @@ function Handler:loader_reload(id)
     spec.page_size = spec.page_size or self.opts.default_page_size
     ---@type Conn
     local conn, ok
-    ok, conn = pcall(Conn.new, Conn, self.ui, spec, {
+    ok, conn = pcall(Conn.new, Conn, self.ui, self.helpers, spec, {
       on_exec = function()
         self:set_active(conn:details().id)
       end,
@@ -99,7 +102,7 @@ function Handler:add_connection(params, loader_id)
   params.page_size = params.page_size or self.opts.default_page_size
   ---@type Conn
   local conn, ok
-  ok, conn = pcall(Conn.new, Conn, self.ui, params, {
+  ok, conn = pcall(Conn.new, Conn, self.ui, self.helpers, params, {
     on_exec = function()
       self:set_active(conn:details().id)
     end,
@@ -153,6 +156,18 @@ end
 ---@return Conn # currently active connection
 function Handler:current_connection()
   return self.lookup:get_active_connection()
+end
+
+---@param helpers table<string, table_helpers> extra helpers per type
+function Handler:add_helpers(helpers)
+  self.helpers:add(helpers)
+end
+
+---@param type string
+---@param vars { table: string, schema: string, dbname: string }
+---@return table_helpers helpers list of table helpers
+function Handler:get_helpers(type, vars)
+  return self.helpers:get(type, vars)
 end
 
 ---@return Layout[]

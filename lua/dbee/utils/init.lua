@@ -96,4 +96,16 @@ function M.expand_environment(obj)
   return expand(obj)
 end
 
+-- Gets keys of a map and sorts them by name
+---@param obj table<string, any> map-like table
+---@return string[]
+function M.sorted_keys(obj)
+  local keys = {}
+  for k, _ in pairs(obj) do
+    table.insert(keys, k)
+  end
+  table.sort(keys)
+  return keys
+end
+
 return M
