@@ -69,7 +69,7 @@ local function lazy_setup()
 
   -- set up modules
   m.handler = Handler:new(result_ui, mem_loader, loaders)
-  m.result = Result:new(result_ui, m.config.result)
+  m.result = Result:new(result_ui, m.handler, m.config.result)
   m.editor = Editor:new(editor_ui, m.handler, m.config.editor)
   m.drawer = Drawer:new(drawer_ui, m.handler, m.editor, m.config.drawer)
 
@@ -107,8 +107,8 @@ function M.setup(o)
     extra_helpers = { opts.extra_helpers, "table" },
     -- submodules
     editor_mappings = { opts.editor.mappings, "table" },
-    drawer_disable_icons = { opts.drawer.disable_icons, "boolean" },
-    drawer_icons = { opts.drawer.icons, "table" },
+    drawer_disable_candies = { opts.drawer.disable_candies, "boolean" },
+    drawer_candies = { opts.drawer.candies, "table" },
     drawer_mappings = { opts.drawer.mappings, "table" },
     -- ui
     ui_window_commands = { opts.ui.window_commands, "table" },

@@ -44,9 +44,9 @@ M.default = {
   -- loads connections from files and environment variables
   connection_sources = {
     -- list of files to load connections from
-    files = {},
+    files = { vim.fn.stdpath("cache") .. "/dbee/persistence.json" },
     -- list of env vars to load connections from
-    env_vars = {},
+    env_vars = { "DBEE_CONNECTIONS" },
   },
   -- extra table helpers per connection type
   extra_helpers = {
@@ -75,36 +75,44 @@ M.default = {
       toggle = { key = "o", mode = "n" },
     },
     -- icon settings:
-    disable_icons = false,
-    icons = {
+    disable_candies = false,
+    candies = {
       -- these are what's available for now:
       history = {
         icon = "",
-        highlight = "Constant",
+        icon_highlight = "Constant",
       },
       scratch = {
         icon = "",
-        highlight = "Character",
+        icon_highlight = "Character",
       },
       database = {
         icon = "",
-        highlight = "SpecialChar",
+        icon_highlight = "SpecialChar",
       },
       table = {
         icon = "",
-        highlight = "Conditional",
+        icon_highlight = "Conditional",
       },
       add = {
         icon = "",
-        highlight = "String",
+        icon_highlight = "String",
+        text_highlight = "String",
       },
       remove = {
         icon = "󰆴",
-        highlight = "SpellBad",
+        icon_highlight = "SpellBad",
+        text_highlight = "NonText",
       },
       help = {
         icon = "󰋖",
-        highlight = "NormalFloat",
+        icon_highlight = "Title",
+        text_highlight = "Title",
+      },
+      loader = {
+        icon = "󰃖",
+        icon_highlight = "MoreMsg",
+        text_highlight = "MoreMsg",
       },
 
       -- if there is no type
@@ -115,17 +123,17 @@ M.default = {
       -- ...and use this for nodes with children
       none_dir = {
         icon = "",
-        highlight = "NonText",
+        icon_highlight = "NonText",
       },
 
       -- chevron icons for expanded/closed nodes
       node_expanded = {
         icon = "",
-        highlight = "NonText",
+        icon_highlight = "NonText",
       },
       node_closed = {
         icon = "",
-        highlight = "NonText",
+        icon_highlight = "NonText",
       },
     },
   },

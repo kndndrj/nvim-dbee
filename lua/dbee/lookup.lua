@@ -63,10 +63,13 @@ function Lookup:add_connection(connection, loader_id)
 
   local id = connection:details().id
 
-  self:remove_connection(id)
+  local old = self.connections[id]
+  if old then
+    pcall(old.close, old)
+  end
 
   self.connections[id] = connection
-  self.conn_lookup[loader_id] = id
+  self.conn_lookup[id] = loader_id
   table.insert(self.loaders[loader_id].connections, id)
 
   self.active_connection = id

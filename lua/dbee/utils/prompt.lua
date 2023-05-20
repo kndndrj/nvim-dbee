@@ -1,19 +1,19 @@
 local M = {}
 
----@param prompt string[] list of lines to display as prompt
+---@param prompt { name: string, default: string }[] list of lines with optional defaults to display as prompt
 ---@param opts? { width: integer, height: integer, title: string, border: string|string[], callback: fun(result: table<string, string>) } optional parameters
 function M.open(prompt, opts)
   opts = opts or {}
 
-  -- add colons to prompt
-  for i, p in ipairs(prompt) do
-    if not p:find(":$") then
-      prompt[i] = p .. ":"
-    end
+  -- create lines to display
+  ---@type string[]
+  local display_prompt = {}
+  for _, p in ipairs(prompt) do
+    table.insert(display_prompt, p.name .. ": " .. (p.default or ""))
   end
 
   local win_width = opts.width or 100
-  local win_height = opts.height or #prompt
+  local win_height = opts.height or #display_prompt
   local ui_spec = vim.api.nvim_list_uis()[1]
   local x = math.floor((ui_spec["width"] - win_width) / 2)
   local y = math.floor((ui_spec["height"] - win_height) / 2)
@@ -27,7 +27,7 @@ function M.open(prompt, opts)
   vim.api.nvim_buf_set_option(bufnr, "bufhidden", "delete")
 
   -- fill buffer contents
-  vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, prompt)
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, display_prompt)
   vim.api.nvim_buf_set_option(bufnr, "modified", false)
 
   -- open window
@@ -66,13 +66,13 @@ function M.open(prompt, opts)
       local kv = {}
       for _, p in ipairs(prompt) do
         -- get key from prompt and store it as empty string by default
-        local key = p:gsub("(.*):", "%1")
+        local key = p.name
         kv[key] = ""
 
         for _, l in ipairs(lines) do
           -- if line has prompt prefix, get the value and strip whitespace
-          if l:find("^%s*" .. p) then
-            local val = l:gsub("^%s*" .. p .. "%s*(.-)%s*$", "%1")
+          if l:find("^%s*" .. p.name .. ":") then
+            local val = l:gsub("^%s*" .. p.name .. ":%s*(.-)%s*$", "%1")
             kv[key] = val
           end
         end

@@ -1,8 +1,8 @@
 local utils = require("dbee.utils")
 
-local DEFAULT_PERSISTENCE_FILE = vim.fn.stdpath("cache") .. "/dbee/persistence.json"
-
 local M = {}
+
+---@alias loader_id string
 
 ---@class Loader
 ---@field name fun(self: Loader):string function to return the name of the loader
@@ -15,11 +15,14 @@ local M = {}
 M.FileLoader = {}
 
 --- Loads connections from json file
----@param path? string path to file
+---@param path string path to file
 ---@return Loader
 function M.FileLoader:new(path)
+  if not path then
+    error("no path provided")
+  end
   local o = {
-    path = path or DEFAULT_PERSISTENCE_FILE,
+    path = path,
   }
   setmetatable(o, self)
   self.__index = self
@@ -28,7 +31,7 @@ end
 
 ---@return string
 function M.FileLoader:name()
-  return vim.fs.basename(self.path)
+  return "FileLoader - " .. vim.fs.basename(self.path)
 end
 
 ---@return connection_details[]
@@ -126,11 +129,14 @@ end
 M.EnvLoader = {}
 
 --- Loads connections from json file
----@param var? string env var to load from
+---@param var string env var to load from
 ---@return Loader
 function M.EnvLoader:new(var)
+  if not var then
+    error("no path provided")
+  end
   local o = {
-    var = var or "DBEE_CONNECTIONS",
+    var = var,
   }
   setmetatable(o, self)
   self.__index = self
@@ -139,7 +145,7 @@ end
 
 ---@return string
 function M.EnvLoader:name()
-  return self.var
+  return "EnvLoader - " .. self.var
 end
 
 ---@return connection_details[]
@@ -186,7 +192,7 @@ end
 
 ---@return string
 function M.MemoryLoader:name()
-  return "memory"
+  return "MemoryLoader"
 end
 
 ---@return connection_details[]

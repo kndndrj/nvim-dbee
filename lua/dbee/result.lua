@@ -6,8 +6,6 @@
 ---@class Result
 ---@field private ui Ui
 ---@field private handler Handler
----@field private mappings table<string, mapping>
----@field private size integer number of rows per page
 local Result = {}
 
 ---@param ui Ui
@@ -24,56 +22,43 @@ function Result:new(ui, handler, opts)
     error("no Ui passed to Result")
   end
 
-  local page_size = opts.page_size or 100
-
   -- class object
   local o = {
     ui = ui,
     handler = handler,
-    size = page_size,
-    mappings = opts.mappings or {},
   }
   setmetatable(o, self)
   self.__index = self
+
+  -- set keymaps
+  o.ui:set_keymap(o:generate_keymap(opts.mappings))
+
   return o
 end
 
----@return integer # size of one page
-function Result:page_size()
-  return self.size
-end
-
----@return table<string, fun()>
-function Result:actions()
+---@private
+---@param mappings table<string, mapping>
+---@return keymap[]
+function Result:generate_keymap(mappings)
+  mappings = mappings or {}
   return {
-    page_next = function()
-      self.handler:current_connection():page_next()
-    end,
-    page_prev = function()
-      self.handler:current_connection():page_prev()
-    end,
+    {
+      action = function()
+        self.handler:current_connection():page_next()
+      end,
+      mapping = mappings["page_next"] or { key = "L", mode = "n" },
+    },
+    {
+      action = function()
+        self.handler:current_connection():page_prev()
+      end,
+      mapping = mappings["page_prev"] or { key = "H", mode = "n" },
+    },
   }
 end
 
----@private
-function Result:map_keys(bufnr)
-  local map_options = { noremap = true, nowait = true, buffer = bufnr }
-
-  local actions = self:actions()
-
-  for act, map in pairs(self.mappings) do
-    local action = actions[act]
-    if action and type(action) == "function" then
-      vim.keymap.set(map.mode, map.key, action, map_options)
-    end
-  end
-end
-
 function Result:open()
-  local _, bufnr = self.ui:open()
-
-  -- set keymaps
-  self:map_keys(bufnr)
+  self.ui:open()
 end
 
 function Result:close()

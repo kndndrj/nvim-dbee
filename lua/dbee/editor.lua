@@ -9,7 +9,6 @@ local SCRATCHES_DIR = vim.fn.stdpath("cache") .. "/dbee/scratches"
 ---@class Editor
 ---@field private ui Ui
 ---@field private handler Handler
----@field private mappings table<string, mapping>
 ---@field private scratches table<scratch_id, scratch_details> id - scratch mapping
 ---@field private active_scratch scratch_id id of the current scratch
 local Editor = {}
@@ -52,10 +51,13 @@ function Editor:new(ui, handler, opts)
     handler = handler,
     scratches = scratches,
     active_scratch = active,
-    mappings = opts.mappings or {},
   }
   setmetatable(o, self)
   self.__index = self
+
+  -- set keymaps
+  o.ui:set_keymap(o:generate_keymap(opts.mappings))
+
   return o
 end
 
@@ -198,39 +200,34 @@ function Editor:set_active_scratch(id)
   self.active_scratch = id
 end
 
----@return table<string, fun()>
-function Editor:actions()
-  return {
-    run_file = function()
-      local bnr = self.scratches[self.active_scratch].bufnr
-      local lines = vim.api.nvim_buf_get_lines(bnr, 0, -1, false)
-      local query = table.concat(lines, "\n")
-
-      self.handler:current_connection():execute(query)
-    end,
-    run_selection = function()
-      local srow, scol, erow, ecol = utils.visual_selection()
-
-      local selection = vim.api.nvim_buf_get_text(0, srow, scol, erow, ecol, {})
-      local query = table.concat(selection, "\n")
-
-      self.handler:current_connection():execute(query)
-    end,
-  }
-end
-
 ---@private
-function Editor:map_keys(bufnr)
-  local map_options = { noremap = true, nowait = true, buffer = bufnr }
+---@param mappings table<string, mapping>
+---@return keymap[]
+function Editor:generate_keymap(mappings)
+  mappings = mappings or {}
+  return {
+    {
+      action = function()
+        local bnr = self.scratches[self.active_scratch].bufnr
+        local lines = vim.api.nvim_buf_get_lines(bnr, 0, -1, false)
+        local query = table.concat(lines, "\n")
 
-  local actions = self:actions()
+        self.handler:current_connection():execute(query)
+      end,
+      mapping = mappings["run_file"] or { key = "BB", mode = "n" },
+    },
+    {
+      action = function()
+        local srow, scol, erow, ecol = utils.visual_selection()
 
-  for act, map in pairs(self.mappings) do
-    local action = actions[act]
-    if action and type(action) == "function" then
-      vim.keymap.set(map.mode, map.key, action, map_options)
-    end
-  end
+        local selection = vim.api.nvim_buf_get_text(0, srow, scol, erow, ecol, {})
+        local query = table.concat(selection, "\n")
+
+        self.handler:current_connection():execute(query)
+      end,
+      mapping = mappings["run_selection"] or { key = "BB", mode = "v" },
+    },
+  }
 end
 
 function Editor:open()
@@ -280,8 +277,9 @@ function Editor:open()
     vim.cmd("e " .. s.file)
   end
 
-  -- set keymaps
-  self:map_keys(bufnr)
+  -- set keymaps ui's keymaps
+  self.ui:set_buffer(bufnr)
+  self.ui:map_keys()
 
   self.scratches[self.active_scratch].bufnr = bufnr
 

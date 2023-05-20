@@ -2,7 +2,7 @@ local helpers = require("dbee.helpers")
 local utils = require("dbee.utils")
 
 ---@alias conn_id string
----@alias connection_details { name: string, type: string, url: string, id: conn_id }
+---@alias connection_details { name: string, type: string, url: string, id: conn_id, page_size: integer }
 --
 ---@class _LayoutGo
 ---@field name string display name
@@ -18,13 +18,14 @@ local utils = require("dbee.utils")
 ---@field private id conn_id
 ---@field private name string
 ---@field private type string --TODO enum?
+---@field private page_size integer
 ---@field private page_index integer index of the current page
 ---@field private on_exec fun() callback which gets triggered on any action
 local Conn = {}
 
 ---@param ui Ui
 ---@param params connection_details
----@param opts? { page_size: integer, on_exec: fun() }
+---@param opts? { on_exec: fun() }
 ---@return Conn
 function Conn:new(ui, params, opts)
   params = params or {}
@@ -50,13 +51,15 @@ function Conn:new(ui, params, opts)
   end
   local type = utils.type_alias(expanded.type)
   local id = expanded.id or ("__master_connection_id_" .. expanded.name .. expanded.type .. "__")
-  params.id = id
+  local page_size = params.page_size or 100
 
   -- register in go
-  local ok = vim.fn.Dbee_register_connection(id, expanded.url, type, tostring(opts.page_size or 100))
+  local ok = vim.fn.Dbee_register_connection(id, expanded.url, type, tostring(page_size))
   if not ok then
     error("problem adding connection")
   end
+
+  params.id = id
 
   -- class object
   local o = {
@@ -65,6 +68,7 @@ function Conn:new(ui, params, opts)
     id = id,
     name = name,
     type = type,
+    page_size = page_size,
     page_index = 0,
     on_exec = opts.on_exec or function() end,
   }
@@ -85,6 +89,7 @@ function Conn:details()
     -- url shouldn't be seen as expanded - it has secrets
     url = self.__original.url,
     type = self.type,
+    page_size = self.page_size,
   }
 end
 
