@@ -9,7 +9,7 @@ local NuiLine = require("nui.line")
 ---@class Layout
 ---@field id string unique identifier
 ---@field name string display name
----@field type ""|"table"|"history"|"scratch"|"database"|"add"|"remove"|"help"|"loader" type of layout
+---@field type ""|"table"|"history"|"scratch"|"database"|"add"|"edit"|"remove"|"help"|"loader" type of layout
 ---@field schema? string parent schema
 ---@field database? string parent database
 ---@field action_1? fun(cb: fun()) primary action - takes single arg: callback closure
@@ -172,7 +172,7 @@ function Drawer:generate_keymap(mappings)
       action = function()
         self:refresh()
       end,
-      mapping = mappings["refresh"] or { key = "r", mode = "n" },
+      mapping = mappings["refresh"],
     },
     {
       action = function()
@@ -183,7 +183,7 @@ function Drawer:generate_keymap(mappings)
           end)
         end
       end,
-      mapping = mappings["action_1"] or { key = "<CR>", mode = "n" },
+      mapping = mappings["action_1"],
     },
     {
       action = function()
@@ -194,7 +194,7 @@ function Drawer:generate_keymap(mappings)
           end)
         end
       end,
-      mapping = mappings["action_2"] or { key = "da", mode = "n" },
+      mapping = mappings["action_2"],
     },
     {
       action = function()
@@ -205,7 +205,7 @@ function Drawer:generate_keymap(mappings)
           end)
         end
       end,
-      mapping = mappings["action_3"] or { key = "dd", mode = "n" },
+      mapping = mappings["action_3"],
     },
     {
       action = function()
@@ -215,7 +215,7 @@ function Drawer:generate_keymap(mappings)
         end
         collapse_node(node)
       end,
-      mapping = mappings["collapse"] or { key = "c", mode = "n" },
+      mapping = mappings["collapse"],
     },
     {
       action = function()
@@ -225,7 +225,7 @@ function Drawer:generate_keymap(mappings)
         end
         expand_node(node)
       end,
-      mapping = mappings["expand"] or { key = "e", mode = "n" },
+      mapping = mappings["expand"],
     },
     {
       action = function()
@@ -239,7 +239,7 @@ function Drawer:generate_keymap(mappings)
           expand_node(node)
         end
       end,
-      mapping = mappings["toggle"] or { key = "o", mode = "n" },
+      mapping = mappings["toggle"],
     },
   }
 end

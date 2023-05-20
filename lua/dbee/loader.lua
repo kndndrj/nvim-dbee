@@ -8,6 +8,7 @@ local M = {}
 ---@field name fun(self: Loader):string function to return the name of the loader
 ---@field load fun(self: Loader):connection_details[] function to load connections from external source
 ---@field save? fun(self: Loader, conns: connection_details[], action: "add"|"delete") function to save connections to external source (optional)
+---@field source? fun(self: Loader):string function which returns a source file to edit (optional)
 
 --- File loader
 ---@class FileLoader: Loader
@@ -31,7 +32,7 @@ end
 
 ---@return string
 function M.FileLoader:name()
-  return "FileLoader - " .. vim.fs.basename(self.path)
+  return vim.fs.basename(self.path)
 end
 
 ---@return connection_details[]
@@ -60,7 +61,7 @@ function M.FileLoader:load()
   end
 
   for _, conn in pairs(data) do
-    if type(conn) == "table" and conn.url and conn.type then
+    if type(conn) == "table" then
       table.insert(conns, conn)
     end
   end
@@ -123,6 +124,11 @@ function M.FileLoader:save(conns, action)
   file:close()
 end
 
+---@return string
+function M.FileLoader:source()
+  return self.path
+end
+
 --- Environment loader
 ---@class EnvLoader: Loader
 ---@field private var string path to file
@@ -145,7 +151,7 @@ end
 
 ---@return string
 function M.EnvLoader:name()
-  return "EnvLoader - " .. self.var
+  return self.var
 end
 
 ---@return connection_details[]
@@ -192,7 +198,7 @@ end
 
 ---@return string
 function M.MemoryLoader:name()
-  return "MemoryLoader"
+  return "memory"
 end
 
 ---@return connection_details[]

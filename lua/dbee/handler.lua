@@ -63,10 +63,29 @@ function Handler:loader_reload(id)
     return
   end
 
-  local specs = loader:load()
+  -- remove old connections
+  local old_conns = self.lookup:get_connections(id)
+  for _, conn in ipairs(old_conns) do
+    self.lookup:remove_connection(conn:details().id)
+  end
 
-  for _, spec in ipairs(specs) do
-    self:add_connection(spec, id)
+  -- add new connections
+  for _, spec in ipairs(loader:load()) do
+    -- create a new connection
+    spec.page_size = spec.page_size or self.opts.default_page_size
+    ---@type Conn
+    local conn, ok
+    ok, conn = pcall(Conn.new, Conn, self.ui, spec, {
+      on_exec = function()
+        self:set_active(conn:details().id)
+      end,
+    })
+    if ok then
+      -- add it to lookup
+      self.lookup:add_connection(conn, id)
+    else
+      utils.log("error", tostring(conn), "handler")
+    end
   end
 end
 
@@ -146,8 +165,11 @@ function Handler:layout()
   for _, loader in ipairs(all_loaders) do
     local loader_id = loader:name()
 
-    local children = {
-      {
+    local children = {}
+
+    -- loader can save edits
+    if type(loader.save) == "function" or loader_id == self.default_loader_id then
+      table.insert(children, {
         id = "__loader_add_connection__" .. loader_id,
         name = "add",
         type = "add",
@@ -173,10 +195,27 @@ function Handler:layout()
             end,
           })
         end,
-      },
-    }
+      })
+    end
+    -- loader has an editable source
+    if type(loader.source) == "function" then
+      table.insert(children, {
+        id = "__loader_edit_connections__" .. loader_id,
+        name = "edit source",
+        type = "edit",
+        action_1 = function(cb)
+          utils.prompt.edit(loader:source(), {
+            title = "Add Connection",
+            callback = function()
+              self:loader_reload(loader_id)
+              cb()
+            end,
+          })
+        end,
+      })
+    end
 
-    for _, conn in ipairs(self.lookup:get_connections(loader:name())) do
+    for _, conn in ipairs(self.lookup:get_connections(loader_id)) do
       local details = conn:details()
       table.insert(children, {
         id = details.id,
@@ -193,7 +232,7 @@ function Handler:layout()
             { name = "name", default = original_details.name },
             { name = "type", default = original_details.type },
             { name = "url", default = original_details.url },
-            { name = "page size", default = tostring(original_details.page_size) },
+            { name = "page size", default = tostring(original_details.page_size or "") },
           }
           utils.prompt.open(prompt, {
             title = "Edit Connection",
@@ -228,13 +267,15 @@ function Handler:layout()
       })
     end
 
-    table.insert(layout, {
-      id = "__loader__" .. loader_id,
-      name = loader_id,
-      do_expand = (#children > 1) or (#all_loaders == 1),
-      type = "loader",
-      children = children,
-    })
+    if #children > 0 then
+      table.insert(layout, {
+        id = "__loader__" .. loader_id,
+        name = loader_id,
+        do_expand = true,
+        type = "loader",
+        children = children,
+      })
+    end
   end
 
   return layout

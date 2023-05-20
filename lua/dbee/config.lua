@@ -66,12 +66,12 @@ M.default = {
       -- action_1 opens a scratchpad or executes a helper
       action_1 = { key = "<CR>", mode = "n" },
       -- action_2 renames a scratchpad or sets the connection as active manually
-      action_2 = { key = "da", mode = "n" },
+      action_2 = { key = "cw", mode = "n" },
       -- action_3 deletes a scratchpad or connection (removes connection from the file if you configured it like so)
       action_3 = { key = "dd", mode = "n" },
       -- these are self-explanatory:
-      collapse = { key = "c", mode = "n" },
-      expand = { key = "e", mode = "n" },
+      -- collapse = { key = "c", mode = "n" },
+      -- expand = { key = "e", mode = "n" },
       toggle = { key = "o", mode = "n" },
     },
     -- icon settings:
@@ -99,10 +99,15 @@ M.default = {
         icon_highlight = "String",
         text_highlight = "String",
       },
+      edit = {
+        icon = "󰏫",
+        icon_highlight = "Directory",
+        text_highlight = "Directory",
+      },
       remove = {
         icon = "󰆴",
         icon_highlight = "SpellBad",
-        text_highlight = "NonText",
+        text_highlight = "SpellBad",
       },
       help = {
         icon = "󰋖",

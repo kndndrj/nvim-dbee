@@ -214,7 +214,7 @@ function Editor:generate_keymap(mappings)
 
         self.handler:current_connection():execute(query)
       end,
-      mapping = mappings["run_file"] or { key = "BB", mode = "n" },
+      mapping = mappings["run_file"],
     },
     {
       action = function()
@@ -225,7 +225,7 @@ function Editor:generate_keymap(mappings)
 
         self.handler:current_connection():execute(query)
       end,
-      mapping = mappings["run_selection"] or { key = "BB", mode = "v" },
+      mapping = mappings["run_selection"],
     },
   }
 end
