@@ -1,6 +1,6 @@
 local utils = require("dbee.utils")
-local Conn = require("dbee.conn")
-local Lookup = require("dbee.lookup")
+local Conn = require("dbee.handler.conn")
+local Lookup = require("dbee.handler.lookup")
 
 ---@alias handler_config { expand_help: boolean, default_page_size: integer }
 
