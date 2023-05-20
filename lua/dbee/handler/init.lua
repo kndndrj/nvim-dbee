@@ -8,23 +8,23 @@ local Lookup = require("dbee.handler.lookup")
 -- Handler is an aggregator of connections
 ---@class Handler
 ---@field private ui Ui ui for results
----@field private lookup Lookup lookup for loaders and connections
+---@field private lookup Lookup lookup for sources and connections
 ---@field private helpers Helpers query helpers
----@field private default_loader_id string
+---@field private default_source_id string
 ---@field private opts handler_config
 local Handler = {}
 
 ---@param ui Ui ui for displaying results
----@param default_loader Loader
----@param other_loaders? Loader[]
+---@param default_source Source
+---@param other_sources? Source[]
 ---@param opts? handler_config
 ---@return Handler
-function Handler:new(ui, default_loader, other_loaders, opts)
+function Handler:new(ui, default_source, other_sources, opts)
   if not ui then
     error("no results Ui passed to Handler")
   end
-  if not default_loader then
-    error("no default Loader passed to Handler")
+  if not default_source then
+    error("no default Source passed to Handler")
   end
 
   -- class object
@@ -32,37 +32,37 @@ function Handler:new(ui, default_loader, other_loaders, opts)
     ui = ui,
     lookup = Lookup:new(),
     helpers = Helpers:new(),
-    default_loader_id = default_loader:name(),
+    default_source_id = default_source:name(),
     opts = opts or {},
   }
   setmetatable(o, self)
   self.__index = self
 
-  -- initialize the default loader and others
-  o:loader_add(default_loader)
+  -- initialize the default source and others
+  o:source_add(default_source)
 
-  other_loaders = other_loaders or {}
-  for _, loader in ipairs(other_loaders) do
-    pcall(o.loader_add, o, loader)
+  other_sources = other_sources or {}
+  for _, source in ipairs(other_sources) do
+    pcall(o.source_add, o, source)
   end
 
   return o
 end
 
 -- add new source and load connections from it
----@param loader Loader
-function Handler:loader_add(loader)
-  local id = loader:name()
+---@param source Source
+function Handler:source_add(source)
+  local id = source:name()
   -- add it
-  self.lookup:add_loader(loader)
+  self.lookup:add_source(source)
   -- and load it's connections
-  self:loader_reload(id)
+  self:source_reload(id)
 end
 
----@param id loader_id
-function Handler:loader_reload(id)
-  local loader = self.lookup:get_loader(id)
-  if not loader then
+---@param id source_id
+function Handler:source_reload(id)
+  local source = self.lookup:get_source(id)
+  if not source then
     return
   end
 
@@ -73,7 +73,7 @@ function Handler:loader_reload(id)
   end
 
   -- add new connections
-  for _, spec in ipairs(loader:load()) do
+  for _, spec in ipairs(source:load()) do
     -- create a new connection
     spec.page_size = spec.page_size or self.opts.default_page_size
     ---@type Conn
@@ -94,10 +94,10 @@ end
 
 --- adds connection
 ---@param params connection_details
----@param loader_id? loader_id id of the loader to save connection to
+---@param source_id? source_id id of the source to save connection to
 ---@return conn_id # id of the added connection
-function Handler:add_connection(params, loader_id)
-  loader_id = loader_id or self.default_loader_id
+function Handler:add_connection(params, source_id)
+  source_id = source_id or self.default_source_id
   -- create a new connection
   params.page_size = params.page_size or self.opts.default_page_size
   ---@type Conn
@@ -116,19 +116,19 @@ function Handler:add_connection(params, loader_id)
   self:remove_connection(conn:details().id)
 
   -- add it to lookup
-  self.lookup:add_connection(conn, loader_id)
+  self.lookup:add_connection(conn, source_id)
 
-  -- save it to loader if it exists
-  local loader = self.lookup:get_loader(loader_id)
-  if loader and type(loader.save) == "function" then
-    loader:save({ conn:original_details() }, "add")
+  -- save it to source if it exists
+  local source = self.lookup:get_source(source_id)
+  if source and type(source.save) == "function" then
+    source:save({ conn:original_details() }, "add")
   end
 
   return conn:details().id
 end
 
 -- removes/unregisters connection
--- also deletes it from the loader if it exists
+-- also deletes it from the source if it exists
 ---@param id conn_id connection id
 function Handler:remove_connection(id)
   local conn = self.lookup:get_connection(id)
@@ -138,10 +138,10 @@ function Handler:remove_connection(id)
 
   local original_details = conn:original_details()
 
-  -- delete it from the loader
-  local loader = self.lookup:get_loaders(id)[1]
-  if loader and type(loader.save) == "function" then
-    loader:save({ original_details }, "delete")
+  -- delete it from the source
+  local source = self.lookup:get_sources(id)[1]
+  if source and type(source.save) == "function" then
+    source:save({ original_details }, "delete")
   end
 
   -- delete it
@@ -175,17 +175,17 @@ function Handler:layout()
   ---@type Layout[]
   local layout = {}
 
-  local all_loaders = self.lookup:get_loaders()
+  local all_sources = self.lookup:get_sources()
 
-  for _, loader in ipairs(all_loaders) do
-    local loader_id = loader:name()
+  for _, source in ipairs(all_sources) do
+    local source_id = source:name()
 
     local children = {}
 
-    -- loader can save edits
-    if type(loader.save) == "function" or loader_id == self.default_loader_id then
+    -- source can save edits
+    if type(source.save) == "function" or source_id == self.default_source_id then
       table.insert(children, {
-        id = "__loader_add_connection__" .. loader_id,
+        id = "__source_add_connection__" .. source_id,
         name = "add",
         type = "add",
         action_1 = function(cb)
@@ -205,24 +205,24 @@ function Handler:layout()
                 type = result.type,
                 page_size = tonumber(result["page size"]),
               }
-              pcall(self.add_connection, self, spec --[[@as connection_details]], loader_id)
+              pcall(self.add_connection, self, spec --[[@as connection_details]], source_id)
               cb()
             end,
           })
         end,
       })
     end
-    -- loader has an editable source
-    if type(loader.source) == "function" then
+    -- source has an editable source
+    if type(source.file) == "function" then
       table.insert(children, {
-        id = "__loader_edit_connections__" .. loader_id,
+        id = "__source_edit_connections__" .. source_id,
         name = "edit source",
         type = "edit",
         action_1 = function(cb)
-          utils.prompt.edit(loader:source(), {
+          utils.prompt.edit(source:file(), {
             title = "Add Connection",
             callback = function()
-              self:loader_reload(loader_id)
+              self:source_reload(source_id)
               cb()
             end,
           })
@@ -230,7 +230,7 @@ function Handler:layout()
       })
     end
 
-    for _, conn in ipairs(self.lookup:get_connections(loader_id)) do
+    for _, conn in ipairs(self.lookup:get_connections(source_id)) do
       local details = conn:details()
       table.insert(children, {
         id = details.id,
@@ -261,12 +261,12 @@ function Handler:layout()
                 page_size = tonumber(result["page size"]),
               }
               -- parse page size to int
-              pcall(self.add_connection, self, spec --[[@as connection_details]], loader_id)
+              pcall(self.add_connection, self, spec --[[@as connection_details]], source_id)
               cb()
             end,
           })
         end,
-        -- remove connection (also trigger the loader function)
+        -- remove connection (also trigger the source's function)
         action_3 = function(cb)
           vim.ui.input({ prompt = 'confirm deletion of "' .. details.name .. '"', default = "Y" }, function(input)
             if not input or string.lower(input) ~= "y" then
@@ -284,10 +284,10 @@ function Handler:layout()
 
     if #children > 0 then
       table.insert(layout, {
-        id = "__loader__" .. loader_id,
-        name = loader_id,
+        id = "__source__" .. source_id,
+        name = source_id,
         do_expand = true,
-        type = "loader",
+        type = "source",
         children = children,
       })
     end

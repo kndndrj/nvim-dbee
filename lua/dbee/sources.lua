@@ -2,23 +2,22 @@ local utils = require("dbee.utils")
 
 local M = {}
 
----@alias loader_id string
+---@alias source_id string
 
----@class Loader
----@field name fun(self: Loader):string function to return the name of the loader
----@field load fun(self: Loader):connection_details[] function to load connections from external source
----@field save? fun(self: Loader, conns: connection_details[], action: "add"|"delete") function to save connections to external source (optional)
----@field source? fun(self: Loader):string function which returns a source file to edit (optional)
+---@class Source
+---@field name fun(self: Source):string function to return the name of the source
+---@field load fun(self: Source):connection_details[] function to load connections from external source
+---@field save? fun(self: Source, conns: connection_details[], action: "add"|"delete") function to save connections to external source (optional)
+---@field file? fun(self: Source):string function which returns a source file to edit (optional)
 
---- File loader
----@class FileLoader: Loader
+---@class FileSource: Source
 ---@field private path string path to file
-M.FileLoader = {}
+M.FileSource = {}
 
 --- Loads connections from json file
 ---@param path string path to file
----@return Loader
-function M.FileLoader:new(path)
+---@return Source
+function M.FileSource:new(path)
   if not path then
     error("no path provided")
   end
@@ -31,12 +30,12 @@ function M.FileLoader:new(path)
 end
 
 ---@return string
-function M.FileLoader:name()
+function M.FileSource:name()
   return vim.fs.basename(self.path)
 end
 
 ---@return connection_details[]
-function M.FileLoader:load()
+function M.FileSource:load()
   local path = self.path
 
   ---@type connection_details[]
@@ -56,7 +55,7 @@ function M.FileLoader:load()
   local contents = table.concat(lines, "\n")
   local ok, data = pcall(vim.fn.json_decode, contents)
   if not ok then
-    utils.log("warn", 'Could not parse json file: "' .. path .. '".', "loader")
+    utils.log("warn", 'Could not parse json file: "' .. path .. '".', "sources")
     return {}
   end
 
@@ -72,7 +71,7 @@ end
 -- saves connection to file
 ---@param conns connection_details[]
 ---@param action "add"|"delete"
-function M.FileLoader:save(conns, action)
+function M.FileSource:save(conns, action)
   local path = self.path
 
   if not conns or vim.tbl_isempty(conns) then
@@ -114,7 +113,7 @@ function M.FileLoader:save(conns, action)
   -- write back to file
   local ok, json = pcall(vim.fn.json_encode, new)
   if not ok then
-    utils.log("error", "Could not convert connection list to json", "loader")
+    utils.log("error", "Could not convert connection list to json", "sources")
     return
   end
 
@@ -125,19 +124,18 @@ function M.FileLoader:save(conns, action)
 end
 
 ---@return string
-function M.FileLoader:source()
+function M.FileSource:source()
   return self.path
 end
 
---- Environment loader
----@class EnvLoader: Loader
+---@class EnvSource: Source
 ---@field private var string path to file
-M.EnvLoader = {}
+M.EnvSource = {}
 
 --- Loads connections from json file
 ---@param var string env var to load from
----@return Loader
-function M.EnvLoader:new(var)
+---@return Source
+function M.EnvSource:new(var)
   if not var then
     error("no path provided")
   end
@@ -150,12 +148,12 @@ function M.EnvLoader:new(var)
 end
 
 ---@return string
-function M.EnvLoader:name()
+function M.EnvSource:name()
   return self.var
 end
 
 ---@return connection_details[]
-function M.EnvLoader:load()
+function M.EnvSource:load()
   ---@type connection_details[]
   local conns = {}
 
@@ -166,7 +164,7 @@ function M.EnvLoader:load()
 
   local ok, data = pcall(vim.fn.json_decode, raw)
   if not ok then
-    utils.log("warn", 'Could not parse connections from env: "' .. self.var .. '".', "loader")
+    utils.log("warn", 'Could not parse connections from env: "' .. self.var .. '".', "sources")
     return {}
   end
 
@@ -179,15 +177,14 @@ function M.EnvLoader:load()
   return conns
 end
 
---- Environment loader
----@class MemoryLoader: Loader
+---@class MemorySource: Source
 ---@field conns connection_details[]
-M.MemoryLoader = {}
+M.MemorySource = {}
 
 --- Loads connections from json file
 ---@param conns connection_details[]
----@return Loader
-function M.MemoryLoader:new(conns)
+---@return Source
+function M.MemorySource:new(conns)
   local o = {
     conns = conns or {},
   }
@@ -197,12 +194,12 @@ function M.MemoryLoader:new(conns)
 end
 
 ---@return string
-function M.MemoryLoader:name()
+function M.MemorySource:name()
   return "memory"
 end
 
 ---@return connection_details[]
-function M.MemoryLoader:load()
+function M.MemorySource:load()
   return self.conns
 end
 

@@ -3,9 +3,9 @@ local Editor = require("dbee.editor")
 local Result = require("dbee.result")
 local Ui = require("dbee.ui")
 local Handler = require("dbee.handler")
-local MemoryLoader = require("dbee.loader").MemoryLoader
-local EnvLoader = require("dbee.loader").EnvLoader
-local FileLoader = require("dbee.loader").FileLoader
+local MemorySource = require("dbee.sources").MemorySource
+local EnvSource = require("dbee.sources").EnvSource
+local FileSource = require("dbee.sources").FileSource
 local install = require("dbee.install")
 local utils = require("dbee.utils")
 local default_config = require("dbee.config").default
@@ -54,20 +54,20 @@ local function lazy_setup()
     },
   }
 
-  -- handler and loaders
-  -- memory loader loads configs from setup() and is also a default loader
-  local mem_loader = MemoryLoader:new(m.config.connections)
+  -- handler and sources
+  -- memory source loads configs from setup() and is also a default source
+  local mem_source = MemorySource:new(m.config.connections)
 
-  local loaders = {}
+  local sources = {}
   for _, file in ipairs(m.config.connection_sources.files) do
-    table.insert(loaders, FileLoader:new(file))
+    table.insert(sources, FileSource:new(file))
   end
   for _, var in ipairs(m.config.connection_sources.env_vars) do
-    table.insert(loaders, EnvLoader:new(var))
+    table.insert(sources, EnvSource:new(var))
   end
 
   -- set up modules
-  m.handler = Handler:new(result_ui, mem_loader, loaders)
+  m.handler = Handler:new(result_ui, mem_source, sources)
   m.result = Result:new(result_ui, m.handler, m.config.result)
   m.editor = Editor:new(editor_ui, m.handler, m.config.editor)
   m.drawer = Drawer:new(drawer_ui, m.handler, m.editor, m.config.drawer)

@@ -9,7 +9,7 @@ local NuiLine = require("nui.line")
 ---@class Layout
 ---@field id string unique identifier
 ---@field name string display name
----@field type ""|"table"|"history"|"scratch"|"database"|"add"|"edit"|"remove"|"help"|"loader" type of layout
+---@field type ""|"table"|"history"|"scratch"|"database"|"add"|"edit"|"remove"|"help"|"source" type of layout
 ---@field schema? string parent schema
 ---@field database? string parent database
 ---@field action_1? fun(cb: fun()) primary action - takes single arg: callback closure

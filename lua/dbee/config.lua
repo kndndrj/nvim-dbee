@@ -114,7 +114,7 @@ M.default = {
         icon_highlight = "Title",
         text_highlight = "Title",
       },
-      loader = {
+      source = {
         icon = "󰃖",
         icon_highlight = "MoreMsg",
         text_highlight = "MoreMsg",
