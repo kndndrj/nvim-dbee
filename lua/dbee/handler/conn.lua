@@ -26,7 +26,7 @@ local Conn = {}
 ---@param ui Ui
 ---@param helpers Helpers
 ---@param params connection_details
----@param opts? { on_exec: fun() }
+---@param opts? { fallback_page_size: integer, on_exec: fun() }
 ---@return Conn
 function Conn:new(ui, helpers, params, opts)
   params = params or {}
@@ -55,7 +55,7 @@ function Conn:new(ui, helpers, params, opts)
   end
   local type = utils.type_alias(expanded.type)
   local id = expanded.id or ("__master_connection_id_" .. expanded.name .. expanded.type .. "__")
-  local page_size = params.page_size or 100
+  local page_size = params.page_size or opts.fallback_page_size or 100
 
   -- register in go
   local ok = vim.fn.Dbee_register_connection(id, expanded.url, type, tostring(page_size))

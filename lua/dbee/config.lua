@@ -16,10 +16,10 @@ local m = {}
 
 -- configuration object
 ---@class Config
----@field connections connection_details[] list of configured database connections
----@field connection_sources { files: string[], env_vars: string[] }
+---@field sources Source[] list of connection sources
 ---@field extra_helpers table<string, table_helpers> extra table helpers to provide besides built-ins. example: { postgres = { List = "select..." }
 ---@field lazy boolean lazy load the plugin or not?
+---@field page_size integer
 ---@field drawer drawer_config
 ---@field editor editor_config
 ---@field result result_config
@@ -32,21 +32,10 @@ M.default = {
   -- lazy load the plugin or not?
   lazy = false,
 
-  -- list of manually specified connections
-  connections = {
-    -- example:
-    -- {
-    --   name = "example-pg",
-    --   type = "postgres",
-    --   url = "postgres://user:password@localhost:5432/db?sslmode=disable",
-    -- },
-  },
   -- loads connections from files and environment variables
-  connection_sources = {
-    -- list of files to load connections from
-    files = { vim.fn.stdpath("cache") .. "/dbee/persistence.json" },
-    -- list of env vars to load connections from
-    env_vars = { "DBEE_CONNECTIONS" },
+  sources = {
+    require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
+    require("dbee.sources").FileSource:new(vim.fn.stdpath("cache") .. "/dbee/persistence.json"),
   },
   -- extra table helpers per connection type
   extra_helpers = {
@@ -55,6 +44,9 @@ M.default = {
     --   ["List All"] = "select * from {table}",
     -- },
   },
+
+  -- number of rows in the results set to display per page
+  page_size = 100,
 
   -- drawer window config
   drawer = {
@@ -145,8 +137,6 @@ M.default = {
 
   -- results window config
   result = {
-    -- number of rows per page
-    page_size = 100,
     -- mappings for the buffer
     mappings = {
       -- next/previous page

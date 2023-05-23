@@ -124,7 +124,7 @@ function M.FileSource:save(conns, action)
 end
 
 ---@return string
-function M.FileSource:source()
+function M.FileSource:file()
   return self.path
 end
 

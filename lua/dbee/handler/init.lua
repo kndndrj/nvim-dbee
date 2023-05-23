@@ -3,28 +3,23 @@ local Conn = require("dbee.handler.conn")
 local Helpers = require("dbee.handler.helpers")
 local Lookup = require("dbee.handler.lookup")
 
----@alias handler_config { default_page_size: integer }
+---@alias handler_config { fallback_page_size: integer }
 
 -- Handler is an aggregator of connections
 ---@class Handler
 ---@field private ui Ui ui for results
 ---@field private lookup Lookup lookup for sources and connections
 ---@field private helpers Helpers query helpers
----@field private default_source_id string
 ---@field private opts handler_config
 local Handler = {}
 
 ---@param ui Ui ui for displaying results
----@param default_source Source
----@param other_sources? Source[]
+---@param sources? Source[]
 ---@param opts? handler_config
 ---@return Handler
-function Handler:new(ui, default_source, other_sources, opts)
+function Handler:new(ui, sources, opts)
   if not ui then
     error("no results Ui passed to Handler")
-  end
-  if not default_source then
-    error("no default Source passed to Handler")
   end
 
   -- class object
@@ -32,17 +27,14 @@ function Handler:new(ui, default_source, other_sources, opts)
     ui = ui,
     lookup = Lookup:new(),
     helpers = Helpers:new(),
-    default_source_id = default_source:name(),
     opts = opts or {},
   }
   setmetatable(o, self)
   self.__index = self
 
-  -- initialize the default source and others
-  o:source_add(default_source)
-
-  other_sources = other_sources or {}
-  for _, source in ipairs(other_sources) do
+  -- initialize the sources
+  sources = sources or {}
+  for _, source in ipairs(sources) do
     pcall(o.source_add, o, source)
   end
 
@@ -75,10 +67,10 @@ function Handler:source_reload(id)
   -- add new connections
   for _, spec in ipairs(source:load()) do
     -- create a new connection
-    spec.page_size = spec.page_size or self.opts.default_page_size
     ---@type Conn
     local conn, ok
     ok, conn = pcall(Conn.new, Conn, self.ui, self.helpers, spec, {
+      fallback_page_size = self.opts.fallback_page_size,
       on_exec = function()
         self:set_active(conn:details().id)
       end,
@@ -94,15 +86,17 @@ end
 
 --- adds connection
 ---@param params connection_details
----@param source_id? source_id id of the source to save connection to
+---@param source_id source_id id of the source to save connection to
 ---@return conn_id # id of the added connection
 function Handler:add_connection(params, source_id)
-  source_id = source_id or self.default_source_id
+  if not source_id then
+    error("no source id provided")
+  end
   -- create a new connection
-  params.page_size = params.page_size or self.opts.default_page_size
   ---@type Conn
   local conn, ok
   ok, conn = pcall(Conn.new, Conn, self.ui, self.helpers, params, {
+    fallback_page_size = self.opts.fallback_page_size,
     on_exec = function()
       self:set_active(conn:details().id)
     end,
@@ -183,7 +177,7 @@ function Handler:layout()
     local children = {}
 
     -- source can save edits
-    if type(source.save) == "function" or source_id == self.default_source_id then
+    if type(source.save) == "function" then
       table.insert(children, {
         id = "__source_add_connection__" .. source_id,
         name = "add",

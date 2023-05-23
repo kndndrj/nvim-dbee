@@ -1,4 +1,4 @@
----@alias result_config { mappings: table<string, mapping>, page_size: integer }
+---@alias result_config { mappings: table<string, mapping> }
 
 -- Result is a wrapper around the go code
 -- it is the central part of the plugin and manages connections.
