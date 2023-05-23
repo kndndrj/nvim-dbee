@@ -195,14 +195,14 @@ Here are a few steps to quickly get started:
 
   - All nodes:
 
-    - Press `o` to toggle the tree node, `e` to expand and `c` to close.
+    - Press `o` to toggle the tree node.
     - Press `r` to manually refresh the tree.
 
   - Connections:
 
-    - Press `da` to set it as the active one.
-    - Press `dd` to delete it (this also triggers the `remove` function - see
-      more below.)
+    - Press `cw` to edit the connection
+    - Press `dd` to delete it (if source supports saving, it's also removed from
+      there - see more below.)
     - Press `<CR>` to perform an action - view history or look at helper
       queries.
 
@@ -212,7 +212,7 @@ Here are a few steps to quickly get started:
     - When you try to save it to disk (`:w`), the path is automatically filled
       for you. You can change the name to anything you want, if you save it to
       the suggested directory, it will load the next time you open DBee.
-    - Press `da` to rename the scratchpad.
+    - Press `cw` to rename the scratchpad.
     - Press `dd` to delete it (also from disk).
     - Pressing `<CR>` on an existing scratchpad in the drawer will open it in
       the editor pane.
@@ -257,47 +257,43 @@ This is how it looks like:
 
 ```lua
 {
-  id = "optional_identifier" -- useful to set manually if you want to remove from the file (see below)
-                             -- IT'S YOUR JOB TO KEEP THESE UNIQUE!
+  id = "optional_identifier" -- only mandatory if you edit a file by hand. IT'S YOUR JOB TO KEEP THESE UNIQUE!
   name = "My Database",
   type = "sqlite", -- type of database driver
   url = "~/path/to/mydb.db",
 }
 ```
 
-There are a few different ways you can use to specify the connection parameters
-for DBee:
+The connections are loaded to dbee using so-called "sources". They can be added
+to dbee using the `setup()` function:
 
-- Using the `setup()` function:
-
-  The most straightforward (but probably the most useless) way is to just add
-  them to your configuration in `init.lua` like this:
-
-  ```lua
+```lua
   require("dbee").setup {
-  connections = {
-    {
-      name = "My Database",
-      type = "sqlite", -- type of database driver
-      url = "~/path/to/mydb.db",
+    sources = {
+      require("dbee.sources").MemorySource:new({
+        {
+          name = "...",
+          type = "...",
+          url = "...",
+        },
+        -- ...
+      }),
+      require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
+      require("dbee.sources").FileSource:new(vim.fn.stdpath("cache") .. "/dbee/persistence.json"),
     },
     -- ...
   },
   -- ... the rest of your config
   }
-  ```
 
-- Use the prompt at runtime:
+```
 
-  You can add connections manually using the "add connection" item in the
-  drawer. Fill in the values and write the buffer (`:w`) to save the connection.
-  By default, this will save the connection to the global connections file and
-  will persist over restarts.
+The above sources are just built-ins. Here is a short description of them:
 
-- Use an env variable. This variable is `DBEE_CONNECTIONS` by default:
+- `MemorySource` just loads the connections you give it as an argument.
 
-  You can export an environment variable with connections from your shell like
-  this:
+- `EnvSource` loads connection from an environment variable Just export the
+  variable you gave to the loader and you are good to go:
 
   ```sh
     export DBEE_CONNECTIONS='[
@@ -309,35 +305,29 @@ for DBee:
     ]'
   ```
 
-- Use a custom load function:
+- `FileSource` loads connections from a given json file. It also supports
+  editing and adding connections interactively
 
-  If you aren't satisfied with the default capabilities, you can provide your
-  own `load` function in the config at setup. This example uses a
-  project-specific connections config file:
+If the source supports saving and editing you can add connections manually using
+the "add" item in the drawer. Fill in the values and write the buffer (`:w`) to
+save the connection. By default, this will save the connection to the global
+connections file and will persist over restarts (because default `FileSource`
+supports saving)
 
-  ```lua
-  local file = vim.fn.getcwd() .. "/.dbee.json"
+Another option is to use "edit" item in the tree and just edit the source
+manually.
 
-  require("dbee").setup {
-    loader = {
-      -- this function must return a list of connections and it doesn't
-      -- care about anything else
-      load = function()
-        return require("dbee.loader").load_from_file(file)
-      end,
-      -- just as an example you can also specify this function to save any
-      -- connections from the prompt input to the same file as they are being loaded from
-      add = function(connections)
-        require("dbee.loader").add_to_file(file)
-      end,
-      -- and this to remove them
-      remove = function(connections)
-        require("dbee.loader").remove_from_file(file)
-      end,
-    },
-    -- ... the rest of your config
-  }
-  ```
+If you aren't satisfied with the default capabilities, you can implement your
+own source. You just need to fill the following interface and pass it to config
+at setup.
+
+```lua
+---@class Source
+---@field name fun(self: Source):string function to return the name of the source
+---@field load fun(self: Source):connection_details[] function to load connections from external source
+---@field save? fun(self: Source, conns: connection_details[], action: "add"|"delete") function to save connections to external source (optional)
+---@field file? fun(self: Source):string function which returns a source file to edit (optional)
+```
 
 #### Secrets
 
