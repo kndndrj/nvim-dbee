@@ -27,6 +27,8 @@
 
 ***Alpha Software - Expect Breaking Changes!***
 
+![Screenshot](assets/screenshot.jpg)
+
 ## Installation
 
 - packer.nvim:
