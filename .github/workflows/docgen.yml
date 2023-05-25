@@ -33,19 +33,20 @@ jobs:
         run: |
           TEMP_CONFIG="$(mktemp)"
           TEMP_README="$(mktemp)"
-          # Retrieve default config and put it in a temp file
+          # Retrieve default config and put it in a temp file.
           {
             echo '```lua'
             awk '/DOCGEN_END/{f=0} f; /DOCGEN_START/{f=1}' lua/dbee/config.lua
             echo '```'
           } > "$TEMP_CONFIG"
-          # Insert the default config between DOCGEN_CONFIG tags in the README
+          # Insert the default config between DOCGEN_CONFIG tags in the README.
+          # And remove stuff between DOCGEN_IGNORE_START and DOCGEN_IGNORE_END tags from README.
           {
             sed -e '
               /DOCGEN_CONFIG_START/,/DOCGEN_CONFIG_END/!b
               /DOCGEN_CONFIG_START/r '"$TEMP_CONFIG"'
               /DOCGEN_CONFIG_END:/!d
-            ' <(sed '0,/DOCGEN_START/d' README.md)
+            ' <(sed '/DOCGEN_IGNORE_START/,/DOCGEN_IGNORE_END/d' README.md)
             cat ARCHITECTURE.md
           } > "$TEMP_README"
           # Generate docs

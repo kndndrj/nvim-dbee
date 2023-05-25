@@ -8,10 +8,12 @@ CONTENTS                                                           *dbee-content
     1.1. Installation..........................................|dbee-installation|
         1.1.1. Platform Support............................|dbee-platform_support|
         1.1.2. Manual Binary Installation........|dbee-manual_binary_installation|
-    1.2. Quick Start............................................|dbee-quick_start|
-    1.3. Configuration........................................|dbee-configuration|
+    1.2. Configuration........................................|dbee-configuration|
+    1.3. Usage........................................................|dbee-usage|
+        1.3.1. Getting Started..............................|dbee-getting_started|
+        1.3.2. Specifying Connections................|dbee-specifying_connections|
+            1.3.2.1. Secrets........................................|dbee-secrets|
     1.4. Projector Integration........................|dbee-projector_integration|
-    1.5. Development............................................|dbee-development|
 2. DBee Architecture Overview....................|dbee-dbee_architecture_overview|
     2.1. Lua Architecture..................................|dbee-lua_architecture|
     2.2. Go Architecture....................................|dbee-go_architecture|
@@ -118,46 +120,19 @@ users. If that doesn't include you, then you have a few options:
 <
 
 --------------------------------------------------------------------------------
-QUICK START                                                     *dbee-quick_start*
-
-Call the `setup()` function with an optional config parameter. If you are not
-using your plugin manager to lazy load for you, make sure to specify
-`{ lazy = true }` in the config.
-
-Here is a brief refference of the most useful functions:
->
-    -- Open/close the UI.
-    require("dbee").open()
-    require("dbee").close()
-    -- Next/previou page of the results (there are the same mappings that work just inside the results buffer
-    -- available in config).
-    require("dbee").next()
-    require("dbee").prev()
-    -- Run a query on the active connection directly.
-    require("dbee").execute(query)
-    -- Save the current result to file (format is either "csv" or "json" for now).
-    require("dbee").save(format, file)
-<
-
---------------------------------------------------------------------------------
 CONFIGURATION                                                 *dbee-configuration*
 
-As mentioned, you can pass an optional table parameter to `setup()` function.
+You can pass an optional table parameter to `setup()` function.
 
 Here are the defaults:
 >
     M.default = {
       -- lazy load the plugin or not?
       lazy = false,
-      -- list of connections
-      -- don't commit that, use something like nvim-projector for project specific config.
-      connections = {
-        -- example:
-        -- {
-        --   name = "example-pg",
-        --   type = "postgres",
-        --   url = "postgres://user:password@localhost:5432/db?sslmode=disable",
-        -- },
+      -- loads connections from files and environment variables
+      sources = {
+        require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
+        require("dbee.sources").FileSource:new(vim.fn.stdpath("cache") .. "/dbee/persistence.json"),
       },
       -- extra table helpers per connection type
       extra_helpers = {
@@ -166,11 +141,10 @@ Here are the defaults:
         --   ["List All"] = "select * from {table}",
         -- },
       },
+      -- number of rows in the results set to display per page
+      page_size = 100,
       -- drawer window config
       drawer = {
-        -- command that opens the window if the window is closed
-        -- string or function
-        window_command = "to 40vsplit",
         -- mappings for the buffer
         mappings = {
           -- manually refresh drawer
@@ -179,33 +153,58 @@ Here are the defaults:
           -- action_1 opens a scratchpad or executes a helper
           action_1 = { key = "<CR>", mode = "n" },
           -- action_2 renames a scratchpad or sets the connection as active manually
-          action_2 = { key = "da", mode = "n" },
-          -- action_3 deletes a scratchpad
+          action_2 = { key = "cw", mode = "n" },
+          -- action_3 deletes a scratchpad or connection (removes connection from the file if you configured it like so)
           action_3 = { key = "dd", mode = "n" },
           -- these are self-explanatory:
-          collapse = { key = "c", mode = "n" },
-          expand = { key = "e", mode = "n" },
+          -- collapse = { key = "c", mode = "n" },
+          -- expand = { key = "e", mode = "n" },
           toggle = { key = "o", mode = "n" },
         },
         -- icon settings:
-        disable_icons = false,
-        icons = {
+        disable_candies = false,
+        candies = {
           -- these are what's available for now:
           history = {
             icon = "",
-            highlight = "Constant",
+            icon_highlight = "Constant",
           },
           scratch = {
             icon = "",
-            highlight = "Character",
+            icon_highlight = "Character",
           },
           database = {
             icon = "",
-            highlight = "SpecialChar",
+            icon_highlight = "SpecialChar",
           },
           table = {
             icon = "",
-            highlight = "Conditional",
+            icon_highlight = "Conditional",
+          },
+          add = {
+            icon = "",
+            icon_highlight = "String",
+            text_highlight = "String",
+          },
+          edit = {
+            icon = "󰏫",
+            icon_highlight = "Directory",
+            text_highlight = "Directory",
+          },
+          remove = {
+            icon = "󰆴",
+            icon_highlight = "SpellBad",
+            text_highlight = "SpellBad",
+          },
+          help = {
+            icon = "󰋖",
+            icon_highlight = "Title",
+            text_highlight = "Title",
+          },
+          source = {
+            icon = "󰃖",
+            icon_highlight = "MoreMsg",
+            text_highlight = "MoreMsg",
           },
           -- if there is no type
           -- use this for normal nodes...
@@ -215,26 +214,21 @@ Here are the defaults:
           -- ...and use this for nodes with children
           none_dir = {
             icon = "",
-            highlight = "NonText",
+            icon_highlight = "NonText",
           },
           -- chevron icons for expanded/closed nodes
           node_expanded = {
             icon = "",
-            highlight = "NonText",
+            icon_highlight = "NonText",
           },
           node_closed = {
             icon = "",
-            highlight = "NonText",
+            icon_highlight = "NonText",
           },
         },
       },
       -- results window config
       result = {
-        -- command that opens the window if the window is closed
-        -- string or function
-        window_command = "bo 15split",
-        -- number of rows per page
-        page_size = 100,
         -- mappings for the buffer
         mappings = {
           -- next/previous page
@@ -244,14 +238,6 @@ Here are the defaults:
       },
       -- editor window config
       editor = {
-        -- command that opens the window if the window is closed
-        -- string or function
-        window_command = function()
-          vim.cmd("new")
-          vim.cmd("only")
-          m.tmp_buf = vim.api.nvim_get_current_buf()
-          return vim.api.nvim_get_current_win()
-        end,
         -- mappings for the buffer
         mappings = {
           -- run what's currently selected on the active connection
@@ -268,6 +254,18 @@ Here are the defaults:
       --
       -- You can probably do anything you imagine with this - for example all floating windows, tiled/floating mix etc.
       ui = {
+        -- commands that opens the window if the window is closed - for drawer/editor/result
+        -- string or function
+        window_commands = {
+          drawer = "to 40vsplit",
+          result = "bo 15split",
+          editor = function()
+            vim.cmd("new")
+            vim.cmd("only")
+            m.tmp_buf = vim.api.nvim_get_current_buf()
+            return vim.api.nvim_get_current_win()
+          end,
+        },
         -- how to open windows in order (with specified "window_command"s -- see above)
         window_open_order = { "editor", "result", "drawer" },
         -- hooks before/after dbee.open()/.close()
@@ -289,6 +287,189 @@ Here are the defaults:
 <
 
 --------------------------------------------------------------------------------
+USAGE                                                                 *dbee-usage*
+
+Call the `setup()` function with an optional config parameter. If you are not
+using your plugin manager to lazy load for you, make sure to specify
+`{ lazy = true }` in the config.
+>
+    -- Open/close the UI.
+    require("dbee").open()
+    require("dbee").close()
+    -- Next/previou page of the results (there are the same mappings that work just inside the results buffer
+    -- available in config).
+    require("dbee").next()
+    require("dbee").prev()
+    -- Run a query on the active connection directly.
+    require("dbee").execute(query)
+    -- Save the current result to file (format is either "csv" or "json" for now).
+    require("dbee").save(format, file)
+<
+
+GETTING STARTED                                             *dbee-getting_started*
+
+Here are a few steps to quickly get started:
+
+*   call the `setup()` function in your `init.lua`
+*   Specify connections using one or more sources (reffer to
+    this section (#specifying-connections)).
+*   When you restart the editor, call `lua require("dbee").open()` to open the UI.
+*   Navigate to the drawer (tree) and use the following key-bindings to perform
+    different actions depending on the context (the mappings can all be changed in
+    the config):
+    *   All nodes:
+    *   Press `o` to toggle the tree node.
+    *   Press `r` to manually refresh the tree.
+    *   Connections:
+    *   Press `cw` to edit the connection
+    *   Press `dd` to delete it (if source supports saving, it's also removed from
+        there - see more below.)
+    *   Press `<CR>` to perform an action - view history or look at helper
+        queries.
+    *   Scratchpads:
+    *   Press `<CR>` on the `new` node to create a new scratchpad.
+    *   When you try to save it to disk (`:w`), the path is automatically filled
+        for you. You can change the name to anything you want, if you save it to
+        the suggested directory, it will load the next time you open DBee.
+    *   Press `cw` to rename the scratchpad.
+    *   Press `dd` to delete it (also from disk).
+    *   Pressing `<CR>` on an existing scratchpad in the drawer will open it in
+        the editor pane.
+    *   Help:
+    *   Just view the key bindings.
+*   Once you selected the connection and created a scratchpad, you can navigate to
+    the editor pane (top-right by default) and start writing queries. In editor
+    pane, you can use the following actions:
+    *   Highlight some text in visual mode and press `BB` - this will run the
+        selected query on the active connection.
+    *   If you press `BB` in normal mode, you run the whole scratchpad on the active
+        connection.
+*   If the request was successful, the results should appear in the "result"
+    buffer (bottom one by default). If the total number of results was lower than
+    the `page_size` parameter in config (100 by default), all results should
+    already be present. If there are more than `page_size` results, you can "page"
+    thrugh them using one of the following:
+    *   Using `require("dbee").next()` and `require("dbee").prev()` from anywhere
+        (even if your cursor is outside the result buffer).
+    *   Using `L` for next and `H` for previous page if the cursor is located inside
+        the results buffer.
+*   The current result (of the active connection) can also be saved to a file
+    using `require("dbee").save()` command. Use:
+    *   `require("dbee").save("csv", "/path/to/file.csv")` for csv and
+    *   `require("dbee").save("json", "/path/to/file.json")` for json.
+*   Once you are done or you want to go back to where you were, you can call
+    `require("dbee").close()`.
+
+SPECIFYING CONNECTIONS                               *dbee-specifying_connections*
+
+Connection represents an instance of the database client (i.e. one database).
+This is how it looks like:
+>
+    {
+      id = "optional_identifier" -- only mandatory if you edit a file by hand. IT'S YOUR JOB TO KEEP THESE UNIQUE!
+      name = "My Database",
+      type = "sqlite", -- type of database driver
+      url = "~/path/to/mydb.db",
+    }
+<
+
+The connections are loaded to dbee using so-called "sources". They can be added
+to dbee using the `setup()` function:
+>
+      require("dbee").setup {
+        sources = {
+          require("dbee.sources").MemorySource:new({
+            {
+              name = "...",
+              type = "...",
+              url = "...",
+            },
+            -- ...
+          }),
+          require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
+          require("dbee.sources").FileSource:new(vim.fn.stdpath("cache") .. "/dbee/persistence.json"),
+        },
+        -- ...
+      },
+      -- ... the rest of your config
+      }
+<
+
+The above sources are just built-ins. Here is a short description of them:
+
+*   `MemorySource` just loads the connections you give it as an argument.
+*   `EnvSource` loads connection from an environment variable Just export the
+    variable you gave to the loader and you are good to go:
+>
+        export DBEE_CONNECTIONS='[
+            {
+                "name": "DB from env",
+                "url": "mysql://...",
+                "type": "mysql"
+            }
+        ]'
+<
+*   `FileSource` loads connections from a given json file. It also supports
+    editing and adding connections interactively
+
+If the source supports saving and editing you can add connections manually using
+the "add" item in the drawer. Fill in the values and write the buffer (`:w`) to
+save the connection. By default, this will save the connection to the global
+connections file and will persist over restarts (because default `FileSource`
+supports saving)
+
+Another option is to use "edit" item in the tree and just edit the source
+manually.
+
+If you aren't satisfied with the default capabilities, you can implement your
+own source. You just need to fill the following interface and pass it to config
+at setup.
+>
+    ---@class Source
+    ---@field name fun(self: Source):string function to return the name of the source
+    ---@field load fun(self: Source):connection_details[] function to load connections from external source
+    ---@field save? fun(self: Source, conns: connection_details[], action: "add"|"delete") function to save connections to external source (optional)
+    ---@field file? fun(self: Source):string function which returns a source file to edit (optional)
+<
+
+SECRETS                                                             *dbee-secrets*
+
+If you don't want to have secrets laying around your disk in plain text, you can
+use the special placeholders in connection strings (this works using any method
+for specifying connections).
+
+NOTE: Currently only envirnoment variables are supported
+
+Example:
+
+Using the `DBEE_CONNECTIONS` environment variable for specifying connections and
+exporting secrets to environment:
+>
+    # Define connections
+    export DBEE_CONNECTIONS='[
+        {
+            "name": "{{ env.SECRET_DB_NAME }}",
+            "url": "postgres://{{ env.SECRET_DB_USER }}:{{ env.SECRET_DB_PASS }}@localhost:5432/{{ env.SECRET_DB_NAME }}?sslmode=disable",
+            "type": "postgres"
+        }
+    ]'
+    # Export secrets
+    export SECRET_DB_NAME="secretdb"
+    export SECRET_DB_USER="secretuser"
+    export SECRET_DB_PASS="secretpass"
+<
+
+If you start neovim in the same shell, this will evaluate to the following
+connection:
+>
+    { {
+      name = "secretdb",
+      url = "postgres://secretuser:secretpass@localhost:5432/secretdb?sslmode=disable",
+      type = "postgres",
+    } }
+<
+
+--------------------------------------------------------------------------------
 PROJECTOR INTEGRATION                                 *dbee-projector_integration*
 
 DBee is compatible with my other plugin
@@ -296,12 +477,6 @@ nvim-projector (https://github.com/kndndrj/nvim-projector), a
 code-runner/project-configurator.
 
 To use dbee with it, simply use `"dbee"` as one of it's outputs.
-
---------------------------------------------------------------------------------
-DEVELOPMENT                                                     *dbee-development*
-
-Reffer to ARCHITECTURE.md (ARCHITECTURE.md) for a brief overview of the
-architecture.
 
 ================================================================================
 DBEE ARCHITECTURE OVERVIEW                       *dbee-dbee_architecture_overview*
@@ -334,11 +509,11 @@ LUA ARCHITECTURE                                           *dbee-lua_architectur
                              │
                              │
                              │
-                             │      ┌─────────────┐
-                             │      │             │
-                             │      │   install   │
-                             │      │             │
-                             │      └─────────────┘
+                             │      ┌─────────────┐     ┌────────────┐
+                             │      │             │     │            │
+                             │      │   install   │     │   loader   │
+                             │      │             │     │            │
+                             │      └─────────────┘     └────────────┘
                              │
 <
 
@@ -349,6 +524,8 @@ Description:
 *   `install` package is independent of the other packages and is used for
     installation of the compiled go binary using the manifest generated by the CI
     pipeline.
+*   `loader` package is also independent and is used as the default loading and
+    saving method in the config, which is later consumed by the handler
 *   `drawer` is the "tree" view in UI - it consumes the editor (to provide
     scratchpad view and to manage scratchpads) and the handler (for managing
     connections and providing layout of each database).

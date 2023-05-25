@@ -57,7 +57,7 @@ func NewMongo(url string) (*MongoClient, error) {
 	// get database name from url
 	dbName, err := getDatabaseName(url)
 	if err != nil {
-		return nil, fmt.Errorf("mongo: invalid url: %s -- %v", url, err)
+		return nil, fmt.Errorf("mongo: invalid url: %v", err)
 	}
 
 	opts := options.Client().ApplyURI(url)

@@ -66,12 +66,12 @@ func main() {
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_register_connection"},
-			func(args []string) error {
+			func(args []string) (bool, error) {
 				method := "Dbee_register_connection"
 				logger.Debug("calling " + method)
 				if len(args) < 4 {
 					logger.Error("not enough arguments passed to " + method)
-					return nil
+					return false, nil
 				}
 
 				id := args[0]
@@ -80,7 +80,7 @@ func main() {
 				pageSize, err := strconv.Atoi(args[3])
 				if err != nil {
 					logger.Error(err.Error())
-					return nil
+					return false, nil
 				}
 
 				// Get the right client
@@ -90,35 +90,35 @@ func main() {
 					client, err = clients.NewPostgres(url)
 					if err != nil {
 						logger.Error(err.Error())
-						return nil
+						return false, nil
 					}
 				case "mysql":
 					client, err = clients.NewMysql(url)
 					if err != nil {
 						logger.Error(err.Error())
-						return nil
+						return false, nil
 					}
 				case "sqlite":
 					client, err = clients.NewSqlite(url)
 					if err != nil {
 						logger.Error(err.Error())
-						return nil
+						return false, nil
 					}
 				case "redis":
 					client, err = clients.NewRedis(url)
 					if err != nil {
 						logger.Error(err.Error())
-						return nil
+						return false, nil
 					}
 				case "mongo":
 					client, err = clients.NewMongo(url)
 					if err != nil {
 						logger.Error(err.Error())
-						return nil
+						return false, nil
 					}
 				default:
 					logger.Error("database of type \"" + typ + "\" is not supported")
-					return nil
+					return false, nil
 				}
 
 				h := conn.NewHistory(id, logger)
@@ -128,7 +128,7 @@ func main() {
 				connections[id] = c
 
 				logger.Debug(method + " returned successfully")
-				return nil
+				return true, nil
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_execute"},

@@ -106,7 +106,7 @@ func (c *cache) set(iter models.IterResult) error {
 	})
 	c.active = id
 
-	// process everything else in a seperate goroutine
+	// process everything else in a separate goroutine
 	if !drained {
 		go func() {
 			i := 0

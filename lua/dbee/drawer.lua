@@ -1,93 +1,76 @@
 local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
 
-local SCRATCHPAD_NODE_ID = "scratchpad_node"
-
----@class Icon
+---@class Candy
 ---@field icon string
----@field highlight string
+---@field icon_highlight string
+---@field text_highlight string
 
 ---@class Layout
+---@field id string unique identifier
 ---@field name string display name
+---@field type ""|"table"|"history"|"scratch"|"database"|"add"|"edit"|"remove"|"help"|"source" type of layout
 ---@field schema? string parent schema
 ---@field database? string parent database
----@field type ""|"table"|"history"|"scratch"|"database" type of layout
 ---@field action_1? fun(cb: fun()) primary action - takes single arg: callback closure
 ---@field action_2? fun(cb: fun()) secondary action - takes single arg: callback closure
 ---@field action_3? fun(cb: fun()) tertiary action - takes single arg: callback closure
----@field children? Layout[] child layout nodes
+---@field children? Layout[]|fun():Layout[] child layout nodes
+---@field do_expand? boolean expand by default
 
----@class Node
----@field id string
----@field text string
----@field type string type which infers icon
----@field is_expanded fun(self:Node):boolean
----@field is_master boolean
----@field action_1 fun() function to perform on primary event
----@field action_2 fun() function to perform on secondary event
----@field action_3 fun() function to perform on tertiary event
-
----@class MasterNode: Node
+-- node is Layout converted to NuiTreeNode
+---@class Node: Layout
 ---@field getter fun():Layout
 
----@alias drawer_config { disable_icons: boolean, icons: table<string, Icon>, mappings: table<string, mapping>, window_command: string|fun():integer }
+---@alias drawer_config { disable_candies: boolean, candies: table<string, Candy>, mappings: table<string, mapping> }
 
 ---@class Drawer
+---@field private ui Ui
 ---@field private tree table NuiTree
 ---@field private handler Handler
 ---@field private editor Editor
 ---@field private mappings table<string, mapping>
----@field private bufnr integer
----@field private winid integer
----@field private icons table<string, Icon>
----@field private win_cmd fun():integer function which opens a new window and returns a window id
+---@field private candies table<string, Candy> map of eye-candy stuff (icons, highlight)
 local Drawer = {}
 
+---@param ui Ui
 ---@param handler Handler
 ---@param editor Editor
 ---@param opts? drawer_config
 ---@return Drawer
-function Drawer:new(handler, editor, opts)
+function Drawer:new(ui, handler, editor, opts)
   opts = opts or {}
 
+  if not ui then
+    error("no Ui provided to Drawer")
+  end
   if not handler then
-    error("no Handler provided to drawer")
+    error("no Handler provided to Drawer")
   end
   if not editor then
-    error("no Editor provided to drawer")
+    error("no Editor provided to Drawer")
   end
 
-  local win_cmd
-  if type(opts.window_command) == "string" then
-    win_cmd = function()
-      vim.cmd(opts.window_command)
-      return vim.api.nvim_get_current_win()
-    end
-  elseif type(opts.window_command) == "function" then
-    win_cmd = opts.window_command
-  else
-    win_cmd = function()
-      vim.cmd("to 40vsplit")
-      return vim.api.nvim_get_current_win()
-    end
-  end
-
-  local icons = {}
-  if not opts.disable_icons then
-    icons = opts.icons or {}
+  local candies = {}
+  if not opts.disable_candies then
+    candies = opts.candies or {}
   end
 
   -- class object
   local o = {
+    ui = ui,
     tree = nil,
     handler = handler,
     editor = editor,
     mappings = opts.mappings or {},
-    icons = icons,
-    win_cmd = win_cmd,
+    candies = candies,
   }
   setmetatable(o, self)
   self.__index = self
+
+  -- set keymaps
+  o.ui:set_keymap(o:generate_keymap(opts.mappings))
+
   return o
 end
 
@@ -101,40 +84,39 @@ function Drawer:create_tree(bufnr)
 
       line:append(string.rep("  ", node:get_depth() - 1))
 
-      if node:has_children() or not node:get_parent_id() then
-        local icon = self.icons["node_closed"] or { icon = ">", highlight = "NonText" }
+      if node:has_children() or node.getter then
+        local candy = self.candies["node_closed"] or { icon = ">", icon_highlight = "NonText" }
         if node:is_expanded() then
-          icon = self.icons["node_expanded"] or { icon = "v", highlight = "NonText" }
+          candy = self.candies["node_expanded"] or { icon = "v", icon_highlight = "NonText" }
         end
-        line:append(icon.icon .. " ", icon.highlight)
+        line:append(candy.icon .. " ", candy.icon_highlight)
       else
         line:append("  ")
       end
 
-      ---@type Icon
-      local icon
+      ---@type Candy
+      local candy
       -- special icons for nodes without type
       if not node.type or node.type == "" then
         if node:has_children() then
-          icon = self.icons["none_dir"]
+          candy = self.candies["none_dir"]
         else
-          icon = self.icons["none"]
+          candy = self.candies["none"]
         end
       else
-        icon = self.icons[node.type] or {}
+        candy = self.candies[node.type] or {}
       end
-      icon = icon or {}
+      candy = candy or {}
 
-      if icon.icon then
-        line:append(" " .. icon.icon .. " ", icon.highlight)
+      if candy.icon then
+        line:append(" " .. candy.icon .. " ", candy.icon_highlight)
       end
 
       -- if connection is the active one, apply a special highlight on the master
-      local active = self.handler:connection_details()
-      if node.is_master and active and active.id == node.id then
-        line:append(node.text, icon.highlight)
+      if self.handler:current_connection():details().id == node.id then
+        line:append(node.name, candy.icon_highlight)
       else
-        line:append(node.text)
+        line:append(node.name, candy.text_highlight)
       end
 
       return line
@@ -148,8 +130,12 @@ function Drawer:create_tree(bufnr)
   }
 end
 
----@return table<string, fun()>
-function Drawer:actions()
+---@private
+---@param mappings table<string, mapping>
+---@return keymap[]
+function Drawer:generate_keymap(mappings)
+  mappings = mappings or {}
+
   local function collapse_node(node)
     if node:collapse() then
       self.tree:render()
@@ -171,136 +157,140 @@ function Drawer:actions()
 
     expand_all_single(node)
 
-    if node.is_master then
-      self:refresh_node(node.id)
+    -- if function for getting layout exist, call it
+    if not expanded and type(node.getter) == "function" then
+      node.getter()
     end
 
     node:expand()
 
-    if expanded ~= node:is_expanded() then
-      self.tree:render()
-    end
+    self.tree:render()
   end
 
   return {
-    refresh = function()
-      self:refresh()
-    end,
-    action_1 = function()
-      local node = self.tree:get_node()
-      if type(node.action_1) == "function" then
-        node.action_1()
-      end
-    end,
-    action_2 = function()
-      local node = self.tree:get_node()
-      if type(node.action_2) == "function" then
-        node.action_2()
-      end
-    end,
-    action_3 = function()
-      local node = self.tree:get_node()
-      if type(node.action_3) == "function" then
-        node.action_3()
-      end
-    end,
-    collapse = function()
-      local node = self.tree:get_node()
-      if not node then
-        return
-      end
-      collapse_node(node)
-    end,
-    expand = function()
-      local node = self.tree:get_node()
-      if not node then
-        return
-      end
-      expand_node(node)
-    end,
-    toggle = function()
-      local node = self.tree:get_node()
-      if not node then
-        return
-      end
-      if node:is_expanded() then
+    {
+      action = function()
+        self:refresh()
+      end,
+      mapping = mappings["refresh"],
+    },
+    {
+      action = function()
+        local node = self.tree:get_node()
+        if type(node.action_1) == "function" then
+          node.action_1(function()
+            self:refresh()
+          end)
+        end
+      end,
+      mapping = mappings["action_1"],
+    },
+    {
+      action = function()
+        local node = self.tree:get_node()
+        if type(node.action_2) == "function" then
+          node.action_2(function()
+            self:refresh()
+          end)
+        end
+      end,
+      mapping = mappings["action_2"],
+    },
+    {
+      action = function()
+        local node = self.tree:get_node()
+        if type(node.action_3) == "function" then
+          node.action_3(function()
+            self:refresh()
+          end)
+        end
+      end,
+      mapping = mappings["action_3"],
+    },
+    {
+      action = function()
+        local node = self.tree:get_node()
+        if not node then
+          return
+        end
         collapse_node(node)
-      else
+      end,
+      mapping = mappings["collapse"],
+    },
+    {
+      action = function()
+        local node = self.tree:get_node()
+        if not node then
+          return
+        end
         expand_node(node)
-      end
-    end,
+      end,
+      mapping = mappings["expand"],
+    },
+    {
+      action = function()
+        local node = self.tree:get_node()
+        if not node then
+          return
+        end
+        if node:is_expanded() then
+          collapse_node(node)
+        else
+          expand_node(node)
+        end
+      end,
+      mapping = mappings["toggle"],
+    },
   }
 end
 
--- Map keybindings to split window
+-- sets layout to tree
 ---@private
----@param bufnr integer which buffer to map the keys in
-function Drawer:map_keys(bufnr)
-  local map_options = { noremap = true, nowait = true, buffer = bufnr }
-
-  local actions = self:actions()
-
-  for act, map in pairs(self.mappings) do
-    local action = actions[act]
-    if action and type(action) == "function" then
-      vim.keymap.set(map.mode, map.key, action, map_options)
-    end
-  end
-end
-
----@private
----@param master_node_id string master node id
-function Drawer:refresh_node(master_node_id)
+---@param layout Layout[] layout to add to tree
+---@param node_id? string layout is set as children to this id or root
+function Drawer:set_layout(layout, node_id)
+  --- recursed over Layout[] and sets it to the tree
   ---@param layouts Layout[]
-  ---@param parent_id? string
-  ---@return table nodes list of NuiTreeNodes
-  local function layout_to_tree_nodes(layouts, parent_id)
-    parent_id = parent_id or ""
-
+  ---@return Node[] nodes list of NuiTreeNodes
+  local function to_node(layouts)
     if not layouts then
       return {}
     end
 
-    -- sort keys
-    table.sort(layouts, function(k1, k2)
-      return k1.name < k2.name
-    end)
-
     local nodes = {}
     for _, l in ipairs(layouts) do
-      local id = parent_id .. l.name
-      local node = NuiTree.Node({
-        id = id,
-        master_id = master_node_id,
-        text = string.gsub(l.name, "\n", " "),
-        type = l.type,
-        action_1 = function()
-          if type(l.action_1) == "function" then
-            l.action_1(function()
-              self:refresh()
-            end)
+      -- get children or set getter
+      local getter
+      local children
+      if type(l.children) == "function" then
+        getter = function()
+          local exists = self.tree:get_node(l.id)
+          if exists then
+            self.tree:set_nodes(to_node(l.children()), l.id)
           end
-        end,
-        action_2 = function()
-          if type(l.action_2) == "function" then
-            l.action_2(function()
-              self:refresh()
-            end)
-          end
-        end,
-        action_3 = function()
-          if type(l.action_3) == "function" then
-            l.action_3(function()
-              self:refresh()
-            end)
-          end
-        end,
-        -- recurse children
-      }, layout_to_tree_nodes(l.children, id))
+        end
+      else
+        children = l.children
+      end
+
+      -- all other fields stay the same
+      local n = vim.fn.copy(l)
+      n.name = string.gsub(l.name, "\n", " ")
+      n.getter = getter
 
       -- get existing node from the current tree and check if it is expanded
-      local ex_node = self.tree:get_node(id)
-      if ex_node and ex_node:is_expanded() then
+      local expanded = false
+      local ex_node = self.tree:get_node(l.id)
+      if (ex_node and ex_node:is_expanded()) or l.do_expand then
+        expanded = true
+        -- if getter exists, and node is expanded, we call it
+        if getter then
+          children = l.children()
+        end
+      end
+      -- recurse children
+      local node = NuiTree.Node(n, to_node(children --[[@as Layout[] ]]))
+      if expanded then
         node:expand()
       end
 
@@ -310,112 +300,65 @@ function Drawer:refresh_node(master_node_id)
     return nodes
   end
 
-  ---@type MasterNode
-  local master_node = self.tree:get_node(master_node_id)
-
-  local layout = master_node.getter()
-
-  local children = layout_to_tree_nodes(layout, tostring(master_node_id))
-
-  self.tree:set_nodes(children, master_node_id)
-  self.tree:render()
+  -- recurse layout
+  self.tree:set_nodes(to_node(layout), node_id)
 end
 
 function Drawer:refresh()
-  ---@type MasterNode[]
-  local existing_nodes = self.tree:get_nodes()
-
-  ---@param id string
-  local function exists(id)
-    for _, n in ipairs(existing_nodes) do
-      if n.id == id then
-        return true
-      end
-    end
-    return false
-  end
-
-  -- scratchpads
-  if not exists(SCRATCHPAD_NODE_ID) then
-    ---@type MasterNode
-    local node = NuiTree.Node {
-      id = SCRATCHPAD_NODE_ID,
-      text = "scratchpads",
-      type = "scratch",
-      is_master = true,
-      getter = function()
-        return self.editor:layout()
-      end,
+  -- whitespace between nodes
+  ---@return Layout
+  local separator = function()
+    return {
+      id = "__separator_layout__" .. tostring(math.random()),
+      name = "",
+      type = "",
     }
-    self.tree:add_node(node)
   end
 
-  -- connections
-  local cons = self.handler:list_connections()
-  for _, con in ipairs(cons) do
-    if not exists(con.id) then
-      ---@type MasterNode
-      local node = NuiTree.Node {
-        id = con.id,
-        text = con.name,
-        type = "database",
-        is_master = true,
-        -- set connection as active manually
-        action_2 = function()
-          self.handler:set_active(con.id)
-          self:refresh_node(con.id)
-        end,
-        getter = function()
-          return self.handler:layout(con.id)
-        end,
-      }
-      self.tree:add_node(node)
-    end
+  -- help node
+  local help_children = {}
+  for act, map in pairs(self.mappings) do
+    table.insert(help_children, {
+      id = "__help_action_" .. act,
+      name = act .. " = " .. map.key .. " (" .. map.mode .. ")",
+      type = "",
+    })
   end
 
-  -- refresh open master nodes
-  for _, n in ipairs(existing_nodes) do
-    if n:is_expanded() then
-      self:refresh_node(n.id)
-    end
+  table.sort(help_children, function(k1, k2)
+    return k1.id < k2.id
+  end)
+
+  ---@type Layout
+  local help = {
+    id = "__help_layout__",
+    name = "help",
+    type = "help",
+    do_expand = true,
+    children = help_children,
+  }
+
+  -- assemble tree layout
+  ---@type Layout[]
+  local layouts = {}
+  for _, ly in ipairs(self.editor:layout()) do
+    table.insert(layouts, ly)
   end
+  table.insert(layouts, separator())
+  for _, ly in ipairs(self.handler:layout()) do
+    table.insert(layouts, ly)
+  end
+  table.insert(layouts, separator())
+  table.insert(layouts, help)
+
+  self:set_layout(layouts)
+
+  self.tree:render()
 end
 
 -- Show drawer on screen
 function Drawer:open()
-  if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
-    self.winid = self.win_cmd()
-  end
-
-  -- if buffer doesn't exist, create it
-  local bufnr = self.bufnr
-  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
-    bufnr = vim.api.nvim_create_buf(false, true)
-  end
-
-  vim.api.nvim_win_set_buf(self.winid, bufnr)
-  vim.api.nvim_set_current_win(self.winid)
-  vim.api.nvim_buf_set_name(bufnr, "dbee-drawer")
-
-  -- set options
-  local buf_opts = {
-    buflisted = false,
-    bufhidden = "delete",
-    buftype = "nofile",
-    swapfile = false,
-  }
-  local win_opts = {
-    wrap = false,
-    winfixheight = true,
-    winfixwidth = true,
-    number = false,
-  }
-  for opt, val in pairs(buf_opts) do
-    vim.api.nvim_buf_set_option(bufnr, opt, val)
-  end
-  for opt, val in pairs(win_opts) do
-    vim.api.nvim_win_set_option(self.winid, opt, val)
-  end
+  local _, bufnr = self.ui:open()
 
   -- tree
   if not self.tree then
@@ -423,16 +366,13 @@ function Drawer:open()
     self:refresh()
   end
 
-  self:map_keys(bufnr)
   self.tree.bufnr = bufnr
-
-  self.bufnr = bufnr
 
   self.tree:render()
 end
 
 function Drawer:close()
-  pcall(vim.api.nvim_win_close, self.winid, false)
+  self.ui:close()
 end
 
 return Drawer
