@@ -4,29 +4,29 @@ local M = {}
 
 -- Links to binary releases
 M.urls = {
-  dbee_android_amd64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_android_amd64",
-  dbee_android_arm64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_android_arm64",
-  dbee_darwin_amd64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_darwin_amd64",
-  dbee_darwin_arm64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_darwin_arm64",
-  dbee_freebsd_386 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_freebsd_386",
-  dbee_freebsd_amd64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_freebsd_amd64",
-  dbee_freebsd_arm = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_freebsd_arm",
-  dbee_freebsd_arm64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_freebsd_arm64",
-  dbee_linux_386 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_linux_386",
-  dbee_linux_amd64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_linux_amd64",
-  dbee_linux_arm = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_linux_arm",
-  dbee_linux_arm64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_linux_arm64",
-  dbee_linux_ppc64le = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_linux_ppc64le",
-  dbee_linux_riscv64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_linux_riscv64",
-  dbee_linux_s390x = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_linux_s390x",
-  dbee_netbsd_amd64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_netbsd_amd64",
-  dbee_openbsd_amd64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_openbsd_amd64",
-  dbee_openbsd_arm64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_openbsd_arm64",
-  dbee_windows_amd64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_windows_amd64",
-  dbee_windows_arm64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/58b7bfdd391ffdcaf89724b8d70674d7903c4b43/artifacts/dbee_windows_arm64",
+  dbee_android_amd64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_android_amd64",
+  dbee_android_arm64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_android_arm64",
+  dbee_darwin_amd64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_darwin_amd64",
+  dbee_darwin_arm64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_darwin_arm64",
+  dbee_freebsd_386 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_freebsd_386",
+  dbee_freebsd_amd64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_freebsd_amd64",
+  dbee_freebsd_arm = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_freebsd_arm",
+  dbee_freebsd_arm64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_freebsd_arm64",
+  dbee_linux_386 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_linux_386",
+  dbee_linux_amd64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_linux_amd64",
+  dbee_linux_arm = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_linux_arm",
+  dbee_linux_arm64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_linux_arm64",
+  dbee_linux_ppc64le = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_linux_ppc64le",
+  dbee_linux_riscv64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_linux_riscv64",
+  dbee_linux_s390x = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_linux_s390x",
+  dbee_netbsd_amd64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_netbsd_amd64",
+  dbee_openbsd_amd64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_openbsd_amd64",
+  dbee_openbsd_arm64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_openbsd_arm64",
+  dbee_windows_amd64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_windows_amd64",
+  dbee_windows_arm64 = "https://github.com/kndndrj/nvim-dbee-bucket/raw/f2e52cbd24284e586dace1e5d51aa3491baea2ae/artifacts/dbee_windows_arm64",
 }
 
 -- Current version of go main package
-M.version = "95cd5a3190d80f9c4337ad77e76db9d77bbc4872"
+M.version = "0ebf6a2bb79d6e3354bf79200bd8aeef4f3ef066"
 
 return M
