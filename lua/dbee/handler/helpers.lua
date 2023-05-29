@@ -85,6 +85,15 @@ function Helpers:__mongo()
   }
 end
 
+--@private
+--@return table_helpers helpers list of table helpers
+function Helpers:__bigquery()
+  return {
+    List = "SELECT * FROM `{table}` LIMIT 500",
+    Columns = "SELECT * FROM `{schema}.INFORMATION_SCHEMA.COLUMNS` WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}'",
+  }
+end
+
 ---@param type string
 ---@param vars { table: string, schema: string, dbname: string }
 ---@return table_helpers helpers list of table helpers
@@ -100,6 +109,8 @@ function Helpers:get(type, vars)
     helpers = self:__redis()
   elseif type == "mongo" then
     helpers = self:__mongo()
+  elseif type == "bigquery" then
+    helpers = self:__bigquery()
   end
 
   if not helpers then

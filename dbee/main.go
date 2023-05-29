@@ -30,7 +30,6 @@ func main() {
 	}()
 
 	plugin.Main(func(p *plugin.Plugin) error {
-
 		logger := nvimlog.New(p.Nvim)
 
 		deferer(func() {
@@ -112,6 +111,12 @@ func main() {
 					}
 				case "mongo":
 					client, err = clients.NewMongo(url)
+					if err != nil {
+						logger.Error(err.Error())
+						return false, nil
+					}
+				case "bigquery":
+					client, err = clients.NewBigQuery(url)
 					if err != nil {
 						logger.Error(err.Error())
 						return false, nil
