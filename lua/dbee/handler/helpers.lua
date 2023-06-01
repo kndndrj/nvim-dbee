@@ -161,14 +161,91 @@ function Helpers:__sqlserver()
       where TABLE_NAME = '{table}' and u.TABLE_SCHEMA = '{schema}' ]]
 
   return {
-    List = "select top 200 * from {optional_schema}[{table}]",
+    List = "select top 200 * from [{table}]",
     Columns = column_summary_query,
-    Indexes = "exec sp_helpindex ''{schema}.{table}''",
+    Indexes = "exec sp_helpindex ''{schema}.{table}''", --TODO
     ["Foreign Keys"] = foreign_keys_query,
     References = references_query,
     ["Primary Keys"] = primary_keys_query,
     Constraints = constraints_query,
     Describe = "exec sp_help ''{schema}.{table}''",
+  }
+end
+
+---@private
+---@return table_helpers helpers list of table helpers
+function Helpers:__oracle()
+  local oracle_from = [[
+      FROM all_constraints N
+      JOIN all_cons_columns L
+      ON N.constraint_name = L.constraint_name
+      AND N.owner = L.owner ]]
+
+  local oracle_qualify_and_order_by = [[
+      L.table_name = '{table}'
+      ORDER BY ]]
+
+  local oracle_key_cmd = function(constraint)
+    return [[
+      SELECT
+      L.table_name,
+      L.column_name
+      ]] .. oracle_from .. [[
+      WHERE
+      N.constraint_type = ']] .. constraint .. "'" .. "AND" .. oracle_qualify_and_order_by .. "L.column_name"
+  end
+
+  return {
+    Columns = [[ select col.column_id,
+          col.owner as schema_name,
+          col.table_name,
+          col.column_name,
+          col.data_type,
+          col.data_length,
+          col.data_precision,
+          col.data_scale,
+                col.nullable
+        from sys.all_tab_columns col
+        inner join sys.all_tables t on col.owner = t.owner
+                                      and col.table_name = t.table_name
+        where col.owner = '{schema}'
+        AND col.table_name = '{table}'
+        order by col.owner, col.table_name, col.column_id ]],
+    ["Foreign Keys"] = oracle_key_cmd("R"),
+    Indexes = [[
+          SELECT DISTINCT
+          N.owner,
+          N.index_name,
+          N.constraint_type
+          ]] .. oracle_from .. [[
+          WHERE
+          ]] .. oracle_qualify_and_order_by .. "N.index_name",
+    List = 'SELECT * FROM "{schema}"."{table}"',
+    ["Primary Keys"] = oracle_key_cmd("P"),
+    References = [[
+            SELECT
+            RFRING.owner,
+            RFRING.table_name,
+            RFRING.column_name
+            FROM all_cons_columns RFRING
+            JOIN all_constraints N
+            ON RFRING.constraint_name = N.constraint_name
+            JOIN all_cons_columns RFRD
+            ON N.r_constraint_name = RFRD.constraint_name
+            JOIN all_users U
+            ON N.owner = U.username
+            WHERE
+            N.constraint_type = 'R'
+            AND
+            U.common = 'NO'
+            AND
+            RFRD.owner = '{schema}'
+            AND
+            RFRD.table_name = '{table}'
+            ORDER BY
+            RFRING.owner,
+            RFRING.table_name,
+            RFRING.column_name ]],
   }
 end
 
@@ -191,6 +268,8 @@ function Helpers:get(type, vars)
     helpers = self:__bigquery()
   elseif type == "sqlserver" then
     helpers = self:__sqlserver()
+  elseif type == "oracle" then
+    helpers = self:__oracle()
   end
 
   if not helpers then

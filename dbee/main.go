@@ -7,7 +7,7 @@ import (
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	nvimlog "github.com/kndndrj/nvim-dbee/dbee/nvimlog"
+	"github.com/kndndrj/nvim-dbee/dbee/nvimlog"
 	"github.com/kndndrj/nvim-dbee/dbee/output"
 	"github.com/neovim/go-client/nvim"
 	"github.com/neovim/go-client/nvim/plugin"
@@ -123,6 +123,12 @@ func main() {
 					}
 				case "sqlserver":
 					client, err = clients.NewSQLServer(url)
+					if err != nil {
+						logger.Error(err.Error())
+						return false, nil
+					}
+				case "oracle":
+					client, err = clients.NewOracle(url)
 					if err != nil {
 						logger.Error(err.Error())
 						return false, nil
