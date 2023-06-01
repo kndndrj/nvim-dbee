@@ -121,6 +121,12 @@ func main() {
 						logger.Error(err.Error())
 						return false, nil
 					}
+				case "sqlserver":
+					client, err = clients.NewSQLServer(url)
+					if err != nil {
+						logger.Error(err.Error())
+						return false, nil
+					}
 				default:
 					logger.Error("database of type \"" + typ + "\" is not supported")
 					return false, nil
