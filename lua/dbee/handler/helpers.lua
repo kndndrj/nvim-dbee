@@ -163,7 +163,7 @@ function Helpers:__sqlserver()
   return {
     List = "select top 200 * from [{table}]",
     Columns = column_summary_query,
-    Indexes = "exec sp_helpindex ''{schema}.{table}''", --TODO
+    Indexes = "exec sp_helpindex '{schema}.{table}'",
     ["Foreign Keys"] = foreign_keys_query,
     References = references_query,
     ["Primary Keys"] = primary_keys_query,

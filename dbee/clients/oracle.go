@@ -17,7 +17,7 @@ type OracleClient struct {
 func NewOracle(url string) (*OracleClient, error) {
 	db, err := sql.Open("oracle", url)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to connect to database: %v\n", err)
+		return nil, fmt.Errorf("unable to connect to oracle database: %v", err)
 	}
 
 	return &OracleClient{
@@ -40,9 +40,12 @@ func (c *OracleClient) Query(query string) (models.IterResult, error) {
 		}
 	}()
 
+	// Remove the trailing semicolon from the query - for some reason it isn't supported in go_ora
+	query = strings.TrimSuffix(query, ";")
+
+	// Use Exec or Query depending on the query
 	action := strings.ToLower(strings.Split(query, " ")[0])
 	hasReturnValues := strings.Contains(strings.ToLower(query), " returning ")
-
 	if (action == "update" || action == "delete" || action == "insert") && !hasReturnValues {
 		rows, err := con.Exec(query)
 		if err != nil {

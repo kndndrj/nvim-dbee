@@ -17,7 +17,7 @@ type PostgresClient struct {
 func NewPostgres(url string) (*PostgresClient, error) {
 	db, err := sql.Open("postgres", url)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to connect to database: %v\n", err)
+		return nil, fmt.Errorf("unable to connect to postgres database: %v", err)
 	}
 
 	return &PostgresClient{

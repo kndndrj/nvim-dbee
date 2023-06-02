@@ -65,7 +65,7 @@ func NewBigQuery(rawURL string) (*BigQueryClient, error) {
 	}
 
 	params := u.Query()
-	callIfStringSet("credentials", params, func(file string) error {
+	_ = callIfStringSet("credentials", params, func(file string) error {
 		options = append(options, option.WithCredentialsFile(file))
 		return nil
 	})
@@ -79,7 +79,7 @@ func NewBigQuery(rawURL string) (*BigQueryClient, error) {
 		c: bqc,
 	}
 
-	setStringOption(&client.location, "location", params)
+	_ = setStringOption(&client.location, "location", params)
 
 	if err := setInt64Option(&client.maxBytesBilled, "max-bytes-billed", params); err != nil {
 		return nil, err

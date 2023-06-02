@@ -17,7 +17,7 @@ type SQLServerClient struct {
 func NewSQLServer(url string) (*SQLServerClient, error) {
 	db, err := sql.Open("sqlserver", url)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to connect to database: %v\n", err)
+		return nil, fmt.Errorf("unable to connect to sqlserver database: %v", err)
 	}
 
 	return &SQLServerClient{

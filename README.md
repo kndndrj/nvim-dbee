@@ -206,7 +206,8 @@ Here are a few steps to quickly get started:
     - Press `dd` to delete it (if source supports saving, it's also removed from
       there - see more below.)
     - Press `<CR>` to perform an action - view history or look at helper
-      queries.
+      queries. Pressing `<CR>` directly on the connection node will set it as
+      the active one
 
   - Scratchpads:
 
