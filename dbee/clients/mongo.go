@@ -9,11 +9,20 @@ import (
 	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
+	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+// Register client
+func init() {
+	c := func(url string) (conn.Client, error) {
+		return NewMongo(url)
+	}
+	_ = Store.Register("mongo", c)
+}
 
 func getDatabaseName(url string) (string, error) {
 	r, err := regexp.Compile(`mongo.*//(.*:[0-9]+,?)+/(?P<dbname>.*?)(\?|$)`)

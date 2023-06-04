@@ -8,9 +8,18 @@ import (
 	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
+	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"github.com/redis/go-redis/v9"
 )
+
+// Register client
+func init() {
+	c := func(url string) (conn.Client, error) {
+		return NewRedis(url)
+	}
+	_ = Store.Register("redis", c)
+}
 
 type RedisClient struct {
 	redis *redis.Client

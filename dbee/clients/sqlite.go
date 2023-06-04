@@ -5,9 +5,18 @@ import (
 	"fmt"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
+	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	_ "modernc.org/sqlite"
 )
+
+// Register client
+func init() {
+	c := func(url string) (conn.Client, error) {
+		return NewSqlite(url)
+	}
+	_ = Store.Register("sqlite", c)
+}
 
 type SqliteClient struct {
 	c *common.Client

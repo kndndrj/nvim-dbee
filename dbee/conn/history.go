@@ -63,8 +63,8 @@ func NewHistory(searchId string, logger models.Logger) *HistoryOutput {
 	gob.Register(time.Time{})
 
 	h := &HistoryOutput{
-		records:   historyMap{},
-		searchId:  searchId,
+		records:  historyMap{},
+		searchId: searchId,
 		// TODO: handle windows
 		directory: "/tmp/dbee-history",
 		log:       logger,

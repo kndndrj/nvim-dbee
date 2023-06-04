@@ -6,9 +6,18 @@ import (
 	"strings"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
+	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	_ "github.com/lib/pq"
 )
+
+// Register client
+func init() {
+	c := func(url string) (conn.Client, error) {
+		return NewPostgres(url)
+	}
+	_ = Store.Register("postgres", c)
+}
 
 type PostgresClient struct {
 	c *common.Client

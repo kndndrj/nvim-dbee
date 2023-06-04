@@ -5,10 +5,19 @@ import (
 	"fmt"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
+	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	_ "github.com/microsoft/go-mssqldb"
 	_ "github.com/microsoft/go-mssqldb/integratedauth/krb5"
 )
+
+// Register client
+func init() {
+	c := func(url string) (conn.Client, error) {
+		return NewSQLServer(url)
+	}
+	_ = Store.Register("sqlserver", c)
+}
 
 type SQLServerClient struct {
 	c *common.Client

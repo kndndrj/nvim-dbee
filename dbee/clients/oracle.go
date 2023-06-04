@@ -6,9 +6,18 @@ import (
 	"strings"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
+	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	_ "github.com/sijms/go-ora/v2"
 )
+
+// Register client
+func init() {
+	c := func(url string) (conn.Client, error) {
+		return NewOracle(url)
+	}
+	_ = Store.Register("oracle", c)
+}
 
 type OracleClient struct {
 	c *common.Client

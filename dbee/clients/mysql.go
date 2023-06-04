@@ -7,8 +7,17 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
+	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
+
+// Register client
+func init() {
+	c := func(url string) (conn.Client, error) {
+		return NewMysql(url)
+	}
+	_ = Store.Register("mysql", c)
+}
 
 type MysqlClient struct {
 	sql *common.Client
