@@ -46,13 +46,13 @@ function Result:generate_keymap(mappings)
       action = function()
         self.handler:current_connection():page_next()
       end,
-      mapping = mappings["page_next"]
+      mapping = mappings["page_next"],
     },
     {
       action = function()
         self.handler:current_connection():page_prev()
       end,
-      mapping = mappings["page_prev"]
+      mapping = mappings["page_prev"],
     },
   }
 end

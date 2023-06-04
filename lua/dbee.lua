@@ -103,11 +103,6 @@ function M.setup(o)
     ui_post_close_hook = { opts.ui.post_close_hook, "function" },
   }
 
-  --TODO remove
-  if opts.connections or opts.editor.window_command or opts.result.window_command or opts.drawer.window_command or opts.result.page_size then
-    utils.log("warn", "DBee - breaking changes! - see the pinned issue on github for more info")
-  end
-
   m.config = opts
 
   if m.config.lazy then
