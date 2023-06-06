@@ -3,29 +3,29 @@ package clients
 import (
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
-	_ "github.com/lib/pq"
+	_ "github.com/microsoft/go-mssqldb"
+	_ "github.com/microsoft/go-mssqldb/integratedauth/krb5"
 )
 
-type PostgresClient struct {
+type SQLServerClient struct {
 	c *common.Client
 }
 
-func NewPostgres(url string) (*PostgresClient, error) {
-	db, err := sql.Open("postgres", url)
+func NewSQLServer(url string) (*SQLServerClient, error) {
+	db, err := sql.Open("sqlserver", url)
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to postgres database: %v", err)
+		return nil, fmt.Errorf("unable to connect to sqlserver database: %v", err)
 	}
 
-	return &PostgresClient{
+	return &SQLServerClient{
 		c: common.NewClient(db),
 	}, nil
 }
 
-func (c *PostgresClient) Query(query string) (models.IterResult, error) {
+func (c *SQLServerClient) Query(query string) (models.IterResult, error) {
 
 	con, err := c.c.Conn()
 	if err != nil {
@@ -40,39 +40,29 @@ func (c *PostgresClient) Query(query string) (models.IterResult, error) {
 		}
 	}()
 
-	action := strings.ToLower(strings.Split(query, " ")[0])
-	hasReturnValues := strings.Contains(strings.ToLower(query), " returning ")
-
-	if (action == "update" || action == "delete" || action == "insert") && !hasReturnValues {
-		rows, err := con.Exec(query)
-		if err != nil {
-			return nil, err
-		}
-		rows.SetCallback(cb)
-		return rows, nil
-	}
-
 	rows, err := con.Query(query)
 	if err != nil {
 		return nil, err
 	}
+
 	h, err := rows.Header()
 	if err != nil {
 		return nil, err
 	}
-	if len(h) == 0 {
-		rows.SetCustomHeader(models.Header{"No Results"})
+	if len(h) > 0 {
+		rows.SetCallback(cb)
+		return rows, nil
 	}
-	rows.SetCallback(cb)
+	rows.Close()
 
-	return rows, nil
+	// empty header means no result -> get affected rows
+	rows, err = con.Query("select @@ROWCOUNT as 'Rows Affected'")
+	rows.SetCallback(cb)
+	return rows, err
 }
 
-func (c *PostgresClient) Layout() ([]models.Layout, error) {
-	query := `
-		SELECT table_schema, table_name FROM information_schema.tables UNION ALL
-		SELECT schemaname, matviewname FROM pg_matviews;
-	`
+func (c *SQLServerClient) Layout() ([]models.Layout, error) {
+	query := `SELECT table_schema, table_name FROM INFORMATION_SCHEMA.TABLES`
 
 	rows, err := c.Query(query)
 	if err != nil {
@@ -101,6 +91,7 @@ func (c *PostgresClient) Layout() ([]models.Layout, error) {
 			Database: "",
 			Type:     models.LayoutTable,
 		})
+
 	}
 
 	var layout []models.Layout
@@ -119,6 +110,6 @@ func (c *PostgresClient) Layout() ([]models.Layout, error) {
 	return layout, nil
 }
 
-func (c *PostgresClient) Close() {
+func (c *SQLServerClient) Close() {
 	c.c.Close()
 }

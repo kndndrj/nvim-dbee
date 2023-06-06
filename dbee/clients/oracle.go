@@ -7,25 +7,25 @@ import (
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
-	_ "github.com/lib/pq"
+	_ "github.com/sijms/go-ora/v2"
 )
 
-type PostgresClient struct {
+type OracleClient struct {
 	c *common.Client
 }
 
-func NewPostgres(url string) (*PostgresClient, error) {
-	db, err := sql.Open("postgres", url)
+func NewOracle(url string) (*OracleClient, error) {
+	db, err := sql.Open("oracle", url)
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to postgres database: %v", err)
+		return nil, fmt.Errorf("unable to connect to oracle database: %v", err)
 	}
 
-	return &PostgresClient{
+	return &OracleClient{
 		c: common.NewClient(db),
 	}, nil
 }
 
-func (c *PostgresClient) Query(query string) (models.IterResult, error) {
+func (c *OracleClient) Query(query string) (models.IterResult, error) {
 
 	con, err := c.c.Conn()
 	if err != nil {
@@ -40,9 +40,12 @@ func (c *PostgresClient) Query(query string) (models.IterResult, error) {
 		}
 	}()
 
+	// Remove the trailing semicolon from the query - for some reason it isn't supported in go_ora
+	query = strings.TrimSuffix(query, ";")
+
+	// Use Exec or Query depending on the query
 	action := strings.ToLower(strings.Split(query, " ")[0])
 	hasReturnValues := strings.Contains(strings.ToLower(query), " returning ")
-
 	if (action == "update" || action == "delete" || action == "insert") && !hasReturnValues {
 		rows, err := con.Exec(query)
 		if err != nil {
@@ -68,10 +71,18 @@ func (c *PostgresClient) Query(query string) (models.IterResult, error) {
 	return rows, nil
 }
 
-func (c *PostgresClient) Layout() ([]models.Layout, error) {
+func (c *OracleClient) Layout() ([]models.Layout, error) {
 	query := `
-		SELECT table_schema, table_name FROM information_schema.tables UNION ALL
-		SELECT schemaname, matviewname FROM pg_matviews;
+		SELECT T.owner, T.table_name
+		FROM (
+			SELECT owner, table_name
+			FROM all_tables
+			UNION SELECT owner, view_name AS "table_name"
+			FROM all_views
+		) T
+		JOIN all_users U ON T.owner = U.username
+		WHERE U.common = 'NO'
+		ORDER BY T.table_name
 	`
 
 	rows, err := c.Query(query)
@@ -101,6 +112,7 @@ func (c *PostgresClient) Layout() ([]models.Layout, error) {
 			Database: "",
 			Type:     models.LayoutTable,
 		})
+
 	}
 
 	var layout []models.Layout
@@ -119,6 +131,6 @@ func (c *PostgresClient) Layout() ([]models.Layout, error) {
 	return layout, nil
 }
 
-func (c *PostgresClient) Close() {
+func (c *OracleClient) Close() {
 	c.c.Close()
 }

@@ -85,12 +85,167 @@ function Helpers:__mongo()
   }
 end
 
---@private
---@return table_helpers helpers list of table helpers
+---@private
+---@return table_helpers helpers list of table helpers
 function Helpers:__bigquery()
   return {
     List = "SELECT * FROM `{table}` LIMIT 500",
     Columns = "SELECT * FROM `{schema}.INFORMATION_SCHEMA.COLUMNS` WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}'",
+  }
+end
+
+---@private
+---@return table_helpers helpers list of table helpers
+function Helpers:__sqlserver()
+  local column_summary_query = [[
+      select c.column_name + ' (' +
+          isnull(( select 'PK, ' from information_schema.table_constraints as k join information_schema.key_column_usage as kcu on k.constraint_name = kcu.constraint_name where constraint_type='PRIMARY KEY' and k.table_name = c.table_name and kcu.column_name = c.column_name), '') +
+          isnull(( select 'FK, ' from information_schema.table_constraints as k join information_schema.key_column_usage as kcu on k.constraint_name = kcu.constraint_name where constraint_type='FOREIGN KEY' and k.table_name = c.table_name and kcu.column_name = c.column_name), '') +
+          data_type + coalesce('(' + rtrim(cast(character_maximum_length as varchar)) + ')','(' + rtrim(cast(numeric_precision as varchar)) + ',' + rtrim(cast(numeric_scale as varchar)) + ')','(' + rtrim(cast(datetime_precision as varchar)) + ')','') + ', ' +
+          case when is_nullable = 'YES' then 'null' else 'not null' end + ')' as Columns
+      from information_schema.columns c where c.table_name='{table}' and c.TABLE_SCHEMA = '{schema}' ]]
+
+  local foreign_keys_query = [[
+      SELECT c.constraint_name
+         ,kcu.column_name as column_name
+         ,c2.table_name as foreign_table_name
+         ,kcu2.column_name as foreign_column_name
+      from   information_schema.table_constraints c
+             inner join information_schema.key_column_usage kcu
+               on c.constraint_schema = kcu.constraint_schema
+                  and c.constraint_name = kcu.constraint_name
+             inner join information_schema.referential_constraints rc
+               on c.constraint_schema = rc.constraint_schema
+                  and c.constraint_name = rc.constraint_name
+             inner join information_schema.table_constraints c2
+               on rc.unique_constraint_schema = c2.constraint_schema
+                  and rc.unique_constraint_name = c2.constraint_name
+             inner join information_schema.key_column_usage kcu2
+               on c2.constraint_schema = kcu2.constraint_schema
+                  and c2.constraint_name = kcu2.constraint_name
+                  and kcu.ordinal_position = kcu2.ordinal_position
+      where  c.constraint_type = 'FOREIGN KEY'
+      and c.TABLE_NAME = '{table}' and c.TABLE_SCHEMA = '{schema}' ]]
+
+  local references_query = [[
+      select kcu1.constraint_name as constraint_name
+          ,kcu1.table_name as foreign_table_name
+          ,kcu1.column_name as foreign_column_name
+          ,kcu2.column_name as column_name
+      from information_schema.referential_constraints as rc
+      inner join information_schema.key_column_usage as kcu1
+          on kcu1.constraint_catalog = rc.constraint_catalog
+          and kcu1.constraint_schema = rc.constraint_schema
+          and kcu1.constraint_name = rc.constraint_name
+      inner join information_schema.key_column_usage as kcu2
+          on kcu2.constraint_catalog = rc.unique_constraint_catalog
+          and kcu2.constraint_schema = rc.unique_constraint_schema
+          and kcu2.constraint_name = rc.unique_constraint_name
+          and kcu2.ordinal_position = kcu1.ordinal_position
+      where kcu2.table_name='{table}' and kcu2.table_schema = '{schema}' ]]
+
+  local primary_keys_query = [[
+       select tc.constraint_name, kcu.column_name
+       from
+           information_schema.table_constraints AS tc
+           JOIN information_schema.key_column_usage AS kcu
+             ON tc.constraint_name = kcu.constraint_name
+           JOIN information_schema.constraint_column_usage AS ccu
+             ON ccu.constraint_name = tc.constraint_name
+      where constraint_type = 'PRIMARY KEY'
+      and tc.table_name = '{table}' and tc.table_schema = '{schema}' ]]
+
+  local constraints_query = [[
+      SELECT u.CONSTRAINT_NAME, c.CHECK_CLAUSE FROM INFORMATION_SCHEMA.CONSTRAINT_TABLE_USAGE u
+          inner join INFORMATION_SCHEMA.CHECK_CONSTRAINTS c on u.CONSTRAINT_NAME = c.CONSTRAINT_NAME
+      where TABLE_NAME = '{table}' and u.TABLE_SCHEMA = '{schema}' ]]
+
+  return {
+    List = "select top 200 * from [{table}]",
+    Columns = column_summary_query,
+    Indexes = "exec sp_helpindex '{schema}.{table}'",
+    ["Foreign Keys"] = foreign_keys_query,
+    References = references_query,
+    ["Primary Keys"] = primary_keys_query,
+    Constraints = constraints_query,
+    Describe = "exec sp_help ''{schema}.{table}''",
+  }
+end
+
+---@private
+---@return table_helpers helpers list of table helpers
+function Helpers:__oracle()
+  local oracle_from = [[
+      FROM all_constraints N
+      JOIN all_cons_columns L
+      ON N.constraint_name = L.constraint_name
+      AND N.owner = L.owner ]]
+
+  local oracle_qualify_and_order_by = [[
+      L.table_name = '{table}'
+      ORDER BY ]]
+
+  local oracle_key_cmd = function(constraint)
+    return [[
+      SELECT
+      L.table_name,
+      L.column_name
+      ]] .. oracle_from .. [[
+      WHERE
+      N.constraint_type = ']] .. constraint .. "'" .. "AND" .. oracle_qualify_and_order_by .. "L.column_name"
+  end
+
+  return {
+    Columns = [[ select col.column_id,
+          col.owner as schema_name,
+          col.table_name,
+          col.column_name,
+          col.data_type,
+          col.data_length,
+          col.data_precision,
+          col.data_scale,
+                col.nullable
+        from sys.all_tab_columns col
+        inner join sys.all_tables t on col.owner = t.owner
+                                      and col.table_name = t.table_name
+        where col.owner = '{schema}'
+        AND col.table_name = '{table}'
+        order by col.owner, col.table_name, col.column_id ]],
+    ["Foreign Keys"] = oracle_key_cmd("R"),
+    Indexes = [[
+          SELECT DISTINCT
+          N.owner,
+          N.index_name,
+          N.constraint_type
+          ]] .. oracle_from .. [[
+          WHERE
+          ]] .. oracle_qualify_and_order_by .. "N.index_name",
+    List = 'SELECT * FROM "{schema}"."{table}"',
+    ["Primary Keys"] = oracle_key_cmd("P"),
+    References = [[
+            SELECT
+            RFRING.owner,
+            RFRING.table_name,
+            RFRING.column_name
+            FROM all_cons_columns RFRING
+            JOIN all_constraints N
+            ON RFRING.constraint_name = N.constraint_name
+            JOIN all_cons_columns RFRD
+            ON N.r_constraint_name = RFRD.constraint_name
+            JOIN all_users U
+            ON N.owner = U.username
+            WHERE
+            N.constraint_type = 'R'
+            AND
+            U.common = 'NO'
+            AND
+            RFRD.owner = '{schema}'
+            AND
+            RFRD.table_name = '{table}'
+            ORDER BY
+            RFRING.owner,
+            RFRING.table_name,
+            RFRING.column_name ]],
   }
 end
 
@@ -111,6 +266,10 @@ function Helpers:get(type, vars)
     helpers = self:__mongo()
   elseif type == "bigquery" then
     helpers = self:__bigquery()
+  elseif type == "sqlserver" then
+    helpers = self:__sqlserver()
+  elseif type == "oracle" then
+    helpers = self:__oracle()
   end
 
   if not helpers then
