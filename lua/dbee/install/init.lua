@@ -1,5 +1,7 @@
 local M = {}
 
+---@alias install_command "wget"|"curl"|"bitsadmin"|"go"|"cgo"
+
 -- NOTE: don't use vim.notify in loop callbacks
 local function log_error(mes)
   print("[dbee install - error]: " .. mes)
@@ -47,7 +49,7 @@ local function get_url(osys, arch)
 
   local a = arch_aliases[arch] or arch
   local o = os_aliases[string.lower(osys)] or string.lower(osys)
-  local key = string.format("dbee_%s_%s", o, a)
+  local key = string.format("%s/%s", o, a)
 
   local url = m.urls[key]
   if not url then
@@ -69,7 +71,7 @@ local function get_version()
   return m.version or version
 end
 
----@param command? "wget"|"curl"|"bitsadmin"|"go"
+---@param command? install_command
 ---@return { cmd: string, args: string[], env: { string: string } }[]
 local function get_job(command)
   local uname = vim.loop.os_uname()
@@ -123,6 +125,15 @@ local function get_job(command)
           cmd = "go",
           args = { "install", "github.com/kndndrj/nvim-dbee/dbee@" .. get_version() },
           env = { GOBIN = install_dir },
+        },
+      }
+    end,
+    cgo = function()
+      return {
+        {
+          cmd = "go",
+          args = { "install", "github.com/kndndrj/nvim-dbee/dbee@" .. get_version() },
+          env = { GOBIN = install_dir, CGO_ENABLED = "1" },
         },
       }
     end,
@@ -210,7 +221,7 @@ local function run_jobs(jobs, index)
   end
 end
 
----@param command? "wget"|"curl"|"bitsadmin"|"go" preffered command
+---@param command? install_command preffered command
 function M.exec(command)
   -- find a suitable install command
   local jobs = get_job(command)
