@@ -4,7 +4,7 @@ on: [push, pull_request]
 
 jobs:
   luacheck:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     name: Lint Lua Code
     steps:
       - uses: actions/checkout@v3
@@ -14,12 +14,28 @@ jobs:
           args: lua/
 
   stylua:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     name: Check Lua Style
     steps:
       - uses: actions/checkout@v3
       - name: Lua Style Check
-        uses: JohnnyMorganz/stylua-action@v1
+        uses: JohnnyMorganz/stylua-action@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --color always --check lua/
+
+  markdown-format:
+    runs-on: ubuntu-22.04
+    name: Check Markdown Format
+    steps:
+      - uses: actions/checkout@v3
+      - name: Python Setup
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.8'
+      - name: Install mdformat
+        run: |
+          pip install mdformat-gfm
+      - name: Markdown Style Check
+        run: |
+          mdformat --number --wrap 80 --check README.md ARCHITECTURE.md

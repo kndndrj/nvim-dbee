@@ -10,7 +10,7 @@ env:
 
 jobs:
   assemble-os-matrix:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     name: Assemble Matrix
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
@@ -21,7 +21,7 @@ jobs:
         run: ./ci/target-matrix.sh >> "$GITHUB_OUTPUT"
 
   check-secrets:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     name: Check Secrets
     steps:
       - name: Check for Secret Availability
@@ -31,24 +31,8 @@ jobs:
           [ "$BUCKET_REPOSITORY_OWNER" != '' ] || (echo "no BUCKET_REPOSITORY_OWNER secret"; exit 1)
           [ "$BUCKET_REPOSITORY_NAME" != '' ] || (echo "no BUCKET_REPOSITORY_NAME secret"; exit 1)
 
-  go-test:
-    runs-on: ubuntu-latest
-    name: Go Test
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.20.x'
-      - name: Install dependencies
-        run: go get .
-        working-directory: dbee
-      - name: Test
-        run: go test ./...
-        working-directory: dbee
-
   go-build:
-    needs: [ assemble-os-matrix, check-secrets ] #, go-test ]
+    needs: [ assemble-os-matrix, check-secrets ]
     name: Go Build
     strategy:
       fail-fast: false
@@ -109,7 +93,7 @@ jobs:
           path: ci_tmp/meta/*
 
   create-install-file:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     name: Create Install File
     needs: [ go-build, check-secrets ]
     env:
@@ -150,3 +134,20 @@ jobs:
           author_email: actions@github.com
           message: "[install] update install manifest"
           pull: --rebase --autostash
+
+  cleanup:
+    needs: [ create-install-file ]
+    name: Cleanup old branches in bucket repository
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          repository: "${{ env.BUCKET_REPOSITORY_OWNER }}/${{ env.BUCKET_REPOSITORY_NAME }}"
+          token: "${{ env.BUCKET_REPOSITORY_PUBLISH_TOKEN }}"
+      - name: Run delete-old-branches-action
+        uses: beatlabs/delete-old-branches-action@v0.0.9
+        with:
+          repo_token: "${{ env.BUCKET_REPOSITORY_PUBLISH_TOKEN }}"
+          date: '3 weeks ago'
+          dry_run: true
