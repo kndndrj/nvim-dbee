@@ -148,21 +148,3 @@ jobs:
           author_email: actions@github.com
           message: "[install] update install manifest"
           pull: --rebase --autostash
-
-  cleanup:
-    needs: [ create-install-file ]
-    name: Cleanup old branches in the bucket repository
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-        with:
-          repository: "${{ env.BUCKET_REPOSITORY_OWNER }}/${{ env.BUCKET_REPOSITORY_NAME }}"
-          token: "${{ env.BUCKET_REPOSITORY_PUBLISH_TOKEN }}"
-      - name: Delete branches
-        uses: kndndrj/delete-old-branches-action@add-repository-option
-        with:
-          repo_token: "${{ env.BUCKET_REPOSITORY_PUBLISH_TOKEN }}"
-          repository: "${{ env.BUCKET_REPOSITORY_OWNER }}/${{ env.BUCKET_REPOSITORY_NAME }}"
-          date: "3 months ago"
-          dry_run: true
