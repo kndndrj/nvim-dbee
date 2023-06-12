@@ -29,7 +29,6 @@ func (s *storage) Register(alias string, creator creator) error {
 }
 
 func (s *storage) Get(alias string) (creator, error) {
-	fmt.Println(s.creators)
 	c, ok := s.creators[alias]
 	if !ok {
 		return nil, fmt.Errorf("no client registered with type: %s", alias)

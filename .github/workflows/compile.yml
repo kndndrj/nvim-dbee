@@ -1,6 +1,18 @@
 name: Compile and Upload Binaries
 
-on: [push, pull_request]
+on:
+  push:
+    paths:
+      # only when go source changes
+      - "dbee/**"
+    tags-ignore:
+      # ignore all tags
+      - '**'
+  pull_request:
+  release:
+    types:
+      # otherwise the workflow triggers 3 times for a single release
+      - published
 
 env:
   BUCKET_REPOSITORY_PUBLISH_USER: "${{ secrets.BUCKET_REPOSITORY_PUBLISH_USER }}"
@@ -67,9 +79,10 @@ jobs:
             -p "../ci_tmp/bin/$binname"
       - name: Publish Binary to bucket
         shell: bash
+        if: github.event_name == 'push'
         id: publish-binary
         run: |
-          branch="run-${{ github.run_id }}"
+          branch="run-${{ github.run_id }}_${{ matrix.goos }}_${{ matrix.goarch }}"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
 
           ./ci/publish.sh \
@@ -128,6 +141,7 @@ jobs:
           } > "$MANIFEST_FILE"
       - name: Commit the Generated File
         uses: EndBug/add-and-commit@v9
+        if: github.event_name == 'push'
         with:
           add: "${{ env.MANIFEST_FILE }}"
           author_name: Github Actions
@@ -137,7 +151,7 @@ jobs:
 
   cleanup:
     needs: [ create-install-file ]
-    name: Cleanup old branches in bucket repository
+    name: Cleanup old branches in the bucket repository
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout repository
@@ -145,9 +159,10 @@ jobs:
         with:
           repository: "${{ env.BUCKET_REPOSITORY_OWNER }}/${{ env.BUCKET_REPOSITORY_NAME }}"
           token: "${{ env.BUCKET_REPOSITORY_PUBLISH_TOKEN }}"
-      - name: Run delete-old-branches-action
-        uses: beatlabs/delete-old-branches-action@v0.0.9
+      - name: Delete branches
+        uses: kndndrj/delete-old-branches-action@add-repository-option
         with:
           repo_token: "${{ env.BUCKET_REPOSITORY_PUBLISH_TOKEN }}"
-          date: '3 weeks ago'
+          repository: "${{ env.BUCKET_REPOSITORY_OWNER }}/${{ env.BUCKET_REPOSITORY_NAME }}"
+          date: "3 months ago"
           dry_run: true
