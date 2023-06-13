@@ -13,16 +13,16 @@ import (
 	"github.com/neovim/go-client/nvim/plugin"
 )
 
-var deferFns []func()
+var defers []func()
 
 // use deferer to defer in main
 func deferer(fn func()) {
-	deferFns = append(deferFns, fn)
+	defers = append(defers, fn)
 }
 
 func main() {
 	defer func() {
-		for _, fn := range deferFns {
+		for _, fn := range defers {
 			fn()
 		}
 		// TODO: I'm sure this can be done prettier

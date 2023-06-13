@@ -9,11 +9,9 @@ on:
     tags-ignore:
       # ignore all tags
       - '**'
-  pull_request:
-  release:
-    types:
-      # otherwise the workflow triggers 3 times for a single release
-      - published
+    branches:
+      # run for all branches
+      - '**'
 
 env:
   BUCKET_REPOSITORY_PUBLISH_USER: "${{ secrets.BUCKET_REPOSITORY_PUBLISH_USER }}"
