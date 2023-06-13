@@ -35,7 +35,6 @@ func NewOracle(url string) (*OracleClient, error) {
 }
 
 func (c *OracleClient) Query(query string) (models.IterResult, error) {
-
 	con, err := c.c.Conn()
 	if err != nil {
 		return nil, err

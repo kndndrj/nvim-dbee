@@ -35,7 +35,6 @@ func NewPostgres(url string) (*PostgresClient, error) {
 }
 
 func (c *PostgresClient) Query(query string) (models.IterResult, error) {
-
 	con, err := c.c.Conn()
 	if err != nil {
 		return nil, err

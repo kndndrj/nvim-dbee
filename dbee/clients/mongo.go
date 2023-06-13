@@ -82,7 +82,6 @@ func NewMongo(url string) (*MongoClient, error) {
 }
 
 func (c *MongoClient) Query(query string) (models.IterResult, error) {
-
 	db := c.c.Database(c.dbName)
 
 	var command any
@@ -145,7 +144,6 @@ func (c *MongoClient) Query(query string) (models.IterResult, error) {
 				return models.Row{string(parsed)}, nil
 			}
 			return nil, nil
-
 		}
 
 	}
@@ -178,7 +176,6 @@ func (c *MongoClient) Layout() ([]models.Layout, error) {
 			Database: "",
 			Type:     models.LayoutTable,
 		})
-
 	}
 
 	return layout, nil

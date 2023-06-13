@@ -25,7 +25,6 @@ type SqliteClient struct {
 }
 
 func NewSqlite(url string) (*SqliteClient, error) {
-
 	db, err := sql.Open("sqlite", url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to sqlite database: %v", err)
@@ -37,7 +36,6 @@ func NewSqlite(url string) (*SqliteClient, error) {
 }
 
 func (c *SqliteClient) Query(query string) (models.IterResult, error) {
-
 	con, err := c.c.Conn()
 	if err != nil {
 		return nil, err

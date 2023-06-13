@@ -19,7 +19,6 @@ var Store = storage{creators: make(map[string]creator)}
 
 // registers a new client by submitting a creator ("new") function
 func (s *storage) Register(alias string, creator creator) error {
-
 	if alias == "" {
 		return fmt.Errorf("registering a client requires a valid type alias")
 	}

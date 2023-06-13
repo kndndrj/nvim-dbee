@@ -3,8 +3,9 @@ name: Compile and Upload Binaries
 on:
   push:
     paths:
-      # only when go source changes
-      - "dbee/**"
+      # only when go source or install script change
+      - 'dbee/**'
+      - 'lua/dbee/install/**'
     tags-ignore:
       # ignore all tags
       - '**'

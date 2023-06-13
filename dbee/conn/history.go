@@ -83,7 +83,6 @@ func NewHistory(searchId string, logger models.Logger) *HistoryOutput {
 
 // Act as an output (create a new record every time Write gets invoked)
 func (ho *HistoryOutput) Write(result models.Result) error {
-
 	// use unix nanoseconds as an id - easier sorting over restarts
 	id := time.Now().UnixNano()
 
@@ -372,7 +371,6 @@ func newHistoryRows(record historyRecord) (*HistoryRows, error) {
 		val := currentRows[i]
 		i++
 		return val, nil
-
 	}
 
 	return &HistoryRows{

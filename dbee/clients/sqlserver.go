@@ -35,7 +35,6 @@ func NewSQLServer(url string) (*SQLServerClient, error) {
 }
 
 func (c *SQLServerClient) Query(query string) (models.IterResult, error) {
-
 	con, err := c.c.Conn()
 	if err != nil {
 		return nil, err

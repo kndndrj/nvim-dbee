@@ -46,7 +46,6 @@ func NewMysql(url string) (*MysqlClient, error) {
 }
 
 func (c *MysqlClient) Query(query string) (models.IterResult, error) {
-
 	con, err := c.sql.Conn()
 	if err != nil {
 		return nil, err

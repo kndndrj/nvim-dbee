@@ -25,7 +25,6 @@ func init() {
 	_ = Store.Register("bigquery", c)
 }
 
-
 type BigQueryClient struct {
 	c                 *bigquery.Client
 	location          string

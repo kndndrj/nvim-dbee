@@ -55,7 +55,6 @@ func newCache(pageSize int, logger models.Logger) *cache {
 }
 
 func (c *cache) set(iter models.IterResult) error {
-
 	// close the iterator on error
 	var err error
 	defer func() {
@@ -201,7 +200,6 @@ func (c *cache) flush(wipe bool, outputs ...Output) {
 	// wait until the currently active record is drained,
 	// write it to outputs and remove it from records
 	go func() {
-
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()
 		// Wait for flag to be set or timeout to exceed

@@ -112,7 +112,6 @@ var (
 
 // parseRedisCmd parses string command into args for redis.Do
 func parseRedisCmd(unparsed string) ([]any, error) {
-
 	// error helper
 	quoteErr := func(quote rune, position int) error {
 		if quote == '"' {

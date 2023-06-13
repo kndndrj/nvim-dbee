@@ -61,7 +61,6 @@ func (c *Conn) Exec(query string) (*Result, error) {
 				return nil, err
 			}
 			return models.Row{affected}, nil
-
 		}).
 		WithHeader(models.Header{"Rows Affected"}).
 		WithMeta(models.Meta{
@@ -142,4 +141,3 @@ func (c *Conn) Query(query string) (*Result, error) {
 
 	return rows, nil
 }
-
