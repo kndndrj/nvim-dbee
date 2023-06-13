@@ -7,7 +7,7 @@ import (
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	nvimlog "github.com/kndndrj/nvim-dbee/dbee/nvimlog"
+	"github.com/kndndrj/nvim-dbee/dbee/nvimlog"
 	"github.com/kndndrj/nvim-dbee/dbee/output"
 	"github.com/neovim/go-client/nvim"
 	"github.com/neovim/go-client/nvim/plugin"
@@ -30,7 +30,6 @@ func main() {
 	}()
 
 	plugin.Main(func(p *plugin.Plugin) error {
-
 		logger := nvimlog.New(p.Nvim)
 
 		deferer(func() {
@@ -66,12 +65,12 @@ func main() {
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_register_connection"},
-			func(args []string) error {
+			func(args []string) (bool, error) {
 				method := "Dbee_register_connection"
 				logger.Debug("calling " + method)
 				if len(args) < 4 {
 					logger.Error("not enough arguments passed to " + method)
-					return nil
+					return false, nil
 				}
 
 				id := args[0]
@@ -80,51 +79,14 @@ func main() {
 				pageSize, err := strconv.Atoi(args[3])
 				if err != nil {
 					logger.Error(err.Error())
-					return nil
+					return false, nil
 				}
 
 				// Get the right client
-				var client conn.Client
-				switch typ {
-				case "postgres":
-					client, err = clients.NewPostgres(url)
-					if err != nil {
-						logger.Error(err.Error())
-						return nil
-					}
-				case "mysql":
-					client, err = clients.NewMysql(url)
-					if err != nil {
-						logger.Error(err.Error())
-						return nil
-					}
-				case "sqlite":
-					client, err = clients.NewSqlite(url)
-					if err != nil {
-						logger.Error(err.Error())
-						return nil
-					}
-				case "redis":
-					client, err = clients.NewRedis(url)
-					if err != nil {
-						logger.Error(err.Error())
-						return nil
-					}
-				case "mongo":
-					client, err = clients.NewMongo(url)
-					if err != nil {
-						logger.Error(err.Error())
-						return nil
-					}
-				case "duckdb":
-					client, err = clients.NewDuckDB(url)
-					if err != nil {
-						logger.Error(err.Error())
-						return nil
-					}
-				default:
-					logger.Error("database of type \"" + typ + "\" is not supported")
-					return nil
+				client, err := clients.NewFromType(url, typ)
+				if err != nil {
+					logger.Error(err.Error())
+					return false, nil
 				}
 
 				h := conn.NewHistory(id, logger)
@@ -134,7 +96,7 @@ func main() {
 				connections[id] = c
 
 				logger.Debug(method + " returned successfully")
-				return nil
+				return true, nil
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_execute"},

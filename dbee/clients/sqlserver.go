@@ -3,50 +3,39 @@ package clients
 import (
 	"database/sql"
 	"fmt"
-	"regexp"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
+	_ "github.com/microsoft/go-mssqldb"
+	_ "github.com/microsoft/go-mssqldb/integratedauth/krb5"
 )
 
 // Register client
 func init() {
 	c := func(url string) (conn.Client, error) {
-		return NewMysql(url)
+		return NewSQLServer(url)
 	}
-	_ = Store.Register("mysql", c)
+	_ = Store.Register("sqlserver", c)
 }
 
-type MysqlClient struct {
-	sql *common.Client
+type SQLServerClient struct {
+	c *common.Client
 }
 
-func NewMysql(url string) (*MysqlClient, error) {
-	// add multiple statements support parameter
-	match, err := regexp.MatchString(`[\?][\w]+=[\w-]+`, url)
+func NewSQLServer(url string) (*SQLServerClient, error) {
+	db, err := sql.Open("sqlserver", url)
 	if err != nil {
-		return nil, err
-	}
-	if match {
-		url = url + "&multiStatements=true"
-	} else {
-		url = url + "?multiStatements=true"
+		return nil, fmt.Errorf("unable to connect to sqlserver database: %v", err)
 	}
 
-	db, err := sql.Open("mysql", url)
-	if err != nil {
-		return nil, fmt.Errorf("unable to connect to mysql database: %v", err)
-	}
-
-	return &MysqlClient{
-		sql: common.NewClient(db),
+	return &SQLServerClient{
+		c: common.NewClient(db),
 	}, nil
 }
 
-func (c *MysqlClient) Query(query string) (models.IterResult, error) {
-	con, err := c.sql.Conn()
+func (c *SQLServerClient) Query(query string) (models.IterResult, error) {
+	con, err := c.c.Conn()
 	if err != nil {
 		return nil, err
 	}
@@ -75,13 +64,13 @@ func (c *MysqlClient) Query(query string) (models.IterResult, error) {
 	rows.Close()
 
 	// empty header means no result -> get affected rows
-	rows, err = con.Query("select ROW_COUNT() as 'Rows Affected'")
+	rows, err = con.Query("select @@ROWCOUNT as 'Rows Affected'")
 	rows.SetCallback(cb)
 	return rows, err
 }
 
-func (c *MysqlClient) Layout() ([]models.Layout, error) {
-	query := `SELECT table_schema, table_name FROM information_schema.tables`
+func (c *SQLServerClient) Layout() ([]models.Layout, error) {
+	query := `SELECT table_schema, table_name FROM INFORMATION_SCHEMA.TABLES`
 
 	rows, err := c.Query(query)
 	if err != nil {
@@ -129,6 +118,6 @@ func (c *MysqlClient) Layout() ([]models.Layout, error) {
 	return layout, nil
 }
 
-func (c *MysqlClient) Close() {
-	c.sql.Close()
+func (c *SQLServerClient) Close() {
+	c.c.Close()
 }

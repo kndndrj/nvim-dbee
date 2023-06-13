@@ -1,3 +1,5 @@
+//go:build (darwin && (amd64 || arm64)) || (freebsd && (386 || amd64 || arm || arm64)) || (linux && (386 || amd64 || arm || arm64 || ppc64le || riscv64 || s390x)) || (netbsd && amd64) || (openbsd && (amd64 || arm64)) || (windows && (amd64 || arm64))
+
 package clients
 
 import (
@@ -5,9 +7,18 @@ import (
 	"fmt"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
+	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	_ "modernc.org/sqlite"
 )
+
+// Register client
+func init() {
+	c := func(url string) (conn.Client, error) {
+		return NewSqlite(url)
+	}
+	_ = Store.Register("sqlite", c)
+}
 
 type SqliteClient struct {
 	c *common.Client
@@ -25,7 +36,6 @@ func NewSqlite(url string) (*SqliteClient, error) {
 }
 
 func (c *SqliteClient) Query(query string) (models.IterResult, error) {
-
 	con, err := c.c.Conn()
 	if err != nil {
 		return nil, err

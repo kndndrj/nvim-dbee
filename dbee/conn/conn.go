@@ -42,7 +42,6 @@ type Conn struct {
 }
 
 func New(driver Client, pageSize int, history History, logger models.Logger) *Conn {
-
 	return &Conn{
 		pageSize: pageSize,
 		driver:   driver,
@@ -53,7 +52,6 @@ func New(driver Client, pageSize int, history History, logger models.Logger) *Co
 }
 
 func (c *Conn) Execute(query string) error {
-
 	c.log.Debug("executing query: \"" + query + "\"")
 
 	rows, err := c.driver.Query(query)
@@ -71,7 +69,6 @@ func (c *Conn) Execute(query string) error {
 }
 
 func (c *Conn) History(historyId string) error {
-
 	c.log.Debug("retrieving history with id: \"" + historyId + "\"")
 
 	rows, err := c.history.Query(historyId)
@@ -102,7 +99,6 @@ func (c *Conn) WriteCurrent(outputs ...Output) error {
 }
 
 func (c *Conn) Layout() ([]models.Layout, error) {
-
 	structure, err := c.driver.Layout()
 	if err != nil {
 		return nil, err

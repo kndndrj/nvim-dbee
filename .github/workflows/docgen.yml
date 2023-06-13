@@ -1,57 +1,54 @@
 name: Documentation Generation
 
-on: [push, pull_request]
+on:
+  push:
+    tags-ignore:
+      # ignore all tags
+      - '**'
+    branches:
+      # run for all branches
+      - '**'
 
 jobs:
-  check-markdown-format:
-    runs-on: ubuntu-20.04
-    name: Check Markdown Format
-    steps:
-      - uses: actions/checkout@v3
-      - name: Python Setup
-        uses: actions/setup-python@v3
-        with:
-          python-version: '3.8'
-      - name: Install mdformat
-        run: |
-          pip install mdformat-gfm
-      - name: Markdown Style Check
-        run: |
-          mdformat --number --wrap 80 --check README.md ARCHITECTURE.md
-
   generate-docs:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     name: Generate Documentation
-    needs: check-markdown-format
+    env:
+      TEMP_README: "__temp_readme.md"
     steps:
       - uses: actions/checkout@v3
-      - name: Install md2vim
-        run: |
-          curl -L -o md2vim.tar.gz https://github.com/FooSoft/md2vim/releases/download/21.12.14.0/md2vim_linux_amd64.tar.gz
-          tar -xzvf md2vim.tar.gz
-      - name: Generate Vim Help from Markdown
+      - name: Prepare markdown file
         run: |
           TEMP_CONFIG="$(mktemp)"
-          TEMP_README="$(mktemp)"
-          # Retrieve default config and put it in a temp file
+          # Retrieve default config and put it in a temp file.
           {
             echo '```lua'
             awk '/DOCGEN_END/{f=0} f; /DOCGEN_START/{f=1}' lua/dbee/config.lua
             echo '```'
           } > "$TEMP_CONFIG"
-          # Insert the default config between DOCGEN_CONFIG tags in the README
+          # Insert the default config between DOCGEN_CONFIG tags in the README.
+          # And remove stuff between DOCGEN_IGNORE_START and DOCGEN_IGNORE_END tags from README.
           {
             sed -e '
               /DOCGEN_CONFIG_START/,/DOCGEN_CONFIG_END/!b
               /DOCGEN_CONFIG_START/r '"$TEMP_CONFIG"'
               /DOCGEN_CONFIG_END:/!d
-            ' <(sed '0,/DOCGEN_START/d' README.md)
+            ' <(sed '/DOCGEN_IGNORE_START/,/DOCGEN_IGNORE_END/d' README.md)
             cat ARCHITECTURE.md
           } > "$TEMP_README"
-          # Generate docs
-          ./md2vim -desc "Database Client for NeoVim" "$TEMP_README" doc/dbee.txt
+      - name: Generate vimdoc
+        uses: kdheepak/panvimdoc@v3.0.6
+        with:
+          vimdoc: dbee
+          pandoc: "${{ env.TEMP_README }}"
+          toc: true
+          description: "Database Client for NeoVim"
+          treesitter: true
+          ignorerawblocks: true
+          docmappingprojectname: false
       - name: Commit the Generated Help
         uses: EndBug/add-and-commit@v9
+        if: github.event_name == 'push'
         with:
           add: doc/dbee.txt
           author_name: Github Actions

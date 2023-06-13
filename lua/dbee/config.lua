@@ -4,9 +4,11 @@ local M = {}
 local m = {}
 
 ---@alias mapping {key: string, mode: string}
+---@alias wincmd string|fun():integer
 
 ---@class UiConfig
----@field window_open_order table example: { "result", "editor", "drawer" } - in which order are the windows open
+---@field window_commands { editor: wincmd, drawer: wincmd, result: wincmd }
+---@field window_open_order string[] example: { "result", "editor", "drawer" } - in which order are the windows open
 ---@field pre_open_hook fun() execute this before opening ui
 ---@field post_open_hook fun() execute this after opening ui
 ---@field pre_close_hook fun() execute this before closing ui
@@ -14,12 +16,13 @@ local m = {}
 
 -- configuration object
 ---@class Config
----@field connections connection_details[] list of configured database connections
+---@field sources Source[] list of connection sources
 ---@field extra_helpers table<string, table_helpers> extra table helpers to provide besides built-ins. example: { postgres = { List = "select..." }
 ---@field lazy boolean lazy load the plugin or not?
+---@field page_size integer
 ---@field drawer drawer_config
 ---@field editor editor_config
----@field result handler_config
+---@field result result_config
 ---@field ui UiConfig
 
 -- default configuration
@@ -29,15 +32,10 @@ M.default = {
   -- lazy load the plugin or not?
   lazy = false,
 
-  -- list of connections
-  -- don't commit that, use something like nvim-projector for project specific config.
-  connections = {
-    -- example:
-    -- {
-    --   name = "example-pg",
-    --   type = "postgres",
-    --   url = "postgres://user:password@localhost:5432/db?sslmode=disable",
-    -- },
+  -- loads connections from files and environment variables
+  sources = {
+    require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
+    require("dbee.sources").FileSource:new(vim.fn.stdpath("cache") .. "/dbee/persistence.json"),
   },
   -- extra table helpers per connection type
   extra_helpers = {
@@ -47,11 +45,11 @@ M.default = {
     -- },
   },
 
+  -- number of rows in the results set to display per page
+  page_size = 100,
+
   -- drawer window config
   drawer = {
-    -- command that opens the window if the window is closed
-    -- string or function
-    window_command = "to 40vsplit",
     -- mappings for the buffer
     mappings = {
       -- manually refresh drawer
@@ -60,33 +58,58 @@ M.default = {
       -- action_1 opens a scratchpad or executes a helper
       action_1 = { key = "<CR>", mode = "n" },
       -- action_2 renames a scratchpad or sets the connection as active manually
-      action_2 = { key = "da", mode = "n" },
-      -- action_3 deletes a scratchpad
+      action_2 = { key = "cw", mode = "n" },
+      -- action_3 deletes a scratchpad or connection (removes connection from the file if you configured it like so)
       action_3 = { key = "dd", mode = "n" },
       -- these are self-explanatory:
-      collapse = { key = "c", mode = "n" },
-      expand = { key = "e", mode = "n" },
+      -- collapse = { key = "c", mode = "n" },
+      -- expand = { key = "e", mode = "n" },
       toggle = { key = "o", mode = "n" },
     },
     -- icon settings:
-    disable_icons = false,
-    icons = {
+    disable_candies = false,
+    candies = {
       -- these are what's available for now:
       history = {
         icon = "",
-        highlight = "Constant",
+        icon_highlight = "Constant",
       },
       scratch = {
         icon = "",
-        highlight = "Character",
+        icon_highlight = "Character",
       },
       database = {
         icon = "",
-        highlight = "SpecialChar",
+        icon_highlight = "SpecialChar",
       },
       table = {
         icon = "",
-        highlight = "Conditional",
+        icon_highlight = "Conditional",
+      },
+      add = {
+        icon = "",
+        icon_highlight = "String",
+        text_highlight = "String",
+      },
+      edit = {
+        icon = "󰏫",
+        icon_highlight = "Directory",
+        text_highlight = "Directory",
+      },
+      remove = {
+        icon = "󰆴",
+        icon_highlight = "SpellBad",
+        text_highlight = "SpellBad",
+      },
+      help = {
+        icon = "󰋖",
+        icon_highlight = "Title",
+        text_highlight = "Title",
+      },
+      source = {
+        icon = "󰃖",
+        icon_highlight = "MoreMsg",
+        text_highlight = "MoreMsg",
       },
 
       -- if there is no type
@@ -97,28 +120,23 @@ M.default = {
       -- ...and use this for nodes with children
       none_dir = {
         icon = "",
-        highlight = "NonText",
+        icon_highlight = "NonText",
       },
 
       -- chevron icons for expanded/closed nodes
       node_expanded = {
         icon = "",
-        highlight = "NonText",
+        icon_highlight = "NonText",
       },
       node_closed = {
         icon = "",
-        highlight = "NonText",
+        icon_highlight = "NonText",
       },
     },
   },
 
   -- results window config
   result = {
-    -- command that opens the window if the window is closed
-    -- string or function
-    window_command = "bo 15split",
-    -- number of rows per page
-    page_size = 100,
     -- mappings for the buffer
     mappings = {
       -- next/previous page
@@ -129,14 +147,6 @@ M.default = {
 
   -- editor window config
   editor = {
-    -- command that opens the window if the window is closed
-    -- string or function
-    window_command = function()
-      vim.cmd("new")
-      vim.cmd("only")
-      m.tmp_buf = vim.api.nvim_get_current_buf()
-      return vim.api.nvim_get_current_win()
-    end,
     -- mappings for the buffer
     mappings = {
       -- run what's currently selected on the active connection
@@ -154,6 +164,18 @@ M.default = {
   --
   -- You can probably do anything you imagine with this - for example all floating windows, tiled/floating mix etc.
   ui = {
+    -- commands that opens the window if the window is closed - for drawer/editor/result
+    -- string or function
+    window_commands = {
+      drawer = "to 40vsplit",
+      result = "bo 15split",
+      editor = function()
+        vim.cmd("new")
+        vim.cmd("only")
+        m.tmp_buf = vim.api.nvim_get_current_buf()
+        return vim.api.nvim_get_current_win()
+      end,
+    },
     -- how to open windows in order (with specified "window_command"s -- see above)
     window_open_order = { "editor", "result", "drawer" },
 

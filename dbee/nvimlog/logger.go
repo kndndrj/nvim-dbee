@@ -9,22 +9,21 @@ import (
 )
 
 type Logger struct {
-	vim    *nvim.Nvim
-	logger *log.Logger
-	file    *os.File
+	vim          *nvim.Nvim
+	logger       *log.Logger
+	file         *os.File
 	triedFileSet bool
 }
 
 func New(vim *nvim.Nvim) *Logger {
 	return &Logger{
-		vim:     vim,
-		logger:  log.New(os.Stdout, "", log.Ldate|log.Ltime),
+		vim:          vim,
+		logger:       log.New(os.Stdout, "", log.Ldate|log.Ltime),
 		triedFileSet: false,
 	}
 }
 
 func (l *Logger) setupFile() error {
-
 	var fileName string
 	err := l.vim.Call("stdpath", &fileName, "cache")
 	if err != nil {
@@ -32,7 +31,7 @@ func (l *Logger) setupFile() error {
 	}
 	fileName = filepath.Join(fileName, "dbee", "dbee.log")
 
-	file, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	file, err := os.OpenFile(fileName, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o666)
 	if err != nil {
 		return err
 	}
@@ -48,8 +47,7 @@ func (l *Logger) Close() {
 }
 
 func (l *Logger) log(level nvim.LogLevel, message string) {
-
-	if l.file == nil && !l.triedFileSet{
+	if l.file == nil && !l.triedFileSet {
 		err := l.setupFile()
 		if err != nil {
 			l.logger.Print(err)
@@ -93,12 +91,15 @@ func (l *Logger) log(level nvim.LogLevel, message string) {
 func (l *Logger) Debug(msg string) {
 	l.log(nvim.LogDebugLevel, msg)
 }
+
 func (l *Logger) Info(msg string) {
 	l.log(nvim.LogInfoLevel, msg)
 }
+
 func (l *Logger) Warn(msg string) {
 	l.log(nvim.LogWarnLevel, msg)
 }
+
 func (l *Logger) Error(msg string) {
 	l.log(nvim.LogErrorLevel, msg)
 }

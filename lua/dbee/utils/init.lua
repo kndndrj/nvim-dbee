@@ -3,6 +3,9 @@ local M = {}
 -- layout exposed through here
 M.layout = require("dbee.utils.layout")
 
+-- prompt for multiple parameters
+M.prompt = require("dbee.utils.prompt")
+
 -- Get random key from table
 ---@param tbl table key-value table
 ---@return any|nil key
@@ -71,6 +74,39 @@ function M.log(level, message, subtitle)
     subtitle = ""
   end
   vim.notify(subtitle .. " " .. message, l, { title = "nvim-dbee" })
+end
+
+-- Replaces {{ env.SOMETHING }} with environment or empty string
+---@param obj string|table
+---@return string|table
+function M.expand_environment(obj)
+  local function expand(o)
+    if type(o) ~= "string" then
+      return o
+    end
+    local ret = o:gsub("{{%s*env.([%w_]*)%s*}}", function(v)
+      return os.getenv(v) or ""
+    end)
+    return ret
+  end
+
+  if type(obj) == "table" then
+    return vim.tbl_map(expand, obj)
+  end
+
+  return expand(obj)
+end
+
+-- Gets keys of a map and sorts them by name
+---@param obj table<string, any> map-like table
+---@return string[]
+function M.sorted_keys(obj)
+  local keys = {}
+  for k, _ in pairs(obj) do
+    table.insert(keys, k)
+  end
+  table.sort(keys)
+  return keys
 end
 
 return M
