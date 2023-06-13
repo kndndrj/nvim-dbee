@@ -1,136 +1,137 @@
-dbee.txt                                              Database Client for NeoVim
+*dbee.txt*                                          Database Client for NeoVim
+
+==============================================================================
+Table of Contents                                     *dbee-table-of-contents*
+
+1. Neovim DBee                                              |dbee-neovim-dbee|
+  - Installation                               |dbee-neovim-dbee-installation|
+  - Configuration                             |dbee-neovim-dbee-configuration|
+  - Usage                                             |dbee-neovim-dbee-usage|
+  - Projector Integration             |dbee-neovim-dbee-projector-integration|
+2. DBee Architecture Overview                |dbee-dbee-architecture-overview|
+  - Lua Architecture        |dbee-dbee-architecture-overview-lua-architecture|
+  - Go Architecture          |dbee-dbee-architecture-overview-go-architecture|
+
+==============================================================================
+1. Neovim DBee                                              *dbee-neovim-dbee*
+
+**Database Client for NeoVim!**
+
+**Execute Your Favourite Queries From the Comfort of Your Editor!**
+
+**Backend in Go!**
+
+**Frontend in Lua!**
+
+**Get Results FAST With Under-the-hood Iterator!**
+
+**Integrates with nvim-projector!**
+
+**Bees Love It!**
+
+**Alpha Software - Expect Breaking Changes!**
 
 
-================================================================================
-CONTENTS                                                           *dbee-contents*
+INSTALLATION                                   *dbee-neovim-dbee-installation*
 
-1. Neovim DBee..................................................|dbee-neovim_dbee|
-    1.1. Installation..........................................|dbee-installation|
-        1.1.1. Platform Support............................|dbee-platform_support|
-        1.1.2. Manual Binary Installation........|dbee-manual_binary_installation|
-    1.2. Configuration........................................|dbee-configuration|
-    1.3. Usage........................................................|dbee-usage|
-        1.3.1. Getting Started..............................|dbee-getting_started|
-        1.3.2. Specifying Connections................|dbee-specifying_connections|
-            1.3.2.1. Secrets........................................|dbee-secrets|
-    1.4. Projector Integration........................|dbee-projector_integration|
-2. DBee Architecture Overview....................|dbee-dbee_architecture_overview|
-    2.1. Lua Architecture..................................|dbee-lua_architecture|
-    2.2. Go Architecture....................................|dbee-go_architecture|
-
-================================================================================
-NEOVIM DBEE                                                     *dbee-neovim_dbee*
-
-Database Client for NeoVim!
-
-Execute Your Favourite Queries From the Comfort of Your Editor!
-
-Backend in Go!
-
-Frontend in Lua!
-
-Get Results FAST With Under-the-hood Iterator!
-
-Integrates with nvim-projector!
-
-Bees Love It!
-
-Alpha Software - Expect Breaking Changes!
-
-
-
---------------------------------------------------------------------------------
-INSTALLATION                                                   *dbee-installation*
-
-*   packer.nvim:
->
+- packer.nvim:
+    >lua
         use {
-        "kndndrj/nvim-dbee",
-        requires = {
-          "MunifTanjim/nui.nvim",
-        },
-        run = function()
-          -- Install tries to automatically detect the install method.
-          -- if it fails, try calling it with one of these parameters:
-          --    "curl", "wget", "bitsadmin", "go"
-          require("dbee").install()
-        end,
-        config = function()
-          require("dbee").setup(--[[optional config]])
-        end
+          "kndndrj/nvim-dbee",
+          requires = {
+            "MunifTanjim/nui.nvim",
+          },
+          run = function()
+            -- Install tries to automatically detect the install method.
+            -- if it fails, try calling it with one of these parameters:
+            --    "curl", "wget", "bitsadmin", "go"
+            require("dbee").install()
+          end,
+          config = function()
+            require("dbee").setup(--[[optional config]])
+          end
         }
-<
-*   lazy.nvim:
->
+    <
+- lazy.nvim:
+    >lua
         {
-        "kndndrj/nvim-dbee",
-        dependencies = {
-          "MunifTanjim/nui.nvim",
+          "kndndrj/nvim-dbee",
+          dependencies = {
+            "MunifTanjim/nui.nvim",
+          },
+          build = function()
+            -- Install tries to automatically detect the install method.
+            -- if it fails, try calling it with one of these parameters:
+            --    "curl", "wget", "bitsadmin", "go"
+            require("dbee").install()
+          end,
+          config = function()
+            require("dbee").setup(--[[optional config]])
+          end,
         },
-        build = function()
-          -- Install tries to automatically detect the install method.
-          -- if it fails, try calling it with one of these parameters:
-          --    "curl", "wget", "bitsadmin", "go"
-          require("dbee").install()
-        end,
-        config = function()
-          require("dbee").setup(--[[optional config]])
-        end,
-        },
-<
+    <
 
-PLATFORM SUPPORT                                           *dbee-platform_support*
+
+PLATFORM SUPPORT ~
 
 This project aims to be as cross-platform as possible, but there are some
 limitations (for example some of the go dependencies only work on certain
-platforms).
+platforms). To address this issue, the client implementations are detached from
+the main logic and they register themselves to dbee backend on plugin start.
+This allows the use of build constraints, which we use to exclued certain
+client implementations on certain platforms.
 
-The CI pipeline tries building the binary for all possible GOARCH/GOOS
-combinations - the ones that succeed are stored in a
-remote bucket (https://github.com/kndndrj/nvim-dbee-bucket) on it's own branch.
-Additionally, the install manifest (lua/dbee/install/__manifest.lua) gets
-created.
+The CI pipeline tries building the binary for GOARCH/GOOS combinations
+specified in targets.json <ci/targets.json> - if the builds succeed, they are
+stored in a remote bucket <https://github.com/kndndrj/nvim-dbee-bucket> on a
+separate branch per run. Additionally, the install manifest
+<lua/dbee/install/__manifest.lua> gets created.
 
-So to check if your platform is currently supported, check out the mentioned
-manifest
+To increase cgo cross-platform support, the pipeline uses zig as a C compiler.
 
-MANUAL BINARY INSTALLATION                       *dbee-manual_binary_installation*
+To check if your platform is currently supported, check out the mentioned
+manifest and the targets file.
+
+
+MANUAL BINARY INSTALLATION ~
 
 The installation examples include the `build`/`run` functions, which get
-triggered once the plugin updates. This should be sufficient for the majority of
-users. If that doesn't include you, then you have a few options:
+triggered once the plugin updates. This should be sufficient for the majority
+of users. If that doesn’t include you, then you have a few options:
 
-*   just install with the `"go"` option (this performs `go install` under the
+- just install with the `"go"` option (this performs `go install` under the
     hood):
->
+    >lua
         require("dbee").install("go")
-<
-*   Download an already compiled binary from one of urls in the
-    install manifest (lua/dbee/install/__manifest.lua)
-*   `go install` (the install location will vary depending on your local go
+    <
+- Download an already compiled binary from one of urls in the install manifest
+    <lua/dbee/install/__manifest.lua>
+- `go install` (the install location will vary depending on your local go
     configuration):
->
+    >sh
         go install github.com/kndndrj/nvim-dbee/dbee@<version>
-<
-*   Clone and build
->
+    <
+- Clone and build
+    >sh
         # Clone the repository and cd into the "go subfolder"
         git clone <this_repo>
         cd <this_repo>/dbee
         # Build the binary (optional output path)
         go build [-o ~/.local/share/nvim/dbee/bin/dbee]
-<
+    <
 
---------------------------------------------------------------------------------
-CONFIGURATION                                                 *dbee-configuration*
+
+CONFIGURATION                                 *dbee-neovim-dbee-configuration*
 
 You can pass an optional table parameter to `setup()` function.
 
 Here are the defaults:
->
+
+>lua
     M.default = {
       -- lazy load the plugin or not?
       lazy = false,
+    
       -- loads connections from files and environment variables
       sources = {
         require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
@@ -143,8 +144,10 @@ Here are the defaults:
         --   ["List All"] = "select * from {table}",
         -- },
       },
+    
       -- number of rows in the results set to display per page
       page_size = 100,
+    
       -- drawer window config
       drawer = {
         -- mappings for the buffer
@@ -208,6 +211,7 @@ Here are the defaults:
             icon_highlight = "MoreMsg",
             text_highlight = "MoreMsg",
           },
+    
           -- if there is no type
           -- use this for normal nodes...
           none = {
@@ -218,6 +222,7 @@ Here are the defaults:
             icon = "",
             icon_highlight = "NonText",
           },
+    
           -- chevron icons for expanded/closed nodes
           node_expanded = {
             icon = "",
@@ -229,6 +234,7 @@ Here are the defaults:
           },
         },
       },
+    
       -- results window config
       result = {
         -- mappings for the buffer
@@ -238,6 +244,7 @@ Here are the defaults:
           page_prev = { key = "H", mode = "" },
         },
       },
+    
       -- editor window config
       editor = {
         -- mappings for the buffer
@@ -248,6 +255,7 @@ Here are the defaults:
           run_file = { key = "BB", mode = "n" },
         },
       },
+    
       -- general UI config
       -- Default configuration uses a "layout" helper to save the existing ui before opening any windows,
       -- then makes a new empty window for the editor and then opens result and drawer.
@@ -270,6 +278,7 @@ Here are the defaults:
         },
         -- how to open windows in order (with specified "window_command"s -- see above)
         window_open_order = { "editor", "result", "drawer" },
+    
         -- hooks before/after dbee.open()/.close()
         pre_open_hook = function()
           -- save layout before opening ui
@@ -288,13 +297,14 @@ Here are the defaults:
     }
 <
 
---------------------------------------------------------------------------------
-USAGE                                                                 *dbee-usage*
+
+USAGE                                                 *dbee-neovim-dbee-usage*
 
 Call the `setup()` function with an optional config parameter. If you are not
-using your plugin manager to lazy load for you, make sure to specify
-`{ lazy = true }` in the config.
->
+using your plugin manager to lazy load for you, make sure to specify `{ lazy =
+true }` in the config.
+
+>lua
     -- Open/close the UI.
     require("dbee").open()
     require("dbee").close()
@@ -308,66 +318,68 @@ using your plugin manager to lazy load for you, make sure to specify
     require("dbee").save(format, file)
 <
 
-GETTING STARTED                                             *dbee-getting_started*
+
+GETTING STARTED ~
 
 Here are a few steps to quickly get started:
 
-*   call the `setup()` function in your `init.lua`
-*   Specify connections using one or more sources (reffer to
-    this section (#specifying-connections)).
-*   When you restart the editor, call `lua require("dbee").open()` to open the UI.
-*   Navigate to the drawer (tree) and use the following key-bindings to perform
+- call the `setup()` function in your `init.lua`
+- Specify connections using one or more sources (reffer to |dbee-this-section|).
+- When you restart the editor, call `lua require("dbee").open()` to open the UI.
+- Navigate to the drawer (tree) and use the following key-bindings to perform
     different actions depending on the context (the mappings can all be changed in
     the config):
-    *   All nodes:
-    *   Press `o` to toggle the tree node.
-    *   Press `r` to manually refresh the tree.
-    *   Connections:
-    *   Press `cw` to edit the connection
-    *   Press `dd` to delete it (if source supports saving, it's also removed from
-        there - see more below.)
-    *   Press `<CR>` to perform an action - view history or look at helper
-        queries. Pressing `<CR>` directly on the connection node will set it as
-        the active one
-    *   Scratchpads:
-    *   Press `<CR>` on the `new` node to create a new scratchpad.
-    *   When you try to save it to disk (`:w`), the path is automatically filled
-        for you. You can change the name to anything you want, if you save it to
-        the suggested directory, it will load the next time you open DBee.
-    *   Press `cw` to rename the scratchpad.
-    *   Press `dd` to delete it (also from disk).
-    *   Pressing `<CR>` on an existing scratchpad in the drawer will open it in
-        the editor pane.
-    *   Help:
-    *   Just view the key bindings.
-*   Once you selected the connection and created a scratchpad, you can navigate to
+    - All nodes:
+        - Press `o` to toggle the tree node.
+        - Press `r` to manually refresh the tree.
+    - Connections:
+        - Press `cw` to edit the connection
+        - Press `dd` to delete it (if source supports saving, it’s also removed from
+            there - see more below.)
+        - Press `<CR>` to perform an action - view history or look at helper
+            queries. Pressing `<CR>` directly on the connection node will set it as
+            the active one
+    - Scratchpads:
+        - Press `<CR>` on the `new` node to create a new scratchpad.
+        - When you try to save it to disk (`:w`), the path is automatically filled
+            for you. You can change the name to anything you want, if you save it to
+            the suggested directory, it will load the next time you open DBee.
+        - Press `cw` to rename the scratchpad.
+        - Press `dd` to delete it (also from disk).
+        - Pressing `<CR>` on an existing scratchpad in the drawer will open it in
+            the editor pane.
+    - Help:
+        - Just view the key bindings.
+- Once you selected the connection and created a scratchpad, you can navigate to
     the editor pane (top-right by default) and start writing queries. In editor
     pane, you can use the following actions:
-    *   Highlight some text in visual mode and press `BB` - this will run the
+    - Highlight some text in visual mode and press `BB` - this will run the
         selected query on the active connection.
-    *   If you press `BB` in normal mode, you run the whole scratchpad on the active
+    - If you press `BB` in normal mode, you run the whole scratchpad on the active
         connection.
-*   If the request was successful, the results should appear in the "result"
-    buffer (bottom one by default). If the total number of results was lower than
-    the `page_size` parameter in config (100 by default), all results should
-    already be present. If there are more than `page_size` results, you can "page"
-    thrugh them using one of the following:
-    *   Using `require("dbee").next()` and `require("dbee").prev()` from anywhere
+- If the request was successful, the results should appear in the "result" buffer
+    (bottom one by default). If the total number of results was lower than the
+    `page_size` parameter in config (100 by default), all results should already be
+    present. If there are more than `page_size` results, you can "page" thrugh them
+    using one of the following:
+    - Using `require("dbee").next()` and `require("dbee").prev()` from anywhere
         (even if your cursor is outside the result buffer).
-    *   Using `L` for next and `H` for previous page if the cursor is located inside
+    - Using `L` for next and `H` for previous page if the cursor is located inside
         the results buffer.
-*   The current result (of the active connection) can also be saved to a file
-    using `require("dbee").save()` command. Use:
-    *   `require("dbee").save("csv", "/path/to/file.csv")` for csv and
-    *   `require("dbee").save("json", "/path/to/file.json")` for json.
-*   Once you are done or you want to go back to where you were, you can call
+- The current result (of the active connection) can also be saved to a file using
+    `require("dbee").save()` command. Use:
+    - `require("dbee").save("csv", "/path/to/file.csv")` for csv and
+    - `require("dbee").save("json", "/path/to/file.json")` for json.
+- Once you are done or you want to go back to where you were, you can call
     `require("dbee").close()`.
 
-SPECIFYING CONNECTIONS                               *dbee-specifying_connections*
 
-Connection represents an instance of the database client (i.e. one database).
+SPECIFYING CONNECTIONS ~
+
+Connection represents an instance of the database client (i.e. one database).
 This is how it looks like:
->
+
+>lua
     {
       id = "optional_identifier" -- only mandatory if you edit a file by hand. IT'S YOUR JOB TO KEEP THESE UNIQUE!
       name = "My Database",
@@ -378,7 +390,8 @@ This is how it looks like:
 
 The connections are loaded to dbee using so-called "sources". They can be added
 to dbee using the `setup()` function:
->
+
+>lua
       require("dbee").setup {
         sources = {
           require("dbee.sources").MemorySource:new({
@@ -400,34 +413,35 @@ to dbee using the `setup()` function:
 
 The above sources are just built-ins. Here is a short description of them:
 
-*   `MemorySource` just loads the connections you give it as an argument.
-*   `EnvSource` loads connection from an environment variable Just export the
+- `MemorySource` just loads the connections you give it as an argument.
+- `EnvSource` loads connection from an environment variable Just export the
     variable you gave to the loader and you are good to go:
->
-        export DBEE_CONNECTIONS='[
-            {
-                "name": "DB from env",
-                "url": "mysql://...",
-                "type": "mysql"
-            }
-        ]'
-<
-*   `FileSource` loads connections from a given json file. It also supports
-    editing and adding connections interactively
+    >sh
+          export DBEE_CONNECTIONS='[
+              {
+                  "name": "DB from env",
+                  "url": "mysql://...",
+                  "type": "mysql"
+              }
+          ]'
+    <
+- `FileSource` loads connections from a given json file. It also supports editing
+    and adding connections interactively
 
-If the source supports saving and editing you can add connections manually using
-the "add" item in the drawer. Fill in the values and write the buffer (`:w`) to
-save the connection. By default, this will save the connection to the global
-connections file and will persist over restarts (because default `FileSource`
-supports saving)
+If the source supports saving and editing you can add connections manually
+using the "add" item in the drawer. Fill in the values and write the buffer
+(`:w`) to save the connection. By default, this will save the connection to the
+global connections file and will persist over restarts (because default
+`FileSource` supports saving)
 
 Another option is to use "edit" item in the tree and just edit the source
 manually.
 
-If you aren't satisfied with the default capabilities, you can implement your
+If you aren’t satisfied with the default capabilities, you can implement your
 own source. You just need to fill the following interface and pass it to config
 at setup.
->
+
+>lua
     ---@class Source
     ---@field name fun(self: Source):string function to return the name of the source
     ---@field load fun(self: Source):connection_details[] function to load connections from external source
@@ -435,19 +449,21 @@ at setup.
     ---@field file? fun(self: Source):string function which returns a source file to edit (optional)
 <
 
-SECRETS                                                             *dbee-secrets*
 
-If you don't want to have secrets laying around your disk in plain text, you can
-use the special placeholders in connection strings (this works using any method
-for specifying connections).
+SECRETS
 
-NOTE: Currently only envirnoment variables are supported
+If you don’t want to have secrets laying around your disk in plain text, you
+can use the special placeholders in connection strings (this works using any
+method for specifying connections).
+
+NOTE: _Currently only envirnoment variables are supported_
 
 Example:
 
-Using the `DBEE_CONNECTIONS` environment variable for specifying connections and
-exporting secrets to environment:
->
+Using the `DBEE_CONNECTIONS` environment variable for specifying connections
+and exporting secrets to environment:
+
+>sh
     # Define connections
     export DBEE_CONNECTIONS='[
         {
@@ -456,6 +472,7 @@ exporting secrets to environment:
             "type": "postgres"
         }
     ]'
+    
     # Export secrets
     export SECRET_DB_NAME="secretdb"
     export SECRET_DB_USER="secretuser"
@@ -464,7 +481,8 @@ exporting secrets to environment:
 
 If you start neovim in the same shell, this will evaluate to the following
 connection:
->
+
+>lua
     { {
       name = "secretdb",
       url = "postgres://secretuser:secretpass@localhost:5432/secretdb?sslmode=disable",
@@ -472,28 +490,30 @@ connection:
     } }
 <
 
---------------------------------------------------------------------------------
-PROJECTOR INTEGRATION                                 *dbee-projector_integration*
 
-DBee is compatible with my other plugin
-nvim-projector (https://github.com/kndndrj/nvim-projector), a
+PROJECTOR INTEGRATION                 *dbee-neovim-dbee-projector-integration*
+
+DBee is compatible with my other plugin nvim-projector
+<https://github.com/kndndrj/nvim-projector>, a
 code-runner/project-configurator.
 
-To use dbee with it, simply use `"dbee"` as one of it's outputs.
+To use dbee with it, simply use `"dbee"` as one of it’s outputs.
 
-================================================================================
-DBEE ARCHITECTURE OVERVIEW                       *dbee-dbee_architecture_overview*
+
+==============================================================================
+2. DBee Architecture Overview                *dbee-dbee-architecture-overview*
 
 The plugin is created from 2 parts:
 
-*   Lua frontend
-*   Go backend
+- Lua frontend
+- Go backend
 
 These two parts should have clearly defined borders and not "leak"
 responsibilities.
 
---------------------------------------------------------------------------------
-LUA ARCHITECTURE                                           *dbee-lua_architecture*
+
+LUA ARCHITECTURE            *dbee-dbee-architecture-overview-lua-architecture*
+
 >
                              │                                           ┌─────────────┐             ┌─────────┐
                              │    "dbee"            ┌────────────────────►             ├─────────────►         │
@@ -522,36 +542,37 @@ LUA ARCHITECTURE                                           *dbee-lua_architectur
 
 Description:
 
-*   The "dbee" package consists of 3 major functional packages, 1 install package
+- The "dbee" package consists of 3 major functional packages, 1 install package
     and additional "helper" packages.
-*   `install` package is independent of the other packages and is used for
+- `install` package is independent of the other packages and is used for
     installation of the compiled go binary using the manifest generated by the CI
     pipeline.
-*   `loader` package is also independent and is used as the default loading and
+- `loader` package is also independent and is used as the default loading and
     saving method in the config, which is later consumed by the handler
-*   `drawer` is the "tree" view in UI - it consumes the editor (to provide
+- `drawer` is the "tree" view in UI - it consumes the editor (to provide
     scratchpad view and to manage scratchpads) and the handler (for managing
     connections and providing layout of each database).
-*   `editor` is the "scratchpad" window in the UI and is used for managing
+- `editor` is the "scratchpad" window in the UI and is used for managing
     scratchpads. It also consumes the handler in order to execute selected
     queries.
-*   `handler` is a mapping to Go backend - it holds all connections (a connection
+- `handler` is a mapping to Go backend - it holds all connections (a connection
     is an instance of the database) and manages them all calls to backend go
     through here. Handler also manages the "results" window in UI. handler is also
     responsible for providing layouts of databases to drawer.
-*   `projector extension` acts as an outside "client" and registers dbee as an
+- `projector extension` acts as an outside "client" and registers dbee as an
     output for nvim-projector.
 
---------------------------------------------------------------------------------
-GO ARCHITECTURE                                             *dbee-go_architecture*
 
-As We said, the Go backend is accessed exclusively through `handler` in lua. The
-handler reads configurations for databases, remembers them and registers them in
-the backend as well. This way, both `handler` and go's `main()` function have
-knowledge of active connections.
+GO ARCHITECTURE              *dbee-dbee-architecture-overview-go-architecture*
 
-When a handler wants to perform an action on a specific connection, it sends the
-connection's id in the request to go.
+As We said, the Go backend is accessed exclusively through `handler` in lua.
+The handler reads configurations for databases, remembers them and registers
+them in the backend as well. This way, both `handler` and go’s `main()`
+function have knowledge of active connections.
+
+When a handler wants to perform an action on a specific connection, it sends
+the connection’s id in the request to go.
+
 >
                                 │
                                 │    "main.go"
@@ -607,36 +628,44 @@ structured:
 
 There are 2 primarily used result types in the connection:
 
-*   `IterResult` - result in a form of an iterator returned by the specific
+- `IterResult` - result in a form of an iterator returned by the specific
     driver.
-*   `Result` - full in-memory result set, which is sent in full or in chunks to
+- `Result` - full in-memory result set, which is sent in full or in chunks to
     outputs.
 
 Each connection has a specific driver implementation (`clients`) which are
 required to implement "query" functionality and return an `IterResult` which is
 an iterator over the results returned from the database.
 
-Then the client's internal `cache` reads the ammount of results required for the
-first page (specified as a parameter) in the main thread and it immediately
-sends it (drained first page `Result`) to the specified output (`buffer`) - this
-makes an impression that results are available right away.
+Then the client’s internal `cache` reads the ammount of results required for
+the first page (specified as a parameter) in the main thread and it immediately
+sends it (drained first page `Result`) to the specified output (`buffer`) -
+this makes an impression that results are available right away.
 
 As soon as the first page is read, a background process is spawned which drains
-the remaining results to connections's internal cache.
+the remaining results to connections’s internal cache.
 
 When the iterator is drained and all results are in cache, we can do a few
 things with it:
 
-*   send a chunk of `Result` to an output (e.g. page of the result) - usually used
+- send a chunk of `Result` to an output (e.g. page of the result) - usually used
     by `buffer` output
-*   send a full `Result` to an output - useful for "saving" (e.g. json or csv
+- send a full `Result` to an output - useful for "saving" (e.g. json or csv
     output)
 
 When a user makes a new request to the client (executes a query), the in-memory
 `Result` is flushed to history output, which saves it on disk for possible
 latter consumption.
 
-Note: `buffer`, `json` and `csv` all implement the same `Output` interface and
-could be used interchangably. Simillarly, `clients` and `history` implement the
-same `Input` interface.
+Note: _buffer, json and csv all implement the same Output interface and could
+be used interchangably. Simillarly, clients and history implement the same
+Input interface._
 
+==============================================================================
+3. Links                                                          *dbee-links*
+
+1. *Screenshot*: assets/screenshot.jpg
+
+Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
+
+vim:tw=78:ts=8:noet:ft=help:norl:

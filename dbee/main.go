@@ -83,58 +83,9 @@ func main() {
 				}
 
 				// Get the right client
-				var client conn.Client
-				switch typ {
-				case "postgres":
-					client, err = clients.NewPostgres(url)
-					if err != nil {
-						logger.Error(err.Error())
-						return false, nil
-					}
-				case "mysql":
-					client, err = clients.NewMysql(url)
-					if err != nil {
-						logger.Error(err.Error())
-						return false, nil
-					}
-				case "sqlite":
-					client, err = clients.NewSqlite(url)
-					if err != nil {
-						logger.Error(err.Error())
-						return false, nil
-					}
-				case "redis":
-					client, err = clients.NewRedis(url)
-					if err != nil {
-						logger.Error(err.Error())
-						return false, nil
-					}
-				case "mongo":
-					client, err = clients.NewMongo(url)
-					if err != nil {
-						logger.Error(err.Error())
-						return false, nil
-					}
-				case "bigquery":
-					client, err = clients.NewBigQuery(url)
-					if err != nil {
-						logger.Error(err.Error())
-						return false, nil
-					}
-				case "sqlserver":
-					client, err = clients.NewSQLServer(url)
-					if err != nil {
-						logger.Error(err.Error())
-						return false, nil
-					}
-				case "oracle":
-					client, err = clients.NewOracle(url)
-					if err != nil {
-						logger.Error(err.Error())
-						return false, nil
-					}
-				default:
-					logger.Error("database of type \"" + typ + "\" is not supported")
+				client, err := clients.NewFromType(url, typ)
+				if err != nil {
+					logger.Error(err.Error())
 					return false, nil
 				}
 

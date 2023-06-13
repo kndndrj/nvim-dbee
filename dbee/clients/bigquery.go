@@ -13,8 +13,17 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
+	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
+
+// Register client
+func init() {
+	c := func(url string) (conn.Client, error) {
+		return NewBigQuery(url)
+	}
+	_ = Store.Register("bigquery", c)
+}
 
 type BigQueryClient struct {
 	c                 *bigquery.Client

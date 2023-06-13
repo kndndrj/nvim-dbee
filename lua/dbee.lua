@@ -194,7 +194,7 @@ function M.save(format, file)
   m.handler:current_connection():save(format, file)
 end
 
----@param command? "wget"|"curl"|"bitsadmin"|"go" preffered command
+---@param command? install_command preffered command
 function M.install(command)
   install.exec(command)
 end

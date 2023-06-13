@@ -9,11 +9,20 @@ import (
 	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
+	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+// Register client
+func init() {
+	c := func(url string) (conn.Client, error) {
+		return NewMongo(url)
+	}
+	_ = Store.Register("mongo", c)
+}
 
 func getDatabaseName(url string) (string, error) {
 	r, err := regexp.Compile(`mongo.*//(.*:[0-9]+,?)+/(?P<dbname>.*?)(\?|$)`)
@@ -73,7 +82,6 @@ func NewMongo(url string) (*MongoClient, error) {
 }
 
 func (c *MongoClient) Query(query string) (models.IterResult, error) {
-
 	db := c.c.Database(c.dbName)
 
 	var command any
@@ -136,7 +144,6 @@ func (c *MongoClient) Query(query string) (models.IterResult, error) {
 				return models.Row{string(parsed)}, nil
 			}
 			return nil, nil
-
 		}
 
 	}
@@ -169,7 +176,6 @@ func (c *MongoClient) Layout() ([]models.Layout, error) {
 			Database: "",
 			Type:     models.LayoutTable,
 		})
-
 	}
 
 	return layout, nil

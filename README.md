@@ -81,16 +81,21 @@
 
 This project aims to be as cross-platform as possible, but there are some
 limitations (for example some of the go dependencies only work on certain
-platforms).
+platforms). To address this issue, the client implementations are detached from
+the main logic and they register themselves to dbee backend on plugin start.
+This allows the use of build constraints, which we use to exclued certain client
+implementations on certain platforms.
 
-The CI pipeline tries building the binary for all possible GOARCH/GOOS
-combinations - the ones that succeed are stored in a
-[remote bucket](https://github.com/kndndrj/nvim-dbee-bucket) on it's own branch.
-Additionally, the [install manifest](lua/dbee/install/__manifest.lua) gets
-created.
+The CI pipeline tries building the binary for GOARCH/GOOS combinations specified
+in [targets.json](ci/targets.json) - if the builds succeed, they are stored in a
+[remote bucket](https://github.com/kndndrj/nvim-dbee-bucket) on a separate
+branch per run. Additionally, the
+[install manifest](lua/dbee/install/__manifest.lua) gets created.
 
-So to check if your platform is currently supported, check out the mentioned
-manifest
+To increase cgo cross-platform support, the pipeline uses zig as a C compiler.
+
+To check if your platform is currently supported, check out the mentioned
+manifest and the targets file.
 
 <!-- DOCGEN_IGNORE_START -->
 

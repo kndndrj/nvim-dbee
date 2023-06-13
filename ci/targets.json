@@ -1,0 +1,227 @@
+// This file lists all available platforms for go compilation
+// keys other than "goos" and "goarch" are all optional
+// supported keys:
+//     "goos" - value of GOOS
+//     "goarch" - value of GOARCH
+//     "buildplatform" - platform to use for github actions image
+//     "crossarch" - architecture for the c compiler (zig)
+//     "buildtags" - extra tags to pass to go build - comma separated list
+//     "cgo" - is cgo enabled or not
+//
+[
+    //
+    // 1st class support. We strive to provide best support for these platforms.
+    //
+    {
+        "goos": "darwin",
+        "goarch": "amd64",
+        "buildplatform": "macos-13",
+        "cgo": true
+    },
+    {
+        "goos": "darwin",
+        "goarch": "arm64",
+        "buildplatform": "macos-13",
+        "cgo": true
+    },
+    {
+        "goos": "linux",
+        "goarch": "amd64",
+        "crossarch": "x86_64-linux",
+        "buildtags": "duckdb_from_source"
+    },
+    {
+        "goos": "linux",
+        "goarch": "arm64",
+        "crossarch": "aarch64-linux"
+    },
+    {
+        "goos": "windows",
+        "goarch": "amd64",
+        "buildplatform": "windows-latest",
+        "cgo": true
+    },
+    {
+        "goos": "windows",
+        "goarch": "arm64",
+        "crossarch": "aarch64-windows",
+        "buildplatform": "windows-latest",
+        "cgo": true
+    },
+    //
+    // Supported, but might get dropped if it's causing too much problems.
+    //
+    {
+        "goos": "android",
+        "goarch": "amd64"
+    },
+    {
+        "goos": "android",
+        "goarch": "arm64"
+    },
+    {
+        "goos": "dragonfly",
+        "goarch": "amd64"
+    },
+    {
+        "goos": "freebsd",
+        "goarch": "386"
+    },
+    {
+        "goos": "freebsd",
+        "goarch": "amd64"
+    },
+    {
+        "goos": "freebsd",
+        "goarch": "arm"
+    },
+    {
+        "goos": "freebsd",
+        "goarch": "arm64"
+    },
+    {
+        "goos": "freebsd",
+        "goarch": "riscv64"
+    },
+    {
+        "goos": "illumos",
+        "goarch": "amd64"
+    },
+    {
+        "goos": "linux",
+        "goarch": "386"
+    },
+    {
+        "goos": "linux",
+        "goarch": "arm"
+    },
+    {
+        "goos": "linux",
+        "goarch": "loong64"
+    },
+    {
+        "goos": "linux",
+        "goarch": "mips64"
+    },
+    {
+        "goos": "linux",
+        "goarch": "mips64le"
+    },
+    {
+        "goos": "linux",
+        "goarch": "ppc64"
+    },
+    {
+        "goos": "linux",
+        "goarch": "ppc64le"
+    },
+    {
+        "goos": "linux",
+        "goarch": "riscv64",
+        "crossarch": "riscv64-linux"
+    },
+    {
+        "goos": "linux",
+        "goarch": "s390x"
+    },
+    {
+        "goos": "netbsd",
+        "goarch": "386"
+    },
+    {
+        "goos": "netbsd",
+        "goarch": "amd64"
+    },
+    {
+        "goos": "netbsd",
+        "goarch": "arm"
+    },
+    {
+        "goos": "netbsd",
+        "goarch": "arm64"
+    },
+    {
+        "goos": "openbsd",
+        "goarch": "386"
+    },
+    {
+        "goos": "openbsd",
+        "goarch": "amd64"
+    },
+    {
+        "goos": "openbsd",
+        "goarch": "arm"
+    },
+    {
+        "goos": "openbsd",
+        "goarch": "arm64"
+    },
+    {
+        "goos": "openbsd",
+        "goarch": "mips64"
+    },
+    {
+        "goos": "solaris",
+        "goarch": "amd64"
+    },
+    {
+        "goos": "windows",
+        "goarch": "386",
+        "crossarch": "x86-windows",
+        "buildplatform": "windows-latest"
+    },
+    {
+        "goos": "windows",
+        "goarch": "arm",
+        "crossarch": "arm-windows",
+        "buildplatform": "windows-latest"
+    }
+    //
+    // Unsupported targets.
+    //
+    // {
+    //     "goos": "aix",
+    //     "goarch": "ppc64"
+    // },
+    // {
+    //     "goos": "android",
+    //     "goarch": "386"
+    // },
+    // {
+    //     "goos": "android",
+    //     "goarch": "arm"
+    // },
+    // {
+    //     "goos": "ios",
+    //     "goarch": "amd64"
+    // },
+    // {
+    //     "goos": "ios",
+    //     "goarch": "arm64"
+    // },
+    // {
+    //     "goos": "js",
+    //     "goarch": "wasm"
+    // },
+    // {
+    //     "goos": "linux",
+    //     "goarch": "mips"
+    // },
+    // {
+    //     "goos": "linux",
+    //     "goarch": "mipsle"
+    // },
+    // {
+    //     "goos": "plan9",
+    //     "goarch": "386"
+    // },
+    // {
+    //     "goos": "plan9",
+    //     "goarch": "amd64"
+    // },
+    // {
+    //     "goos": "plan9",
+    //     "goarch": "arm"
+    // }
+]
+// vim:ft=jsonc
