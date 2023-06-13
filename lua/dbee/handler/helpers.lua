@@ -249,6 +249,17 @@ function Helpers:__oracle()
   }
 end
 
+---@private
+---@return table_helpers helpers list of table helpers
+function Helpers:__duck()
+  return {
+    List = "SELECT * FROM '{table}' LIMIT 500",
+    Columns = 'DESCRIBE "{table}"',
+    Indexes = "SELECT * FROM duckdb_indexes() WHERE table_name = '{table}'",
+    Constraints = "SELECT * FROM duckdb_constraints() WHERE table_name = '{table}'",
+  }
+end
+
 ---@param type string
 ---@param vars { table: string, schema: string, dbname: string }
 ---@return table_helpers helpers list of table helpers
@@ -270,6 +281,8 @@ function Helpers:get(type, vars)
     helpers = self:__sqlserver()
   elseif type == "oracle" then
     helpers = self:__oracle()
+  elseif type == "duck" then
+    helpers = self:__duck()
   end
 
   if not helpers then

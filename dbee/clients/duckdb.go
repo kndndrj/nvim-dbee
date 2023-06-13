@@ -1,3 +1,4 @@
+//go:build cgo && ( (darwin && (amd64 || arm64)) || (linux && (amd64 || arm64 || riscv64)) )
 package clients
 
 import (
@@ -5,27 +6,35 @@ import (
 	"fmt"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
+	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	_ "github.com/marcboeker/go-duckdb"
 )
 
-type DuckDBClient struct {
+// Register client
+func init() {
+	c := func(url string) (conn.Client, error) {
+		return NewDuck(url)
+	}
+	_ = Store.Register("duck", c)
+}
+
+type DuckClient struct {
 	c *common.Client
 }
 
-func NewDuckDB(url string) (*DuckDBClient, error) {
+func NewDuck(url string) (*DuckClient, error) {
 	db, err := sql.Open("duckdb", url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to duckdb database: %v", err)
 	}
 
-	return &DuckDBClient{
+	return &DuckClient{
 		c: common.NewClient(db),
 	}, nil
 }
 
-func (c *DuckDBClient) Query(query string) (models.IterResult, error) {
-
+func (c *DuckClient) Query(query string) (models.IterResult, error) {
 	con, err := c.c.Conn()
 	if err != nil {
 		return nil, err
@@ -47,7 +56,7 @@ func (c *DuckDBClient) Query(query string) (models.IterResult, error) {
 	return rows, nil
 }
 
-func (c *DuckDBClient) Layout() ([]models.Layout, error) {
+func (c *DuckClient) Layout() ([]models.Layout, error) {
 	query := `SHOW TABLES;`
 
 	rows, err := c.Query(query)
@@ -79,6 +88,6 @@ func (c *DuckDBClient) Layout() ([]models.Layout, error) {
 	return schema, nil
 }
 
-func (c *DuckDBClient) Close() {
+func (c *DuckClient) Close() {
 	c.c.Close()
 }
