@@ -46,7 +46,6 @@ jobs:
     needs: [ assemble-os-matrix, check-secrets ]
     name: Go Build
     strategy:
-      fail-fast: false
       matrix: ${{ fromJson(needs.assemble-os-matrix.outputs.matrix) }}
     runs-on: ${{ matrix.buildplatform }}
     steps:
