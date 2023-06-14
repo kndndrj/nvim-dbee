@@ -22,7 +22,7 @@ jobs:
       - name: Lua Style Check
         uses: JohnnyMorganz/stylua-action@v3
         with:
-          version: latest
+          version: v0.17
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --color always --check lua/
 
