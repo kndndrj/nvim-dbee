@@ -26,6 +26,7 @@ function M.type_alias(alias)
     ["pg"] = "postgres",
     ["sqlite3"] = "sqlite",
     ["mongodb"] = "mongo",
+    ["duckdb"] = "duck",
   }
   return aliases[alias] or alias or ""
 end
