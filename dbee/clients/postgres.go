@@ -79,7 +79,7 @@ func (c *PostgresClient) Query(query string) (models.IterResult, error) {
 func (c *PostgresClient) Layout() ([]models.Layout, error) {
 	query := `
 		SELECT table_schema, table_name FROM information_schema.tables UNION ALL
-		SELECT schemaname, matviewname FROM pg_matviews;
+		SELECT schemaname, viewname FROM pg_views;
 	`
 
 	rows, err := c.Query(query)
