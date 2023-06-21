@@ -16,17 +16,11 @@ type CSVOutput struct {
 func NewCSVOutput(fileName string, logger models.Logger) *CSVOutput {
 	return &CSVOutput{
 		fileName: fileName,
-		log: logger,
+		log:      logger,
 	}
 }
 
-func (co *CSVOutput) Write(result models.Result) error {
-	file, err := os.Create(co.fileName)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
+func (co *CSVOutput) parseSchemaFul(result models.Result) [][]string {
 	data := [][]string{
 		result.Header,
 	}
@@ -37,6 +31,19 @@ func (co *CSVOutput) Write(result models.Result) error {
 		}
 		data = append(data, csvRow)
 	}
+
+	return data
+}
+
+func (co *CSVOutput) Write(result models.Result) error {
+	file, err := os.Create(co.fileName)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// parse as if schema is defined regardles of schema presence in the result
+	data := co.parseSchemaFul(result)
 
 	w := csv.NewWriter(file)
 	err = w.WriteAll(data)

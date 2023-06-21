@@ -8,11 +8,19 @@ type (
 	Header []string
 )
 
+type SchemaType int
+
+const (
+	SchemaFul SchemaType = iota
+	SchemaLess
+)
+
 type (
 	// Meta holds metadata
 	Meta struct {
-		Query     string
-		Timestamp time.Time
+		Query      string
+		Timestamp  time.Time
+		SchemaType SchemaType
 	}
 
 	// IterResult is an iterator which provides rows and headers from the Input

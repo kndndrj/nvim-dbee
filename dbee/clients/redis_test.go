@@ -7,8 +7,6 @@ import (
 )
 
 func TestParseRedisCmd(t *testing.T) {
-	// should not work
-
 	type testCase struct {
 		unparsed       string
 		expectedResult []any

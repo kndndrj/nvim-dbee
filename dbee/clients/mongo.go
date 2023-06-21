@@ -2,6 +2,7 @@ package clients
 
 import (
 	"context"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -22,6 +24,27 @@ func init() {
 		return NewMongo(url)
 	}
 	_ = Store.Register("mongo", c)
+
+	// register known types with gob
+	// full list available in go.mongodb.org/.../bson godoc
+	gob.Register(&mongoResponse{})
+	gob.Register(bson.A{})
+	gob.Register(bson.M{})
+	gob.Register(bson.D{})
+	gob.Register(primitive.ObjectID{})
+	// gob.Register(primitive.DateTime)
+	gob.Register(primitive.Binary{})
+	gob.Register(primitive.Regex{})
+	// gob.Register(primitive.JavaScript)
+	gob.Register(primitive.CodeWithScope{})
+	gob.Register(primitive.Timestamp{})
+	gob.Register(primitive.Decimal128{})
+	// gob.Register(primitive.MinKey{})
+	// gob.Register(primitive.MaxKey{})
+	// gob.Register(primitive.Undefined{})
+	gob.Register(primitive.DBPointer{})
+	// gob.Register(primitive.Symbol)
+
 }
 
 func getDatabaseName(url string) (string, error) {
@@ -96,18 +119,17 @@ func (c *MongoClient) Query(query string) (models.IterResult, error) {
 		return nil, err
 	}
 
-	// check if cursor exists and create an appropriate func
-	var nextFn func() (models.Row, error)
+	// check if "cursor" field exists and create an appropriate func
+	var nextFunc func() (models.Row, error)
 
 	cur, ok := resp["cursor"]
 	if ok {
-		c := make(chan any)
-
 		cursor := cur.(bson.M)
 		if !ok {
 			return nil, errors.New("type assertion for cursor object failed")
 		}
 
+		c := make(chan any)
 		go func() {
 			defer close(c)
 			for _, b := range cursor {
@@ -121,27 +143,19 @@ func (c *MongoClient) Query(query string) (models.IterResult, error) {
 			}
 		}()
 
-		nextFn = func() (models.Row, error) {
+		nextFunc = func() (models.Row, error) {
 			val, ok := <-c
 			if !ok {
 				return nil, nil
 			}
-			parsed, err := json.MarshalIndent(val, "", "  ")
-			if err != nil {
-				return nil, err
-			}
-			return models.Row{string(parsed)}, nil
+			return models.Row{newMongoResponse(val)}, nil
 		}
 	} else {
 		once := false
-		nextFn = func() (models.Row, error) {
+		nextFunc = func() (models.Row, error) {
 			if !once {
 				once = true
-				parsed, err := json.MarshalIndent(resp, "", "  ")
-				if err != nil {
-					return nil, err
-				}
-				return models.Row{string(parsed)}, nil
+				return models.Row{newMongoResponse(resp)}, nil
 			}
 			return nil, nil
 		}
@@ -150,11 +164,12 @@ func (c *MongoClient) Query(query string) (models.IterResult, error) {
 
 	// build result
 	result := common.NewResultBuilder().
-		WithNextFunc(nextFn).
+		WithNextFunc(nextFunc).
 		WithHeader(models.Header{"Reply"}).
 		WithMeta(models.Meta{
-			Query:     query,
-			Timestamp: time.Now(),
+			Query:      query,
+			Timestamp:  time.Now(),
+			SchemaType: models.SchemaLess,
 		}).
 		Build()
 
@@ -183,4 +198,28 @@ func (c *MongoClient) Layout() ([]models.Layout, error) {
 
 func (c *MongoClient) Close() {
 	_ = c.c.Disconnect(context.TODO())
+}
+
+// mongoResponse serves as a wrapper around the mongo response
+// to stringify the return values
+type mongoResponse struct {
+	Value any
+}
+
+func newMongoResponse(val any) *mongoResponse {
+	return &mongoResponse{
+		Value: val,
+	}
+}
+
+func (mr *mongoResponse) String() string {
+	parsed, err := json.MarshalIndent(mr.Value, "", "  ")
+	if err != nil {
+		return fmt.Sprint(mr.Value)
+	}
+	return string(parsed)
+}
+
+func (mr *mongoResponse) MarshalJSON() ([]byte, error) {
+	return json.Marshal(mr.Value)
 }

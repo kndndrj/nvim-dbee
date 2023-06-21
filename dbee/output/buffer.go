@@ -43,6 +43,7 @@ func (bo *BufferOutput) Write(result models.Result) error {
 	}
 
 	t := table.NewWriter()
+	t.SetAutoIndex(true)
 	t.AppendHeader(table.Row(tableHeaders))
 	t.AppendRows(tableRows)
 	t.AppendSeparator()
