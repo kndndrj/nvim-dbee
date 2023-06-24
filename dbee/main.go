@@ -9,6 +9,7 @@ import (
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/nvimlog"
 	"github.com/kndndrj/nvim-dbee/dbee/output"
+	"github.com/kndndrj/nvim-dbee/dbee/output/format"
 	"github.com/neovim/go-client/nvim"
 	"github.com/neovim/go-client/nvim/plugin"
 )
@@ -45,7 +46,7 @@ func main() {
 			}
 		})
 
-		bufferOutput := output.NewBufferOutput(p.Nvim)
+		bufferOutput := output.NewBuffer(p.Nvim, format.NewTable())
 
 		// Control the results window
 		// This must be called before bufferOutput is used
@@ -208,16 +209,15 @@ func main() {
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_save"},
-			func(args []string) error {
+			func(v *nvim.Nvim, args []string) error {
 				method := "Dbee_save"
 				logger.Debug("calling " + method)
 				if len(args) < 3 {
 					logger.Error("not enough arguments passed to " + method)
 					return nil
 				}
-
 				id := args[0]
-				format := args[1]
+				formatting := args[1]
 				file := args[2]
 
 				// Get the right connection
@@ -227,14 +227,29 @@ func main() {
 					return nil
 				}
 
-				var out conn.Output
-				switch format {
+				var fmat output.Formatter
+				switch formatting {
 				case "json":
-					out = output.NewJSONOutput(file, logger)
+					fmat = format.NewJSON()
 				case "csv":
-					out = output.NewCSVOutput(file, logger)
+					fmat = format.NewCSV()
+				case "table":
+					fmat = format.NewTable()
 				default:
-					logger.Error("save format: \"" + format + "\" is not supported")
+					logger.Error("save format: \"" + formatting + "\" is not supported")
+					return nil
+				}
+
+				var out conn.Output
+				switch formatting {
+				case "json":
+					out = output.NewFile(file, fmat, logger)
+				case "csv":
+					out = output.NewFile(file, fmat, logger)
+				case "table":
+					out = output.NewYankRegister(v, fmat)
+				default:
+					logger.Error("save format: \"" + formatting + "\" is not supported")
 					return nil
 				}
 				err := c.WriteCurrent(out)

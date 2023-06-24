@@ -1,26 +1,27 @@
-package output
+package format
 
 import (
 	"encoding/json"
 	"fmt"
-	"os"
+	"io"
 
 	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/kndndrj/nvim-dbee/dbee/output"
 )
 
-type JSONOutput struct {
-	fileName string
-	log      models.Logger
+var _ output.Formatter = (*JSON)(nil)
+
+type JSON struct{}
+
+func NewJSON() *JSON {
+	return &JSON{}
 }
 
-func NewJSONOutput(fileName string, logger models.Logger) *JSONOutput {
-	return &JSONOutput{
-		fileName: fileName,
-		log:      logger,
-	}
+func (jf *JSON) Name() string {
+	return "json"
 }
 
-func (jo *JSONOutput) parseSchemaFul(result models.Result) []map[string]any {
+func (jf *JSON) parseSchemaFul(result models.Result) []map[string]any {
 	var data []map[string]any
 
 	for _, row := range result.Rows {
@@ -40,7 +41,7 @@ func (jo *JSONOutput) parseSchemaFul(result models.Result) []map[string]any {
 	return data
 }
 
-func (jo *JSONOutput) parseSchemaLess(result models.Result) []any {
+func (jf *JSON) parseSchemaLess(result models.Result) []any {
 	var data []any
 
 	for _, row := range result.Rows {
@@ -53,28 +54,19 @@ func (jo *JSONOutput) parseSchemaLess(result models.Result) []any {
 	return data
 }
 
-func (jo *JSONOutput) Write(result models.Result) error {
-	file, err := os.Create(jo.fileName)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
+func (jf *JSON) Format(result models.Result, writer io.Writer) error {
 	var data any
-
 	switch result.Meta.SchemaType {
 	case models.SchemaFul:
-		data = jo.parseSchemaFul(result)
+		data = jf.parseSchemaFul(result)
 	case models.SchemaLess:
-		data = jo.parseSchemaLess(result)
+		data = jf.parseSchemaLess(result)
 	}
 
-	encoder := json.NewEncoder(file)
-	err = encoder.Encode(data)
+	encoder := json.NewEncoder(writer)
+	err := encoder.Encode(data)
 	if err != nil {
 		return err
 	}
-
-	jo.log.Info("successfully saved json to " + jo.fileName)
 	return nil
 }
