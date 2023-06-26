@@ -188,10 +188,18 @@ end
 ---@param format "csv"|"json" format of the output
 ---@param file string where to save the results
 function M.save(format, file)
+  utils.log("warn", "dbee.save() function has been deprecated, use dbee.store() instead.", "deprecated")
+  M.store(format, "file", file)
+end
+
+---@param format "csv"|"json"|"table" format of the output
+---@param output "file"|"yank"|"buffer" where to pipe the results
+---@param arg any argument for specific format/output combination - example file path or buffer number
+function M.store(format, output, arg)
   if not pcall_lazy_setup() then
     return
   end
-  m.handler:current_connection():save(format, file)
+  m.handler:current_connection():store(format, output, arg)
 end
 
 ---@param command? install_command preffered command

@@ -14,10 +14,10 @@ type BufferOutput struct {
 	formatter Formatter
 }
 
-func NewBuffer(vim *nvim.Nvim, formatter Formatter) *BufferOutput {
+func NewBuffer(vim *nvim.Nvim, formatter Formatter, buffer nvim.Buffer) *BufferOutput {
 	return &BufferOutput{
 		vim:       vim,
-		buffer:    -1,
+		buffer:    buffer,
 		formatter: formatter,
 	}
 }
@@ -56,13 +56,33 @@ func (b *buf) Write(p []byte) (int, error) {
 		lines = append(lines, []byte(scanner.Text()))
 	}
 
-	err := b.vim.SetBufferOption(b.buffer, "modifiable", true)
+	const modifiableOptionName = "modifiable"
+
+	// is the buffer modifiable
+	isModifiable := false
+	err := b.vim.BufferOption(b.buffer, modifiableOptionName, &isModifiable)
 	if err != nil {
 		return 0, err
 	}
+
+	if !isModifiable {
+		err = b.vim.SetBufferOption(b.buffer, modifiableOptionName, true)
+		if err != nil {
+			return 0, err
+		}
+	}
+
 	err = b.vim.SetBufferLines(b.buffer, 0, -1, true, lines)
 	if err != nil {
 		return 0, err
 	}
-	return len(p), b.vim.SetBufferOption(b.buffer, "modifiable", false)
+
+	if !isModifiable {
+		err = b.vim.SetBufferOption(b.buffer, modifiableOptionName, false)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	return len(p), nil
 }

@@ -149,13 +149,15 @@ function Conn:page_prev()
   return count
 end
 
----@param format "csv"|"json" how to format the result
----@param file string file to write to
-function Conn:save(format, file)
-  if not format or not file then
-    error("save method requires format and file to be set")
-  end
-  vim.fn.Dbee_save(self.id, format, file)
+---@param format "csv"|"json"|"table" format of the output
+---@param output "file"|"yank"|"buffer" where to pipe the results
+---@param arg any argument for specific format/output combination - example file path or buffer number
+function Conn:store(format, output, arg)
+  format = tostring(format) or ""
+  output = tostring(output) or ""
+  arg = tostring(arg) or ""
+
+  vim.fn.Dbee_store(self.id, format, output, arg)
 end
 
 -- get layout for the connection

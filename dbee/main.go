@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -46,7 +47,7 @@ func main() {
 			}
 		})
 
-		bufferOutput := output.NewBuffer(p.Nvim, format.NewTable())
+		bufferOutput := output.NewBuffer(p.Nvim, format.NewTable(), -1)
 
 		// Control the results window
 		// This must be called before bufferOutput is used
@@ -208,17 +209,36 @@ func main() {
 				return []int{currentPage, totalPages}, nil
 			})
 
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_save"},
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_store"},
 			func(v *nvim.Nvim, args []string) error {
-				method := "Dbee_save"
+				method := "Dbee_store"
 				logger.Debug("calling " + method)
 				if len(args) < 3 {
 					logger.Error("not enough arguments passed to " + method)
 					return nil
 				}
 				id := args[0]
-				formatting := args[1]
-				file := args[2]
+				fmat := args[1]
+				out := args[2]
+				param := ""
+				if len(args) >= 4 {
+					param = args[3]
+				}
+
+				getBufnr := func(p string) (nvim.Buffer, error) {
+					b, err := strconv.Atoi(p)
+					if err != nil {
+						return -1, err
+					}
+					return nvim.Buffer(b), nil
+				}
+
+				getFile := func(p string) (string, error) {
+					if p == "" {
+						return "", fmt.Errorf("invalid file name: \"\"")
+					}
+					return p, nil
+				}
 
 				// Get the right connection
 				c, ok := connections[id]
@@ -227,32 +247,42 @@ func main() {
 					return nil
 				}
 
-				var fmat output.Formatter
-				switch formatting {
+				var formatter output.Formatter
+				switch fmat {
 				case "json":
-					fmat = format.NewJSON()
+					formatter = format.NewJSON()
 				case "csv":
-					fmat = format.NewCSV()
+					formatter = format.NewCSV()
 				case "table":
-					fmat = format.NewTable()
+					formatter = format.NewTable()
 				default:
-					logger.Error("save format: \"" + formatting + "\" is not supported")
+					logger.Error("store format: \"" + fmat + "\" is not supported")
 					return nil
 				}
 
-				var out conn.Output
-				switch formatting {
-				case "json":
-					out = output.NewFile(file, fmat, logger)
-				case "csv":
-					out = output.NewFile(file, fmat, logger)
-				case "table":
-					out = output.NewYankRegister(v, fmat)
+				var outpt conn.Output
+				switch out {
+				case "file":
+					file, err := getFile(param)
+					if err != nil {
+						logger.Error(err.Error())
+						return nil
+					}
+					outpt = output.NewFile(file, formatter, logger)
+				case "buffer":
+					buf, err := getBufnr(param)
+					if err != nil {
+						logger.Error(err.Error())
+						return nil
+					}
+					outpt = output.NewBuffer(v, formatter, buf)
+				case "yank":
+					outpt = output.NewYankRegister(v, formatter)
 				default:
-					logger.Error("save format: \"" + formatting + "\" is not supported")
+					logger.Error("store output: \"" + out + "\" is not supported")
 					return nil
 				}
-				err := c.WriteCurrent(out)
+				err := c.WriteCurrent(outpt)
 				if err != nil {
 					logger.Error(err.Error())
 					return nil
