@@ -151,13 +151,16 @@ end
 
 ---@param format "csv"|"json"|"table" format of the output
 ---@param output "file"|"yank"|"buffer" where to pipe the results
----@param arg any argument for specific format/output combination - example file path or buffer number
-function Conn:store(format, output, arg)
-  format = tostring(format) or ""
-  output = tostring(output) or ""
-  arg = tostring(arg) or ""
+---@param opts { from: number, to: number, extra_arg: any }
+function Conn:store(format, output, opts)
+  opts = opts or {}
 
-  vim.fn.Dbee_store(self.id, format, output, arg)
+  -- options:
+  local from = opts.from or 0
+  local to =   opts.to or -1
+  local arg =  opts.extra_arg or ""
+
+  vim.fn.Dbee_store(self.id, format, output, tostring(from), tostring(to), tostring(arg))
 end
 
 -- get layout for the connection

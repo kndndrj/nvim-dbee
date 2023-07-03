@@ -179,6 +179,7 @@ func (c *cache) page(page int, outputs ...Output) (int, int, error) {
 	}
 
 	result.Rows = cachedResult.Rows[start:end]
+	result.Meta.ChunkStart = start
 
 	// write the page to outputs
 	for _, out := range outputs {
@@ -190,6 +191,60 @@ func (c *cache) page(page int, outputs ...Output) (int, int, error) {
 
 	currentPage := start / c.pageSize
 	return currentPage, lastPage, nil
+}
+
+// span writes the selected line range to outputs
+func (c *cache) span(from int, to int, outputs ...Output) error {
+	id := c.active
+
+	cr, _ := c.records.load(id)
+	cachedResult := cr.result
+
+	if cachedResult.Header == nil {
+		return errors.New("no result to write")
+	}
+
+	var result models.Result
+	result.Header = cachedResult.Header
+	result.Meta = cachedResult.Meta
+
+	l := len(cachedResult.Rows)
+	if from >= l {
+		from = l
+	}
+	if to > l {
+		to = l
+	}
+
+	if from < 0 {
+		from += l
+		if from < 0 {
+			from = 0
+		}
+	}
+	if to < 0 {
+		to += l + 1
+		if to < 0 {
+			to = 0
+		}
+	}
+
+	if from > to {
+		return errors.New("from should be lower than to")
+	}
+
+	result.Rows = cachedResult.Rows[from:to]
+	result.Meta.ChunkStart = from
+
+	// write the page to outputs
+	for _, out := range outputs {
+		err := out.Write(result)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // flush writes the whole current cache to outputs

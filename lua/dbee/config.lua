@@ -142,6 +142,13 @@ M.default = {
       -- next/previous page
       page_next = { key = "L", mode = "" },
       page_prev = { key = "H", mode = "" },
+      -- yank rows as csv/json
+      yank_current_json = { key = "yaj", mode = "n" },
+      yank_selection_json = { key = "yaj", mode = "v" },
+      yank_all_json = { key = "yaJ", mode = "" },
+      yank_current_csv = { key = "yac", mode = "n" },
+      yank_selection_csv = { key = "yac", mode = "v" },
+      yank_all_csv = { key = "yaC", mode = "" },
     },
   },
 

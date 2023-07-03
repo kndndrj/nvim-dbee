@@ -213,16 +213,28 @@ func main() {
 			func(v *nvim.Nvim, args []string) error {
 				method := "Dbee_store"
 				logger.Debug("calling " + method)
-				if len(args) < 3 {
+				if len(args) < 5 {
 					logger.Error("not enough arguments passed to " + method)
 					return nil
 				}
 				id := args[0]
+				// format
 				fmat := args[1]
+				// output
 				out := args[2]
+				// range of rows
+				from, err := strconv.Atoi(args[3])
+				if err != nil {
+					return err
+				}
+				to, err := strconv.Atoi(args[4])
+				if err != nil {
+					return err
+				}
+				// param is an extra parameter for some outputs/formatters
 				param := ""
-				if len(args) >= 4 {
-					param = args[3]
+				if len(args) >= 6 {
+					param = args[5]
 				}
 
 				getBufnr := func(p string) (nvim.Buffer, error) {
@@ -282,7 +294,13 @@ func main() {
 					logger.Error("store output: \"" + out + "\" is not supported")
 					return nil
 				}
-				err := c.WriteCurrent(outpt)
+
+				if from == 0 && to == -1 {
+					err = c.WriteCurrent(outpt)
+				} else {
+					err = c.SelectRangeCurrent(from, to, outpt)
+				}
+
 				if err != nil {
 					logger.Error(err.Error())
 					return nil

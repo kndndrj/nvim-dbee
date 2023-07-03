@@ -89,10 +89,17 @@ func (c *Conn) ListHistory() ([]models.Layout, error) {
 	return c.history.Layout()
 }
 
+// PageCurrent pipes the selected page to the outputs
 func (c *Conn) PageCurrent(page int, outputs ...Output) (int, int, error) {
 	return c.cache.page(page, outputs...)
 }
 
+// SelectRangeCurrent pipes the selected range of rows to the outputs
+func (c *Conn) SelectRangeCurrent(from int, to int, outputs ...Output) error {
+	return c.cache.span(from, to, outputs...)
+}
+
+// WriteCurrent writes the full result to the outputs
 func (c *Conn) WriteCurrent(outputs ...Output) error {
 	c.cache.flush(false, outputs...)
 	return nil

@@ -22,14 +22,18 @@ func (cf *Table) Name() string {
 }
 
 func (cf *Table) Format(result models.Result, writer io.Writer) error {
-	var tableHeaders []any
+	tableHeaders := []any{""}
 	for _, k := range result.Header {
 		tableHeaders = append(tableHeaders, k)
 	}
 
+	index := result.Meta.ChunkStart
+
 	var tableRows []table.Row
 	for _, row := range result.Rows {
-		tableRows = append(tableRows, table.Row(row))
+		indexedRow := append([]any{index + 1}, row...)
+		tableRows = append(tableRows, table.Row(indexedRow))
+		index += 1
 	}
 
 	t := table.NewWriter()
