@@ -3,6 +3,7 @@ package conn
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -46,7 +47,7 @@ type cache struct {
 	log      models.Logger
 }
 
-func newCache(pageSize int, logger models.Logger) *cache {
+func NewCache(pageSize int, logger models.Logger) *cache {
 	return &cache{
 		pageSize: pageSize,
 		records:  cacheMap{},
@@ -54,7 +55,7 @@ func newCache(pageSize int, logger models.Logger) *cache {
 	}
 }
 
-func (c *cache) set(iter models.IterResult) error {
+func (c *cache) Set(iter models.IterResult) error {
 	// close the iterator on error
 	var err error
 	defer func() {
@@ -193,45 +194,81 @@ func (c *cache) page(page int, outputs ...Output) (int, int, error) {
 	return currentPage, lastPage, nil
 }
 
-// span writes the selected line range to outputs
-func (c *cache) span(from int, to int, outputs ...Output) error {
+var ErrInvalidRange = func(from int, to int) error { return fmt.Errorf("invalid selection range: %d ... %d", from, to) }
+
+// Span writes the selected line range to outputs
+// from-to - range of rows:
+//
+//	starts with 0
+//	use negative number from the end
+//	for example, to pipe all records use: from:0 to:-1
+//
+// outputs - where to pipe the results
+func (c *cache) Span(from int, to int, wipe bool, outputs ...Output) error {
 	id := c.active
 
-	cr, _ := c.records.load(id)
-	cachedResult := cr.result
-
-	if cachedResult.Header == nil {
-		return errors.New("no result to write")
+	// validation
+	if (from < 0 && to < 0) || (from >= 0 && to >= 0) {
+		if from > to {
+			return ErrInvalidRange(from, to)
+		}
+	}
+	// undefined -> error
+	if from < 0 && to >= 0 {
+		return ErrInvalidRange(from, to)
 	}
 
-	var result models.Result
-	result.Header = cachedResult.Header
-	result.Meta = cachedResult.Meta
+	var cachedResult models.Result
 
-	l := len(cachedResult.Rows)
-	if from >= l {
-		from = l
-	}
-	if to > l {
-		to = l
+	// timeout context
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	// Wait for drain, available index or timeout
+	for {
+		rec, ok := c.records.load(id)
+		if !ok {
+			return fmt.Errorf("record %s appears to be already flushed", id)
+		}
+
+		if rec.drained || (to >= 0 && to <= len(rec.result.Rows)) {
+			cachedResult = rec.result
+			break
+		}
+
+		if err := ctx.Err(); err != nil {
+			return fmt.Errorf("cache flushing timeout exceeded: %s", err)
+		}
+		time.Sleep(1 * time.Second)
 	}
 
+	// calculate range
+
+	length := len(cachedResult.Rows)
 	if from < 0 {
-		from += l
+		from += length
 		if from < 0 {
 			from = 0
 		}
 	}
 	if to < 0 {
-		to += l + 1
+		to += length + 1
 		if to < 0 {
 			to = 0
 		}
 	}
 
-	if from > to {
-		return errors.New("from should be lower than to")
+	if from > length {
+		from = length
 	}
+	if to > length {
+		to = length
+	}
+
+	// create a new page
+	var result models.Result
+	result.Header = cachedResult.Header
+	result.Meta = cachedResult.Meta
 
 	result.Rows = cachedResult.Rows[from:to]
 	result.Meta.ChunkStart = from
@@ -244,6 +281,13 @@ func (c *cache) span(from int, to int, outputs ...Output) error {
 		}
 	}
 
+	// delete the record from cache
+	if wipe {
+		c.records.delete(id)
+		c.log.Debug("successfully wiped record from cache")
+	}
+
+	c.log.Debug("successfully flushed cache")
 	return nil
 }
 

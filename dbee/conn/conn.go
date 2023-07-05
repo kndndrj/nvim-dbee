@@ -46,7 +46,7 @@ func New(driver Client, pageSize int, history History, logger models.Logger) *Co
 		pageSize: pageSize,
 		driver:   driver,
 		history:  history,
-		cache:    newCache(pageSize, logger),
+		cache:    NewCache(pageSize, logger),
 		log:      logger,
 	}
 }
@@ -65,7 +65,7 @@ func (c *Conn) Execute(query string) error {
 
 	c.fresh = true
 
-	return c.cache.set(rows)
+	return c.cache.Set(rows)
 }
 
 func (c *Conn) History(historyId string) error {
@@ -82,7 +82,7 @@ func (c *Conn) History(historyId string) error {
 
 	c.fresh = false
 
-	return c.cache.set(rows)
+	return c.cache.Set(rows)
 }
 
 func (c *Conn) ListHistory() ([]models.Layout, error) {
@@ -95,8 +95,8 @@ func (c *Conn) PageCurrent(page int, outputs ...Output) (int, int, error) {
 }
 
 // SelectRangeCurrent pipes the selected range of rows to the outputs
-func (c *Conn) SelectRangeCurrent(from int, to int, outputs ...Output) error {
-	return c.cache.span(from, to, outputs...)
+func (c *Conn) SelectRangeCurrent(from int, to int, wipe bool, outputs ...Output) error {
+	return c.cache.Span(from, to, wipe, outputs...)
 }
 
 // WriteCurrent writes the full result to the outputs
