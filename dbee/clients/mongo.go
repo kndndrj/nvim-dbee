@@ -6,7 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
@@ -44,40 +45,6 @@ func init() {
 	// gob.Register(primitive.Undefined{})
 	gob.Register(primitive.DBPointer{})
 	// gob.Register(primitive.Symbol)
-
-}
-
-func getDatabaseName(url string) (string, error) {
-	r, err := regexp.Compile(`mongo.*//(.*:[0-9]+,?)+/(?P<dbname>.*?)(\?|$)`)
-	if err != nil {
-		return "", err
-	}
-
-	// get submatch index
-	getSubmatchIndex := func(submatch []string, name string) (int, error) {
-		for i, n := range submatch {
-			if n == name {
-				return i, nil
-			}
-		}
-		return 0, errors.New("no submatch found")
-	}
-	i, err := getSubmatchIndex(r.SubexpNames(), "dbname")
-	if err != nil {
-		return "", err
-	}
-
-	// get database name from capture group (with index)
-	submatch := r.FindStringSubmatch(url)
-	if len(submatch) < 1 {
-		return "", errors.New("url doesn't comply to schema")
-	}
-	dbName := submatch[i]
-	if dbName == "" {
-		return "", errors.New("no dbname found")
-	}
-
-	return dbName, nil
 }
 
 type MongoClient struct {
@@ -85,14 +52,18 @@ type MongoClient struct {
 	dbName string
 }
 
-func NewMongo(url string) (*MongoClient, error) {
+func NewMongo(rawURL string) (*MongoClient, error) {
 	// get database name from url
-	dbName, err := getDatabaseName(url)
+	u, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("mongo: invalid url: %v", err)
+		return nil, fmt.Errorf("mongo: invalid url: %w", err)
+	}
+	dbName := strings.TrimPrefix(u.Path, "/")
+	if dbName == "" {
+		return nil, fmt.Errorf("mongo: url doesn't comply to schema: database name must be set")
 	}
 
-	opts := options.Client().ApplyURI(url)
+	opts := options.Client().ApplyURI(rawURL)
 	client, err := mongo.Connect(context.TODO(), opts)
 	if err != nil {
 		return nil, err

@@ -3,7 +3,7 @@ package clients
 import (
 	"database/sql"
 	"fmt"
-	"regexp"
+	"net/url"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
@@ -23,19 +23,19 @@ type MysqlClient struct {
 	sql *common.Client
 }
 
-func NewMysql(url string) (*MysqlClient, error) {
+func NewMysql(rawURL string) (*MysqlClient, error) {
 	// add multiple statements support parameter
-	match, err := regexp.MatchString(`[\?][\w]+=[\w-]+`, url)
+	u, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("mysql: invalid url: %w", err)
 	}
-	if match {
-		url = url + "&multiStatements=true"
-	} else {
-		url = url + "?multiStatements=true"
+	q := u.Query()
+	if !q.Has("multiStatements") {
+		q.Add("multiStatements", "true")
 	}
+	u.RawQuery = q.Encode()
 
-	db, err := sql.Open("mysql", url)
+	db, err := sql.Open("mysql", rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to mysql database: %v", err)
 	}
