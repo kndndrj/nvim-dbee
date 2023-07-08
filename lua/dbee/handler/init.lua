@@ -280,7 +280,7 @@ function Handler:layout()
       table.insert(layout, {
         id = "__source__" .. source_id,
         name = source_id,
-        do_expand = true,
+        default_expand = utils.once:new("handler_expand_once_id" .. source_id),
         type = "source",
         children = children,
       })

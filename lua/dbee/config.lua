@@ -50,6 +50,8 @@ M.default = {
 
   -- drawer window config
   drawer = {
+    -- show help or not
+    disable_help = false,
     -- mappings for the buffer
     mappings = {
       -- manually refresh drawer

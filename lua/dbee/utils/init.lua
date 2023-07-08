@@ -6,6 +6,8 @@ M.layout = require("dbee.utils.layout")
 -- prompt for multiple parameters
 M.prompt = require("dbee.utils.prompt")
 
+M.once = require("dbee.utils.once")
+
 -- Get random key from table
 ---@param tbl table key-value table
 ---@return any|nil key
