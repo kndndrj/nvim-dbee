@@ -107,7 +107,7 @@ func TestCache(t *testing.T) {
 	numOfRows := 10
 	rows := newMockedIterResult(numOfRows, 0)
 
-	err := cache.Set(rows, numOfRows)
+	recordID, err := cache.Set(rows, numOfRows)
 	assert.NilError(t, err)
 
 	type testCase struct {
@@ -171,7 +171,7 @@ func TestCache(t *testing.T) {
 			expectedError:  nil,
 			before: func() {
 				// reset result with sleep between iterations
-				err := cache.Set(newMockedIterResult(numOfRows, 500*time.Millisecond), 0)
+				recordID, err = cache.Set(newMockedIterResult(numOfRows, 500*time.Millisecond), 0)
 				assert.NilError(t, err)
 			},
 		},
@@ -183,7 +183,7 @@ func TestCache(t *testing.T) {
 			expectedError:  nil,
 			before: func() {
 				// reset result with sleep between iterations
-				err := cache.Set(newMockedIterResult(numOfRows, 500*time.Millisecond), 0)
+				recordID, err = cache.Set(newMockedIterResult(numOfRows, 500*time.Millisecond), 0)
 				assert.NilError(t, err)
 			},
 		},
@@ -198,7 +198,7 @@ func TestCache(t *testing.T) {
 
 		output.expect(tc.expectedResult)
 
-		_, err := cache.Get(tc.from, tc.to, false, output)
+		_, err := cache.Get(recordID, tc.from, tc.to, output)
 		if err != nil {
 			assert.Equal(t, err.Error(), tc.expectedError.Error())
 		}
