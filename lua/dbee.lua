@@ -89,6 +89,7 @@ function M.setup(o)
     -- submodules
     editor_mappings = { opts.editor.mappings, "table" },
     drawer_disable_candies = { opts.drawer.disable_candies, "boolean" },
+    drawer_disable_help = { opts.drawer.disable_help, "boolean" },
     drawer_candies = { opts.drawer.candies, "table" },
     drawer_mappings = { opts.drawer.mappings, "table" },
     -- ui

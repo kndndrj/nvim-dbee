@@ -137,7 +137,7 @@ function Lookup:get_connection(id)
   return self.connections[id]
 end
 
----@return Conn
+---@return Conn|nil
 function Lookup:get_active_connection()
   return self.connections[self.active_connection]
 end
