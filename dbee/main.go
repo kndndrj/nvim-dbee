@@ -8,9 +8,9 @@ import (
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	"github.com/kndndrj/nvim-dbee/dbee/nvimlog"
 	"github.com/kndndrj/nvim-dbee/dbee/output"
 	"github.com/kndndrj/nvim-dbee/dbee/output/format"
+	"github.com/kndndrj/nvim-dbee/dbee/vim"
 	"github.com/neovim/go-client/nvim"
 	"github.com/neovim/go-client/nvim/plugin"
 )
@@ -32,7 +32,8 @@ func main() {
 	}()
 
 	plugin.Main(func(p *plugin.Plugin) error {
-		logger := nvimlog.New(p.Nvim)
+		logger := vim.NewLogger(p.Nvim)
+		callbacker := vim.NewCallbacker(p.Nvim)
 
 		deferer(func() {
 			logger.Close()
@@ -78,7 +79,7 @@ func main() {
 				id := args[0]
 				url := args[1]
 				typ := args[2]
-				pageSize, err := strconv.Atoi(args[3])
+				blockUntil, err := strconv.Atoi(args[3])
 				if err != nil {
 					logger.Error(err.Error())
 					return false, nil
@@ -93,7 +94,7 @@ func main() {
 
 				h := conn.NewHistory(id, logger)
 
-				c := conn.New(client, pageSize, h, logger)
+				c := conn.New(client, blockUntil, h, logger)
 
 				connections[id] = c
 
@@ -102,16 +103,17 @@ func main() {
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_execute"},
-			func(v *nvim.Nvim, args []string) error {
+			func(args []string) error {
 				method := "Dbee_execute"
 				logger.Debug("calling " + method)
-				if len(args) < 2 {
+				if len(args) < 3 {
 					logger.Error("not enough arguments passed to " + method)
 					return nil
 				}
 
 				id := args[0]
 				query := args[1]
+				callbackId := args[2]
 
 				// Get the right connection
 				c, ok := connections[id]
@@ -127,12 +129,13 @@ func main() {
 						logger.Error(err.Error())
 						return
 					}
-					_, _, err = c.PageCurrent(0, bufferOutput)
+					logger.Debug(method + " executed successfully")
+					err = callbacker.TriggerCallback(callbackId)
 					if err != nil {
 						logger.Error(err.Error())
 						return
 					}
-					logger.Debug(method + " finished successfully")
+					logger.Debug(method + " successfully triggered callback")
 				}()
 
 				logger.Debug(method + " returned successfully")
@@ -143,13 +146,14 @@ func main() {
 			func(args []string) error {
 				method := "Dbee_history"
 				logger.Debug("calling " + method)
-				if len(args) < 2 {
+				if len(args) < 3 {
 					logger.Error("not enough arguments passed to " + method)
 					return nil
 				}
 
 				id := args[0]
 				historyId := args[1]
+				callbackId := args[2]
 
 				// Get the right connection
 				c, ok := connections[id]
@@ -164,49 +168,55 @@ func main() {
 						logger.Error(err.Error())
 						return
 					}
-					_, _, err = c.PageCurrent(0, bufferOutput)
+					logger.Debug(method + " executed successfully")
+					err = callbacker.TriggerCallback(callbackId)
 					if err != nil {
 						logger.Error(err.Error())
 						return
 					}
-					logger.Debug(method + " finished successfully")
+					logger.Debug(method + " successfully triggered callback")
 				}()
 
 				logger.Debug(method + " returned successfully")
 				return nil
 			})
 
-		// pages result to buffer output, returns current page and total pages
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_page"},
-			func(args []string) ([]int, error) {
+		// pages result to buffer output, returns total number of rows
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_get_current_result"},
+			func(args []string) (int, error) {
 				method := "Dbee_page"
 				logger.Debug("calling " + method)
-				if len(args) < 2 {
+				if len(args) < 3 {
 					logger.Error("not enough arguments passed to " + method)
-					return nil, nil
+					return 0, nil
 				}
 
 				id := args[0]
-				page, err := strconv.Atoi(args[1])
+				from, err := strconv.Atoi(args[1])
 				if err != nil {
 					logger.Error(err.Error())
-					return nil, nil
+					return 0, nil
+				}
+				to, err := strconv.Atoi(args[2])
+				if err != nil {
+					logger.Error(err.Error())
+					return 0, nil
 				}
 
 				// Get the right connection
 				c, ok := connections[id]
 				if !ok {
 					logger.Error("connection with id " + id + " not registered")
-					return nil, nil
+					return 0, nil
 				}
 
-				currentPage, totalPages, err := c.PageCurrent(page, bufferOutput)
+				length, err := c.GetCurrentResult(from, to, bufferOutput)
 				if err != nil {
 					logger.Error(err.Error())
-					return nil, nil
+					return 0, nil
 				}
 				logger.Debug(method + " returned successfully")
-				return []int{currentPage, totalPages}, nil
+				return length, nil
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_store"},
@@ -295,11 +305,7 @@ func main() {
 					return nil
 				}
 
-				if from == 0 && to == -1 {
-					err = c.WriteCurrent(outpt)
-				} else {
-					err = c.SelectRangeCurrent(from, to, outpt)
-				}
+				_, err = c.GetCurrentResult(from, to, outpt)
 
 				if err != nil {
 					logger.Error(err.Error())

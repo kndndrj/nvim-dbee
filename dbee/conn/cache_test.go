@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"gotest.tools/assert"
 )
 
@@ -100,14 +100,14 @@ func (mo *mockOutput) Write(result models.Result) error {
 	return nil
 }
 
-func TestCacheGet(t *testing.T) {
+func TestCache(t *testing.T) {
 	// prepare cache and mocks
 	cache := conn.NewCache(2, &mockLogger{})
 
 	numOfRows := 10
 	rows := newMockedIterResult(numOfRows, 0)
 
-	err := cache.Set(rows)
+	err := cache.Set(rows, numOfRows)
 	assert.NilError(t, err)
 
 	type testCase struct {
@@ -171,10 +171,11 @@ func TestCacheGet(t *testing.T) {
 			expectedError:  nil,
 			before: func() {
 				// reset result with sleep between iterations
-				err := cache.Set(newMockedIterResult(numOfRows, 500*time.Millisecond))
+				err := cache.Set(newMockedIterResult(numOfRows, 500*time.Millisecond), 0)
 				assert.NilError(t, err)
 			},
 		},
+		// wait for all to be drained
 		{
 			from:           0,
 			to:             -1,
@@ -182,7 +183,7 @@ func TestCacheGet(t *testing.T) {
 			expectedError:  nil,
 			before: func() {
 				// reset result with sleep between iterations
-				err := cache.Set(newMockedIterResult(numOfRows, 500*time.Millisecond))
+				err := cache.Set(newMockedIterResult(numOfRows, 500*time.Millisecond), 0)
 				assert.NilError(t, err)
 			},
 		},
@@ -197,7 +198,7 @@ func TestCacheGet(t *testing.T) {
 
 		output.expect(tc.expectedResult)
 
-		err := cache.Span(tc.from, tc.to, false, output)
+		_, err := cache.Get(tc.from, tc.to, false, output)
 		if err != nil {
 			assert.Equal(t, err.Error(), tc.expectedError.Error())
 		}

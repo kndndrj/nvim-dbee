@@ -2,9 +2,7 @@ local utils = require("dbee.utils")
 
 ---@alias result_config { mappings: table<string, mapping> }
 
--- Result is a wrapper around the go code
--- it is the central part of the plugin and manages connections.
--- almost all functions take the connection id as their argument.
+-- Result represents the part of ui with displayed results
 ---@class Result
 ---@field private ui Ui
 ---@field private handler Handler
@@ -57,7 +55,7 @@ function Result:generate_keymap(mappings)
       mapping = mappings["page_prev"],
     },
 
-    -- TODO: all following ones
+    -- yank functions
     {
       action = function()
         self:store_current_wrapper("json", "yank")

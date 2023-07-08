@@ -32,22 +32,24 @@ type (
 )
 
 type Conn struct {
-	driver   Client
-	cache    *cache
-	pageSize int
-	history  History
-	log      models.Logger
+	driver                Client
+	cache                 *cache
+	currentCachedResultId string
+	// how many results to wait for in the main thread? -> see cache.go
+	blockUntil int
+	history    History
+	log        models.Logger
 	// is the result fresh (e.g. is it not history?)
 	fresh bool
 }
 
-func New(driver Client, pageSize int, history History, logger models.Logger) *Conn {
+func New(driver Client, blockUntil int, history History, logger models.Logger) *Conn {
 	return &Conn{
-		pageSize: pageSize,
-		driver:   driver,
-		history:  history,
-		cache:    NewCache(pageSize, logger),
-		log:      logger,
+		blockUntil: blockUntil,
+		driver:     driver,
+		history:    history,
+		cache:      NewCache(blockUntil, logger),
+		log:        logger,
 	}
 }
 
@@ -59,13 +61,7 @@ func (c *Conn) Execute(query string) error {
 		return err
 	}
 
-	if c.fresh {
-		c.cache.flush(true, c.history)
-	}
-
-	c.fresh = true
-
-	return c.cache.Set(rows)
+	return c.setResultToCache(rows, true)
 }
 
 func (c *Conn) History(historyId string) error {
@@ -76,33 +72,42 @@ func (c *Conn) History(historyId string) error {
 		return err
 	}
 
-	if c.fresh {
-		c.cache.flush(true, c.history)
+	return c.setResultToCache(rows, false)
+}
+
+func (c *Conn) setResultToCache(rows models.IterResult, fresh bool) error {
+	// save the old record into history and remove it from cache
+	oldID := c.currentCachedResultId
+	isFresh := c.fresh
+	go func() {
+		if isFresh {
+			_, err := c.cache.Get(oldID, 0, -1, c.history)
+			if err != nil {
+				c.log.Debug("failed flushing result to history: " + err.Error())
+			}
+		}
+		c.cache.Wipe(oldID)
+	}()
+
+	c.fresh = fresh
+
+	// set new record in cache
+	id, err := c.cache.Set(rows, c.blockUntil)
+	if err != nil {
+		return err
 	}
-
-	c.fresh = false
-
-	return c.cache.Set(rows)
+	c.currentCachedResultId = id
+	return nil
 }
 
 func (c *Conn) ListHistory() ([]models.Layout, error) {
 	return c.history.Layout()
 }
 
-// PageCurrent pipes the selected page to the outputs
-func (c *Conn) PageCurrent(page int, outputs ...Output) (int, int, error) {
-	return c.cache.page(page, outputs...)
-}
-
-// SelectRangeCurrent pipes the selected range of rows to the outputs
-func (c *Conn) SelectRangeCurrent(from int, to int, wipe bool, outputs ...Output) error {
-	return c.cache.Span(from, to, wipe, outputs...)
-}
-
-// WriteCurrent writes the full result to the outputs
-func (c *Conn) WriteCurrent(outputs ...Output) error {
-	c.cache.flush(false, outputs...)
-	return nil
+// GetCurrentResult pipes the selected range of rows to the outputs
+// returns length of the result set
+func (c *Conn) GetCurrentResult(from int, to int, outputs ...Output) (int, error) {
+	return c.cache.Get(c.currentCachedResultId, from, to, outputs...)
 }
 
 func (c *Conn) Layout() ([]models.Layout, error) {
@@ -138,7 +143,10 @@ func (c *Conn) Layout() ([]models.Layout, error) {
 func (c *Conn) Close() {
 	if c.fresh {
 		c.log.Debug("flushing history on close")
-		c.cache.flush(true, c.history)
+		_, err := c.cache.Get(c.currentCachedResultId, 0, -1, c.history)
+		if err != nil {
+			c.log.Debug("flushing history on close failed: " + err.Error())
+		}
 	}
 
 	c.driver.Close()

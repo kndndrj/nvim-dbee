@@ -1,4 +1,4 @@
-package nvimlog
+package vim
 
 import (
 	"log"
@@ -15,7 +15,7 @@ type Logger struct {
 	triedFileSet bool
 }
 
-func New(vim *nvim.Nvim) *Logger {
+func NewLogger(vim *nvim.Nvim) *Logger {
 	return &Logger{
 		vim:          vim,
 		logger:       log.New(os.Stdout, "", log.Ldate|log.Ltime),

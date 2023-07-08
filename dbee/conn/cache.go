@@ -2,7 +2,6 @@ package conn
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -10,6 +9,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
+
+var ErrInvalidRange = func(from int, to int) error { return fmt.Errorf("invalid selection range: %d ... %d", from, to) }
 
 type cacheRecord struct {
 	result  models.Result
@@ -38,24 +39,22 @@ func (cm *cacheMap) delete(key string) {
 }
 
 // cache maintains a map of currently active results
-// only one result is the active one (the latest one).
 // The non active results stay in the list until they are drained
 type cache struct {
-	active   string
-	records  cacheMap
-	pageSize int
-	log      models.Logger
+	records cacheMap
+	log     models.Logger
 }
 
 func NewCache(pageSize int, logger models.Logger) *cache {
 	return &cache{
-		pageSize: pageSize,
-		records:  cacheMap{},
-		log:      logger,
+		records: cacheMap{},
+		log:     logger,
 	}
 }
 
-func (c *cache) Set(iter models.IterResult) error {
+// Set sets a new record in cache
+// returns id of the newly created records as a response
+func (c *cache) Set(iter models.IterResult, blockUntil int) (string, error) {
 	// close the iterator on error
 	var err error
 	defer func() {
@@ -66,15 +65,12 @@ func (c *cache) Set(iter models.IterResult) error {
 
 	header, err := iter.Header()
 	if err != nil {
-		return err
-	}
-	if len(header) < 1 {
-		return errors.New("no headers provided")
+		return "", err
 	}
 
 	meta, err := iter.Meta()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// create a new result
@@ -82,140 +78,83 @@ func (c *cache) Set(iter models.IterResult) error {
 	result.Header = header
 	result.Meta = meta
 
-	// produce the first page
-	drained := false
-	for i := 0; i < c.pageSize; i++ {
-		row, err := iter.Next()
-		if err != nil {
-			return err
-		}
-		if row == nil {
-			drained = true
-			c.log.Debug("successfully exhausted iterator")
-			break
-		}
-
-		result.Rows = append(result.Rows, row)
-	}
-
-	// create a new record and set it's id as active
+	// create a new id and set it as active
 	id := uuid.New().String()
-	c.records.store(id, cacheRecord{
-		result:  result,
-		drained: drained,
-	})
-	c.active = id
+	c.log.Debug("processing result iterator start: " + id)
 
-	// process everything else in a separate goroutine
-	if !drained {
-		go func() {
-			i := 0
-			for {
-				// update records in chunks
-				if i >= c.pageSize {
-					c.records.store(id, cacheRecord{
-						result: result,
-					})
-					i = 0
-				}
-				row, err := iter.Next()
-				if err != nil {
-					c.log.Error(err.Error())
-					return
-				}
-				if row == nil {
-					c.log.Debug("successfully exhausted iterator")
-					break
-				}
-				result.Rows = append(result.Rows, row)
-				i++
+	// drain the iterator
+	done := make(chan bool)
+	go func() {
+		setDone := func() {
+			select {
+			case done <- true:
+			default:
+			}
+		}
+
+		defer func() { setDone() }()
+
+		i := 0
+		for {
+			// update records in chunks
+			if i >= blockUntil {
+				c.records.store(id, cacheRecord{
+					result: result,
+				})
+				i = 0
+
+				setDone()
 			}
 
-			// store one last time and set drained to true
-			c.records.store(id, cacheRecord{
-				drained: true,
-				result:  result,
-			})
-		}()
-	}
+			row, err := iter.Next()
+			if err != nil {
+				c.log.Error(err.Error())
+				return
+			}
+			if row == nil {
+				c.log.Debug("successfully exhausted iterator: " + id)
+				break
+			}
 
-	return nil
-}
-
-// zero based index of page
-// returns current page and total number of pages
-// writes the requested page to outputs
-func (c *cache) page(page int, outputs ...Output) (int, int, error) {
-	id := c.active
-
-	cr, _ := c.records.load(id)
-	cachedResult := cr.result
-
-	if cachedResult.Header == nil {
-		return 0, 0, errors.New("no results to page")
-	}
-
-	var result models.Result
-	result.Header = cachedResult.Header
-	result.Meta = cachedResult.Meta
-
-	if page < 0 {
-		page = 0
-	}
-
-	start := c.pageSize * page
-	end := c.pageSize * (page + 1)
-
-	l := len(cachedResult.Rows)
-	lastPage := l / c.pageSize
-	if l%c.pageSize == 0 && lastPage != 0 {
-		lastPage -= 1
-	}
-
-	if start >= l {
-		start = lastPage * c.pageSize
-	}
-	if end > l {
-		end = l
-	}
-
-	result.Rows = cachedResult.Rows[start:end]
-	result.Meta.ChunkStart = start
-
-	// write the page to outputs
-	for _, out := range outputs {
-		err := out.Write(result)
-		if err != nil {
-			return 0, 0, err
+			result.Rows = append(result.Rows, row)
+			i++
 		}
-	}
 
-	currentPage := start / c.pageSize
-	return currentPage, lastPage, nil
+		// store one last time and set drained to true
+		c.records.store(id, cacheRecord{
+			drained: true,
+			result:  result,
+		})
+	}()
+
+	// wait until "blockUntil" or all results drained
+	<-done
+
+	return id, nil
 }
 
-var ErrInvalidRange = func(from int, to int) error { return fmt.Errorf("invalid selection range: %d ... %d", from, to) }
-
-// Span writes the selected line range to outputs
+// Get writes the selected line range to outputs
+// id - id of the cache record
 // from-to - range of rows:
 //
 //	starts with 0
 //	use negative number from the end
 //	for example, to pipe all records use: from:0 to:-1
 //
+// wipe - deletes the cache after paging
 // outputs - where to pipe the results
-func (c *cache) Span(from int, to int, wipe bool, outputs ...Output) error {
-	id := c.active
-
+//
+// returns a number of records
+func (c *cache) Get(id string, from int, to int, outputs ...Output) (int, error) {
 	// validation
 	if (from < 0 && to < 0) || (from >= 0 && to >= 0) {
 		if from > to {
-			return ErrInvalidRange(from, to)
+			return 0, ErrInvalidRange(from, to)
 		}
 	}
 	// undefined -> error
 	if from < 0 && to >= 0 {
-		return ErrInvalidRange(from, to)
+		return 0, ErrInvalidRange(from, to)
 	}
 
 	var cachedResult models.Result
@@ -228,7 +167,7 @@ func (c *cache) Span(from int, to int, wipe bool, outputs ...Output) error {
 	for {
 		rec, ok := c.records.load(id)
 		if !ok {
-			return fmt.Errorf("record %s appears to be already flushed", id)
+			return 0, fmt.Errorf("record %s appears to be already flushed", id)
 		}
 
 		if rec.drained || (to >= 0 && to <= len(rec.result.Rows)) {
@@ -237,7 +176,7 @@ func (c *cache) Span(from int, to int, wipe bool, outputs ...Output) error {
 		}
 
 		if err := ctx.Err(); err != nil {
-			return fmt.Errorf("cache flushing timeout exceeded: %s", err)
+			return 0, fmt.Errorf("cache flushing timeout exceeded: %s", err)
 		}
 		time.Sleep(1 * time.Second)
 	}
@@ -277,62 +216,15 @@ func (c *cache) Span(from int, to int, wipe bool, outputs ...Output) error {
 	for _, out := range outputs {
 		err := out.Write(result)
 		if err != nil {
-			return err
+			return 0, err
 		}
 	}
 
-	// delete the record from cache
-	if wipe {
-		c.records.delete(id)
-		c.log.Debug("successfully wiped record from cache")
-	}
-
-	c.log.Debug("successfully flushed cache")
-	return nil
+	return length, nil
 }
 
-// flush writes the whole current cache to outputs
-// wipe controls wheather to wipe the record from cache
-func (c *cache) flush(wipe bool, outputs ...Output) {
-	id := c.active
-
-	// wait until the currently active record is drained,
-	// write it to outputs and remove it from records
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-		defer cancel()
-		// Wait for flag to be set or timeout to exceed
-		for {
-
-			rec, ok := c.records.load(id)
-			if !ok {
-				c.log.Error("record " + id + " appears to be already flushed")
-				return
-			}
-			if rec.drained {
-				break
-			}
-			if ctx.Err() != nil {
-				c.log.Error("cache flushing timeout exceeded")
-				return
-			}
-			time.Sleep(1 * time.Second)
-		}
-
-		// write to outputs
-		for _, out := range outputs {
-			rec, _ := c.records.load(id)
-			err := out.Write(rec.result)
-			if err != nil {
-				c.log.Error(err.Error())
-			}
-		}
-
-		if wipe {
-			// delete the record
-			c.records.delete(id)
-			c.log.Debug("successfully wiped record from cache")
-		}
-		c.log.Debug("successfully flushed cache")
-	}()
+// Wipe the record with id from cache
+func (c *cache) Wipe(id string) {
+	c.records.delete(id)
+	c.log.Debug("successfully wiped record from cache")
 }
