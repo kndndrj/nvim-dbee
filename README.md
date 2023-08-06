@@ -267,6 +267,11 @@ Here are a few steps to quickly get started:
   require("dbee").store("json", "file", { from = 2, to = 7, extra_arg = "path/to/file.json"  })
   -- Yank the first row as table
   require("dbee").store("table", "yank", { from = 0, to = 1 })
+  -- Yank the last 2 rows as CSV
+  -- (negative indices are interpreted as length+1+index - same as nvim_buf_get_lines())
+  -- Be aware that using negative indices requires for the
+  -- iterator of the result to be drained completely, which might affect large result sets.
+  require("dbee").store("csv", "yank", { from = -3, to = -1 })
   ```
 
 - Once you are done or you want to go back to where you were, you can call

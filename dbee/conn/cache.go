@@ -185,7 +185,7 @@ func (c *cache) Get(id string, from int, to int, outputs ...Output) (int, error)
 
 	length := len(cachedResult.Rows)
 	if from < 0 {
-		from += length
+		from += length + 1
 		if from < 0 {
 			from = 0
 		}

@@ -133,11 +133,11 @@ func TestCache(t *testing.T) {
 			expectedResult: rows.Range(0, 3),
 			expectedError:  nil,
 		},
-		// get last 3
+		// get last 2
 		{
 			from:           -3,
 			to:             -1,
-			expectedResult: rows.Range(numOfRows-3, numOfRows),
+			expectedResult: rows.Range(numOfRows-2, numOfRows),
 			expectedError:  nil,
 		},
 		// get only one
