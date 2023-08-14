@@ -167,10 +167,11 @@ using your plugin manager to lazy load for you, make sure to specify
 <!-- DOCGEN_IGNORE_END -->
 
 ```lua
--- Open/close the UI.
+-- Open/close/toggle the UI.
 require("dbee").open()
 require("dbee").close()
--- Next/previou page of the results (there are the same mappings that work just inside the results buffer
+require("dbee").toggle()
+-- Next/previous page of the results (there are the same mappings that work just inside the results buffer
 -- available in config).
 require("dbee").next()
 require("dbee").prev()
