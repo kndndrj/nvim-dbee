@@ -1,5 +1,6 @@
 local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
+local utils = require("dbee.utils")
 
 ---@class Candy
 ---@field icon string
@@ -16,13 +17,13 @@ local NuiLine = require("nui.line")
 ---@field action_2? fun(cb: fun()) secondary action - takes single arg: callback closure
 ---@field action_3? fun(cb: fun()) tertiary action - takes single arg: callback closure
 ---@field children? Layout[]|fun():Layout[] child layout nodes
----@field do_expand? boolean expand by default
+---@field default_expand? Once expand on startup? - basically a bool
 
 -- node is Layout converted to NuiTreeNode
 ---@class Node: Layout
 ---@field getter fun():Layout
 
----@alias drawer_config { disable_candies: boolean, candies: table<string, Candy>, mappings: table<string, mapping> }
+---@alias drawer_config { disable_candies: boolean, candies: table<string, Candy>, mappings: table<string, mapping>, disable_help: boolean }
 
 ---@class Drawer
 ---@field private ui Ui
@@ -31,6 +32,7 @@ local NuiLine = require("nui.line")
 ---@field private editor Editor
 ---@field private mappings table<string, mapping>
 ---@field private candies table<string, Candy> map of eye-candy stuff (icons, highlight)
+---@field private disable_help boolean show help or not
 local Drawer = {}
 
 ---@param ui Ui
@@ -64,6 +66,7 @@ function Drawer:new(ui, handler, editor, opts)
     editor = editor,
     mappings = opts.mappings or {},
     candies = candies,
+    disable_help = opts.disable_help or false,
   }
   setmetatable(o, self)
   self.__index = self
@@ -112,8 +115,8 @@ function Drawer:create_tree(bufnr)
         line:append(" " .. candy.icon .. " ", candy.icon_highlight)
       end
 
-      -- if connection is the active one, apply a special highlight on the master
-      if self.handler:current_connection():details().id == node.id then
+      -- apply a special highlight for active connection and active scratchpad
+      if self.handler:current_connection():details().id == node.id or self.editor:get_active_scratch() == node.id then
         line:append(node.name, candy.icon_highlight)
       else
         line:append(node.name, candy.text_highlight)
@@ -281,7 +284,7 @@ function Drawer:set_layout(layout, node_id)
       -- get existing node from the current tree and check if it is expanded
       local expanded = false
       local ex_node = self.tree:get_node(l.id)
-      if (ex_node and ex_node:is_expanded()) or l.do_expand then
+      if (ex_node and ex_node:is_expanded()) or (l.default_expand and l.default_expand:poke()) then
         expanded = true
         -- if getter exists, and node is expanded, we call it
         if getter then
@@ -304,17 +307,9 @@ function Drawer:set_layout(layout, node_id)
   self.tree:set_nodes(to_node(layout), node_id)
 end
 
-function Drawer:refresh()
-  -- whitespace between nodes
-  ---@return Layout
-  local separator = function()
-    return {
-      id = "__separator_layout__" .. tostring(math.random()),
-      name = "",
-      type = "",
-    }
-  end
-
+---@private
+---@return Layout
+function Drawer:layout_help()
   -- help node
   local help_children = {}
   for act, map in pairs(self.mappings) do
@@ -330,13 +325,25 @@ function Drawer:refresh()
   end)
 
   ---@type Layout
-  local help = {
+  return {
     id = "__help_layout__",
     name = "help",
     type = "help",
-    do_expand = true,
+    default_expand = utils.once:new("help_expand_once_id"),
     children = help_children,
   }
+end
+
+function Drawer:refresh()
+  -- whitespace between nodes
+  ---@return Layout
+  local separator = function()
+    return {
+      id = "__separator_layout__" .. tostring(math.random()),
+      name = "",
+      type = "",
+    }
+  end
 
   -- assemble tree layout
   ---@type Layout[]
@@ -348,8 +355,11 @@ function Drawer:refresh()
   for _, ly in ipairs(self.handler:layout()) do
     table.insert(layouts, ly)
   end
-  table.insert(layouts, separator())
-  table.insert(layouts, help)
+
+  if not self.disable_help then
+    table.insert(layouts, separator())
+    table.insert(layouts, self:layout_help())
+  end
 
   self:set_layout(layouts)
 

@@ -119,6 +119,8 @@ func (c *Conn) Query(query string) (*Result, error) {
 			row := make(models.Row, len(dbCols))
 			for i := range dbCols {
 				val := *columnPointers[i].(*any)
+				// TODO: this breaks some types with some drivers (namely sqlserver newid()):
+				// add a generic way of doing this with ResultBuilder
 				// fix for some strings being interpreted as bytes
 				valb, ok := val.([]byte)
 				if ok {

@@ -89,6 +89,7 @@ function M.setup(o)
     -- submodules
     editor_mappings = { opts.editor.mappings, "table" },
     drawer_disable_candies = { opts.drawer.disable_candies, "boolean" },
+    drawer_disable_help = { opts.drawer.disable_help, "boolean" },
     drawer_candies = { opts.drawer.candies, "table" },
     drawer_mappings = { opts.drawer.mappings, "table" },
     -- ui
@@ -188,10 +189,18 @@ end
 ---@param format "csv"|"json" format of the output
 ---@param file string where to save the results
 function M.save(format, file)
+  utils.log("warn", "dbee.save() function has been deprecated, use dbee.store() instead.", "deprecated")
+  M.store(format, "file", { extra_arg = file })
+end
+
+---@param format "csv"|"json"|"table" format of the output
+---@param output "file"|"yank"|"buffer" where to pipe the results
+---@param opts { from: number, to: number, extra_arg: any } argument for specific format/output combination - example file path or buffer number
+function M.store(format, output, opts)
   if not pcall_lazy_setup() then
     return
   end
-  m.handler:current_connection():save(format, file)
+  m.handler:current_connection():store(format, output, opts)
 end
 
 ---@param command? install_command preffered command

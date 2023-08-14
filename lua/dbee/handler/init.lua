@@ -1,5 +1,6 @@
 local utils = require("dbee.utils")
 local Conn = require("dbee.handler.conn")
+local MockedConn = require("dbee.handler.conn_mock")
 local Helpers = require("dbee.handler.helpers")
 local Lookup = require("dbee.handler.lookup")
 
@@ -149,7 +150,7 @@ end
 
 ---@return Conn # currently active connection
 function Handler:current_connection()
-  return self.lookup:get_active_connection()
+  return self.lookup:get_active_connection() or MockedConn:new()
 end
 
 ---@param helpers table<string, table_helpers> extra helpers per type
@@ -166,6 +167,43 @@ end
 
 ---@return Layout[]
 function Handler:layout()
+  -- in case there are no sources defined, return a helper layout
+  if #self.lookup:get_sources() < 1 then
+    print("here")
+    vim.print(self:layout_help())
+    return self:layout_help()
+  end
+  return self:layout_real()
+end
+
+---@private
+---@return Layout[]
+function Handler:layout_help()
+  return {
+    {
+      id = "__handler_help_id__",
+      name = "No sources :(",
+      default_expand = utils.once:new("handler_expand_once_helper_id"),
+      type = "",
+      children = {
+        {
+          id = "__handler_help_id_child_1__",
+          name = 'Type ":h dbee.txt"',
+          type = "",
+        },
+        {
+          id = "__handler_help_id_child_2__",
+          name = "to define your first source!",
+          type = "",
+        },
+      },
+    },
+  }
+end
+
+---@private
+---@return Layout[]
+function Handler:layout_real()
   ---@type Layout[]
   local layout = {}
 
@@ -280,7 +318,7 @@ function Handler:layout()
       table.insert(layout, {
         id = "__source__" .. source_id,
         name = source_id,
-        do_expand = true,
+        default_expand = utils.once:new("handler_expand_once_id" .. source_id),
         type = "source",
         children = children,
       })
