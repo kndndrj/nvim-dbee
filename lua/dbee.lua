@@ -120,6 +120,14 @@ function M.add_connection(params, source_id)
   m.handler:add_connection(params, source_id)
 end
 
+function M.toggle()
+  if m.open then
+    M.close()
+  else
+    M.open()
+  end
+end
+
 function M.open()
   if not pcall_lazy_setup() then
     return
