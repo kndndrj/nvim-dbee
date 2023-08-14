@@ -10,12 +10,15 @@ local function log_info(mes)
   print("[dbee install]: " .. mes)
 end
 
+---@return string # installation path
 function M.path()
   return vim.fn.stdpath("data") .. "/dbee/bin"
 end
 
+---@return string # path of go source
 function M.source_path()
-  return debug.getinfo(1).source:sub(2):gsub("/lua/dbee/install/init.lua$", "/dbee")
+  local p, _ = debug.getinfo(1).source:sub(2):gsub("/lua/dbee/install/init.lua$", "/dbee")
+  return p
 end
 
 ---@param osys string operating system in format of uv.os_uname()
