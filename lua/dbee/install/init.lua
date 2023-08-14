@@ -14,6 +14,10 @@ function M.path()
   return vim.fn.stdpath("data") .. "/dbee/bin"
 end
 
+function M.source_path()
+  return debug.getinfo(1).source:sub(2):gsub("/lua/dbee/install/init.lua$", "/dbee")
+end
+
 ---@param osys string operating system in format of uv.os_uname()
 ---@param arch string architecture in format of uv.os_uname()
 ---@return string url address of compiled binary
@@ -57,18 +61,6 @@ local function get_url(osys, arch)
   end
 
   return url
-end
-
----@return string version
-local function get_version()
-  local version = "latest"
-  local ok, m = pcall(require, "dbee.install.__manifest")
-  if not ok or type(m) ~= "table" or vim.tbl_isempty(m) then
-    log_error("could not read install manifest. using version: " .. version)
-    return version
-  end
-
-  return m.version or version
 end
 
 ---@param command? install_command
@@ -123,8 +115,8 @@ local function get_job(command)
       return {
         {
           cmd = "go",
-          args = { "install", "github.com/kndndrj/nvim-dbee/dbee@" .. get_version() },
-          env = { GOBIN = install_dir },
+          args = { "build", "-C", M.source_path(), "-o", install_binary },
+          env = {},
         },
       }
     end,
@@ -132,8 +124,8 @@ local function get_job(command)
       return {
         {
           cmd = "go",
-          args = { "install", "github.com/kndndrj/nvim-dbee/dbee@" .. get_version() },
-          env = { GOBIN = install_dir, CGO_ENABLED = "1" },
+          args = { "build", "-C", M.source_path(), "-o", install_binary },
+          env = { CGO_ENABLED = "1" },
         },
       }
     end,
