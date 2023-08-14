@@ -132,9 +132,6 @@ jobs:
             done
             echo "}"
             echo
-            echo "-- Current version of go main package"
-            echo "M.version = \"$(git rev-parse HEAD)\""
-            echo
             echo "return M"
           } > "$MANIFEST_FILE"
       - name: Commit the Generated File
