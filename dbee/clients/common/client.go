@@ -31,6 +31,11 @@ func (c *Client) Close() {
 	c.db.Close()
 }
 
+func (c *Client) Swap(db *sql.DB) {
+	c.db.Close()
+	c.db = db
+}
+
 // connection to use for execution
 type Conn struct {
 	conn *sql.Conn

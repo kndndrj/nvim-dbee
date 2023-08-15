@@ -84,6 +84,10 @@ M.default = {
         icon = "",
         icon_highlight = "SpecialChar",
       },
+      database_switch = {
+        icon = "",
+        icon_highlight = "Character",
+      },
       table = {
         icon = "",
         icon_highlight = "Conditional",

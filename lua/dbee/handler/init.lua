@@ -169,8 +169,6 @@ end
 function Handler:layout()
   -- in case there are no sources defined, return a helper layout
   if #self.lookup:get_sources() < 1 then
-    print("here")
-    vim.print(self:layout_help())
     return self:layout_help()
   end
   return self:layout_real()
@@ -292,7 +290,6 @@ function Handler:layout_real()
                 type = result.type,
                 page_size = tonumber(result["page size"]),
               }
-              -- parse page size to int
               pcall(self.add_connection, self, spec --[[@as connection_details]], source_id)
               cb()
             end,

@@ -3,7 +3,7 @@ package clients
 import (
 	"database/sql"
 	"fmt"
-	"net/url"
+	"regexp"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
@@ -23,19 +23,18 @@ type MysqlClient struct {
 	sql *common.Client
 }
 
-func NewMysql(rawURL string) (*MysqlClient, error) {
+func NewMysql(url string) (*MysqlClient, error) {
 	// add multiple statements support parameter
-	u, err := url.Parse(rawURL)
+	match, err := regexp.MatchString(`[\?][\w]+=[\w-]+`, url)
 	if err != nil {
-		return nil, fmt.Errorf("mysql: invalid url: %w", err)
+		return nil, err
 	}
-	q := u.Query()
-	if !q.Has("multiStatements") {
-		q.Add("multiStatements", "true")
+	sep := "?"
+	if match {
+		sep = "&"
 	}
-	u.RawQuery = q.Encode()
 
-	db, err := sql.Open("mysql", rawURL)
+	db, err := sql.Open("mysql", url+sep+"multiStatements=true")
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to mysql database: %v", err)
 	}
@@ -108,7 +107,7 @@ func (c *MysqlClient) Layout() ([]models.Layout, error) {
 			Schema: schema,
 			// TODO:
 			Database: "",
-			Type:     models.LayoutTable,
+			Type:     models.LayoutTypeTable,
 		})
 
 	}
@@ -121,7 +120,7 @@ func (c *MysqlClient) Layout() ([]models.Layout, error) {
 			Schema: k,
 			// TODO:
 			Database: "",
-			Type:     models.LayoutNone,
+			Type:     models.LayoutTypeNone,
 			Children: v,
 		})
 	}

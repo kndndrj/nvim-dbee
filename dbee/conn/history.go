@@ -217,19 +217,19 @@ func (ho *HistoryOutput) Layout() ([]models.Layout, error) {
 			Name:     strconv.Itoa(int(key)),
 			Schema:   "",
 			Database: "",
-			Type:     models.LayoutHistory,
+			Type:     models.LayoutTypeHistory,
 			Children: []models.Layout{
 				{
 					Name:     rec.meta.Timestamp.String(),
 					Schema:   "",
 					Database: "",
-					Type:     models.LayoutNone,
+					Type:     models.LayoutTypeNone,
 				},
 				{
 					Name:     rec.meta.Query,
 					Schema:   "",
 					Database: "",
-					Type:     models.LayoutNone,
+					Type:     models.LayoutTypeNone,
 				},
 			},
 		}

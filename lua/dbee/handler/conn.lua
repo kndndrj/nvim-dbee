@@ -6,7 +6,7 @@ local callbacker = require("dbee.handler.__callbacks")
 --
 ---@class _LayoutGo
 ---@field name string display name
----@field type ""|"table"|"history" type of layout -> this infers action
+---@field type ""|"table"|"history"|"database_switch" type of layout -> this infers action
 ---@field schema? string parent schema
 ---@field database? string parent database
 ---@field children? Layout[] child layout nodes
@@ -142,6 +142,11 @@ function Conn:history(history_id, cb)
   vim.fn.Dbee_history(self.id, history_id, cb_id)
 end
 
+---@param name string name of the database
+function Conn:switch_database(name)
+  vim.fn.Dbee_switch_database(self.id, name)
+end
+
 function Conn:page_next()
   self.on_exec()
 
@@ -221,6 +226,7 @@ function Conn:layout()
     for _, lgo in ipairs(layout_go) do
       -- action 1 executes query or history
       local action_1
+      local on_pick
       if lgo.type == "table" then
         action_1 = function(cb)
           local helpers = self.helpers:get(self.type, { table = lgo.name, schema = lgo.schema, dbname = lgo.database })
@@ -236,8 +242,13 @@ function Conn:layout()
         action_1 = function(cb)
           self:history(lgo.name, cb)
         end
+      elseif lgo.type == "database_switch" then
+        on_pick = function(selection, cb)
+          self:switch_database(selection)
+          cb()
+        end
       end
-      -- action 2 activates the connection manually TODO
+      -- action 2 activates the connection manually
       local action_2 = function(cb)
         cb()
       end
@@ -253,6 +264,7 @@ function Conn:layout()
         action_1 = action_1,
         action_2 = action_2,
         action_3 = nil,
+        on_pick = on_pick,
         children = to_layout(lgo.children, l_id),
       }
 

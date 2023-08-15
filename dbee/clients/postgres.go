@@ -3,6 +3,7 @@ package clients
 import (
 	"database/sql"
 	"fmt"
+	nurl "net/url"
 	"strings"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
@@ -20,17 +21,24 @@ func init() {
 }
 
 type PostgresClient struct {
-	c *common.Client
+	c   *common.Client
+	url *nurl.URL
 }
 
 func NewPostgres(url string) (*PostgresClient, error) {
-	db, err := sql.Open("postgres", url)
+	u, err := nurl.Parse(url)
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to postgres database: %v", err)
+		return nil, fmt.Errorf("could not parse db connection string: %w: ", err)
+	}
+
+	db, err := sql.Open("postgres", u.String())
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to postgres database: %w", err)
 	}
 
 	return &PostgresClient{
-		c: common.NewClient(db),
+		c:   common.NewClient(db),
+		url: u,
 	}, nil
 }
 
@@ -107,7 +115,7 @@ func (c *PostgresClient) Layout() ([]models.Layout, error) {
 			Schema: schema,
 			// TODO:
 			Database: "",
-			Type:     models.LayoutTable,
+			Type:     models.LayoutTypeTable,
 		})
 	}
 
@@ -119,12 +127,55 @@ func (c *PostgresClient) Layout() ([]models.Layout, error) {
 			Schema: k,
 			// TODO:
 			Database: "",
-			Type:     models.LayoutNone,
+			Type:     models.LayoutTypeNone,
 			Children: v,
 		})
 	}
 
 	return layout, nil
+}
+
+func (c *PostgresClient) ListDatabases() (current string, available []string, err error) {
+	query := `
+		SELECT current_database(), datname FROM pg_database
+		WHERE datistemplate = false
+		AND datname != current_database();
+	`
+
+	rows, err := c.Query(query)
+	if err != nil {
+		return "", nil, err
+	}
+
+	for {
+		row, err := rows.Next()
+		if row == nil {
+			break
+		}
+		if err != nil {
+			return "", nil, err
+		}
+
+		// We know for a fact there are 2 string fields (see query above)
+		current = row[0].(string)
+		available = append(available, row[1].(string))
+	}
+
+	return current, available, nil
+}
+
+func (c *PostgresClient) SelectDatabase(name string) error {
+	url := *c.url
+	url.Path = fmt.Sprintf("/%s", name)
+	db, err := sql.Open("postgres", url.String())
+	if err != nil {
+		return fmt.Errorf("unable to switch databases: %w", err)
+	}
+
+	c.url = &url
+	c.c.Swap(db)
+
+	return nil
 }
 
 func (c *PostgresClient) Close() {

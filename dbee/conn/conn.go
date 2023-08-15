@@ -1,6 +1,8 @@
 package conn
 
 import (
+	"fmt"
+
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
@@ -28,6 +30,12 @@ type (
 		Input
 		Close()
 		Layout() ([]models.Layout, error)
+	}
+
+	// DatabaseSwitcher is an optional interface for clients that have database switching capabilities
+	DatabaseSwitcher interface {
+		SelectDatabase(string) error
+		ListDatabases() (current string, available []string, err error)
 	}
 )
 
@@ -100,8 +108,20 @@ func (c *Conn) setResultToCache(rows models.IterResult, fresh bool) error {
 	return nil
 }
 
-func (c *Conn) ListHistory() ([]models.Layout, error) {
-	return c.history.Layout()
+// SwitchDatabase tries to switch to a given database with the used client.
+// on error, the switch doesn't happen and the previous connection remains active.
+func (c *Conn) SwitchDatabase(name string) error {
+	switcher, ok := c.driver.(DatabaseSwitcher)
+	if !ok {
+		return fmt.Errorf("connection does not support database switching")
+	}
+
+	err := switcher.SelectDatabase(name)
+	if err != nil {
+		return fmt.Errorf("failed to switch to different database: %w", err)
+	}
+
+	return nil
 }
 
 // GetCurrentResult pipes the selected range of rows to the outputs
@@ -123,18 +143,26 @@ func (c *Conn) Layout() ([]models.Layout, error) {
 	layout := []models.Layout{
 		{
 			Name:     "structure",
-			Schema:   "",
-			Database: "",
-			Type:     models.LayoutNone,
+			Type:     models.LayoutTypeNone,
 			Children: structure,
 		},
 		{
 			Name:     "history",
-			Schema:   "",
-			Database: "",
-			Type:     models.LayoutNone,
+			Type:     models.LayoutTypeNone,
 			Children: history,
 		},
+	}
+
+	// add database switching if supported
+	if switcher, ok := c.driver.(DatabaseSwitcher); ok {
+		currentDB, availableDBs, err := switcher.ListDatabases()
+		if err != nil {
+			return nil, err
+		}
+
+		dbLayout := models.NewListLayout("DB: "+currentDB, availableDBs)
+		dbLayout.Type = models.LayoutTypeDatabaseSwitch
+		layout = append(layout, dbLayout)
 	}
 
 	return layout, nil

@@ -160,7 +160,7 @@ func (c *MongoClient) Layout() ([]models.Layout, error) {
 			Name:     coll,
 			Schema:   "",
 			Database: "",
-			Type:     models.LayoutTable,
+			Type:     models.LayoutTypeTable,
 		})
 	}
 

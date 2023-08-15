@@ -97,7 +97,7 @@ func (c *SQLServerClient) Layout() ([]models.Layout, error) {
 			Schema: schema,
 			// TODO:
 			Database: "",
-			Type:     models.LayoutTable,
+			Type:     models.LayoutTypeTable,
 		})
 
 	}
@@ -110,7 +110,7 @@ func (c *SQLServerClient) Layout() ([]models.Layout, error) {
 			Schema: k,
 			// TODO:
 			Database: "",
-			Type:     models.LayoutNone,
+			Type:     models.LayoutTypeNone,
 			Children: v,
 		})
 	}
