@@ -167,17 +167,18 @@ using your plugin manager to lazy load for you, make sure to specify
 <!-- DOCGEN_IGNORE_END -->
 
 ```lua
--- Open/close the UI.
+-- Open/close/toggle the UI.
 require("dbee").open()
 require("dbee").close()
--- Next/previou page of the results (there are the same mappings that work just inside the results buffer
+require("dbee").toggle()
+-- Next/previous page of the results (there are the same mappings that work just inside the results buffer
 -- available in config).
 require("dbee").next()
 require("dbee").prev()
 -- Run a query on the active connection directly.
 require("dbee").execute(query)
--- Save the current result to file (format is either "csv" or "json" for now).
-require("dbee").save(format, file)
+-- Store the current result to file/buffer/yank-register (see "Getting Started").
+require("dbee").store(format, output, opts)
 ```
 
 <!-- DOCGEN_IGNORE_START -->
@@ -249,11 +250,30 @@ Here are a few steps to quickly get started:
   - Using `L` for next and `H` for previous page if the cursor is located inside
     the results buffer.
 
-- The current result (of the active connection) can also be saved to a file
-  using `require("dbee").save()` command. Use:
+- Once in the "result" buffer, you can yank the results with the following keys:
 
-  - `require("dbee").save("csv", "/path/to/file.csv")` for csv and
-  - `require("dbee").save("json", "/path/to/file.json")` for json.
+  - `yaj` yank current row as json (or row range in visual mode)
+  - `yac` yank current row as CSV (or row range in visual mode)
+  - `yaJ` to yank all rows as json
+  - `yaC` to yank all rows as CSV
+
+- The current result (of the active connection) can also be saved to a file,
+  yank-register or buffer using `require("dbee").store()` command. Some
+  examples:
+
+  ```lua
+  -- All rows as CSV to current buffer:
+  require("dbee").store("csv", "buffer", { extra_arg = 0 })
+  -- Results from row 2 to row 7 as json to file (index is zero based):
+  require("dbee").store("json", "file", { from = 2, to = 7, extra_arg = "path/to/file.json"  })
+  -- Yank the first row as table
+  require("dbee").store("table", "yank", { from = 0, to = 1 })
+  -- Yank the last 2 rows as CSV
+  -- (negative indices are interpreted as length+1+index - same as nvim_buf_get_lines())
+  -- Be aware that using negative indices requires for the
+  -- iterator of the result to be drained completely, which might affect large result sets.
+  require("dbee").store("csv", "yank", { from = -3, to = -1 })
+  ```
 
 - Once you are done or you want to go back to where you were, you can call
   `require("dbee").close()`.

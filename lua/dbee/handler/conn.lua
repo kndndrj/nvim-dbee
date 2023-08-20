@@ -1,4 +1,5 @@
 local utils = require("dbee.utils")
+local callbacker = require("dbee.handler.__callbacks")
 
 ---@alias conn_id string
 ---@alias connection_details { name: string, type: string, url: string, id: conn_id, page_size: integer }
@@ -20,6 +21,7 @@ local utils = require("dbee.utils")
 ---@field private type string --TODO enum?
 ---@field private page_size integer
 ---@field private page_index integer index of the current page
+---@field private page_ammount integer number of pages in the current result set
 ---@field private on_exec fun() callback which gets triggered on any action
 local Conn = {}
 
@@ -75,6 +77,7 @@ function Conn:new(ui, helpers, params, opts)
     type = type,
     page_size = page_size,
     page_index = 0,
+    page_ammount = 0,
     on_exec = opts.on_exec or function() end,
   }
   setmetatable(o, self)
@@ -104,58 +107,99 @@ function Conn:original_details()
 end
 
 ---@param query string query to execute
-function Conn:execute(query)
+---@param cb? fun() callback to execute when finished
+function Conn:execute(query, cb)
+  cb = cb or function() end
   self.on_exec()
 
-  self:__wrap_open(function(_)
-    self.page_index = 0
-    vim.fn.Dbee_execute(self.id, query)
-    return self.page_index, nil
+  local cb_id = tostring(math.random(10000))
+  callbacker.register(cb_id, function()
+    self:show_page(0)
+    cb()
   end)
+
+  self.page_index = 0
+  self.page_ammount = 0
+
+  vim.fn.Dbee_execute(self.id, query, cb_id)
 end
 
 ---@param history_id string history id
-function Conn:history(history_id)
+---@param cb? fun() callback to execute when finished
+function Conn:history(history_id, cb)
+  cb = cb or function() end
   self.on_exec()
 
-  self:__wrap_open(function(_)
-    self.page_index = 0
-    vim.fn.Dbee_history(self.id, history_id)
-    return self.page_index, nil
+  local cb_id = tostring(math.random(10000))
+  callbacker.register(cb_id, function()
+    self:show_page(0)
+    cb()
   end)
+
+  self.page_index = 0
+  self.page_ammount = 0
+
+  vim.fn.Dbee_history(self.id, history_id, cb_id)
 end
 
----@return integer # total number of pages
 function Conn:page_next()
   self.on_exec()
 
-  local count
-  self:__wrap_open(function(_)
-    self.page_index, count = unpack(vim.fn.Dbee_page(self.id, tostring(self.page_index + 1)))
-    return self.page_index, count
-  end)
-  return count
+  self.page_index = self:show_page(self.page_index + 1)
 end
 
----@return integer # total number of pages
 function Conn:page_prev()
   self.on_exec()
 
-  local count
-  self:__wrap_open(function(_)
-    self.page_index, count = unpack(vim.fn.Dbee_page(self.id, tostring(self.page_index - 1)))
-    return self.page_index, count
-  end)
-  return count
+  self.page_index = self:show_page(self.page_index - 1)
 end
 
----@param format "csv"|"json" how to format the result
----@param file string file to write to
-function Conn:save(format, file)
-  if not format or not file then
-    error("save method requires format and file to be set")
+--- Displays a page of the current result in the results buffer
+---@private
+---@param page integer zero based page index
+---@return integer # current page
+function Conn:show_page(page)
+  -- calculate the ranges
+  if page < 0 then
+    page = 0
   end
-  vim.fn.Dbee_save(self.id, format, file)
+  if page > self.page_ammount then
+    page = self.page_ammount
+  end
+  local from = self.page_size * page
+  local to = self.page_size * (page + 1)
+
+  -- open ui window and register it's buffer in go
+  local winid, bufnr = self.ui:open()
+  vim.fn.Dbee_set_results_buf(bufnr)
+
+  -- call go function
+  local length = vim.fn.Dbee_get_current_result(self.id, tostring(from), tostring(to))
+
+  -- adjust page ammount
+  self.page_ammount = math.floor(length / self.page_size)
+  if length % self.page_size == 0 and self.page_ammount ~= 0 then
+    self.page_ammount = self.page_ammount - 1
+  end
+
+  -- set winbar status
+  vim.api.nvim_win_set_option(winid, "winbar", "%=" .. tostring(page + 1) .. "/" .. tostring(self.page_ammount + 1))
+
+  return page
+end
+
+---@param format "csv"|"json"|"table" format of the output
+---@param output "file"|"yank"|"buffer" where to pipe the results
+---@param opts { from: number, to: number, extra_arg: any }
+function Conn:store(format, output, opts)
+  opts = opts or {}
+
+  -- options:
+  local from = opts.from or 0
+  local to = opts.to or -1
+  local arg = opts.extra_arg or ""
+
+  vim.fn.Dbee_store(self.id, format, output, tostring(from), tostring(to), tostring(arg))
 end
 
 -- get layout for the connection
@@ -184,15 +228,13 @@ function Conn:layout()
             prompt = "select a helper to execute:",
           }, function(selection)
             if selection then
-              self:execute(helpers[selection])
+              self:execute(helpers[selection], cb)
             end
-            cb()
           end)
         end
       elseif lgo.type == "history" then
         action_1 = function(cb)
-          self:history(lgo.name)
-          cb()
+          self:history(lgo.name, cb)
         end
       end
       -- action 2 activates the connection manually TODO
@@ -221,36 +263,6 @@ function Conn:layout()
   end
 
   return to_layout(vim.fn.json_decode(vim.fn.Dbee_layout(self.id)), self.id)
-end
-
----@private
--- wraps a function to add buffer decorations
--- fn can optionally return page/total
----@param fn fun(bufnr: integer):integer?,integer?
-function Conn:__wrap_open(fn)
-  -- open ui window
-  local winid, bufnr = self.ui:open()
-
-  -- register buffer in go
-  vim.fn.Dbee_set_results_buf(bufnr)
-
-  vim.api.nvim_buf_set_option(bufnr, "modifiable", true)
-  vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, { "Loading..." })
-  vim.api.nvim_buf_set_option(bufnr, "modifiable", false)
-
-  local page, total = fn(bufnr)
-
-  local tot = "?"
-  if total then
-    tot = tostring(total + 1)
-  end
-  local pg = "0"
-  if page then
-    pg = tostring(page + 1)
-  end
-
-  -- set winbar
-  vim.api.nvim_win_set_option(winid, "winbar", "%=" .. pg .. "/" .. tot)
 end
 
 return Conn

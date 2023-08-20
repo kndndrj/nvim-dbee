@@ -2,13 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	"github.com/kndndrj/nvim-dbee/dbee/nvimlog"
 	"github.com/kndndrj/nvim-dbee/dbee/output"
+	"github.com/kndndrj/nvim-dbee/dbee/output/format"
+	"github.com/kndndrj/nvim-dbee/dbee/vim"
 	"github.com/neovim/go-client/nvim"
 	"github.com/neovim/go-client/nvim/plugin"
 )
@@ -30,7 +32,8 @@ func main() {
 	}()
 
 	plugin.Main(func(p *plugin.Plugin) error {
-		logger := nvimlog.New(p.Nvim)
+		logger := vim.NewLogger(p.Nvim)
+		callbacker := vim.NewCallbacker(p.Nvim)
 
 		deferer(func() {
 			logger.Close()
@@ -45,7 +48,7 @@ func main() {
 			}
 		})
 
-		bufferOutput := output.NewBufferOutput(p.Nvim)
+		bufferOutput := output.NewBuffer(p.Nvim, format.NewTable(), -1)
 
 		// Control the results window
 		// This must be called before bufferOutput is used
@@ -76,7 +79,7 @@ func main() {
 				id := args[0]
 				url := args[1]
 				typ := args[2]
-				pageSize, err := strconv.Atoi(args[3])
+				blockUntil, err := strconv.Atoi(args[3])
 				if err != nil {
 					logger.Error(err.Error())
 					return false, nil
@@ -91,7 +94,7 @@ func main() {
 
 				h := conn.NewHistory(id, logger)
 
-				c := conn.New(client, pageSize, h, logger)
+				c := conn.New(client, blockUntil, h, logger)
 
 				connections[id] = c
 
@@ -100,16 +103,17 @@ func main() {
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_execute"},
-			func(v *nvim.Nvim, args []string) error {
+			func(args []string) error {
 				method := "Dbee_execute"
 				logger.Debug("calling " + method)
-				if len(args) < 2 {
+				if len(args) < 3 {
 					logger.Error("not enough arguments passed to " + method)
 					return nil
 				}
 
 				id := args[0]
 				query := args[1]
+				callbackId := args[2]
 
 				// Get the right connection
 				c, ok := connections[id]
@@ -125,12 +129,13 @@ func main() {
 						logger.Error(err.Error())
 						return
 					}
-					_, _, err = c.PageCurrent(0, bufferOutput)
+					logger.Debug(method + " executed successfully")
+					err = callbacker.TriggerCallback(callbackId)
 					if err != nil {
 						logger.Error(err.Error())
 						return
 					}
-					logger.Debug(method + " finished successfully")
+					logger.Debug(method + " successfully triggered callback")
 				}()
 
 				logger.Debug(method + " returned successfully")
@@ -141,13 +146,14 @@ func main() {
 			func(args []string) error {
 				method := "Dbee_history"
 				logger.Debug("calling " + method)
-				if len(args) < 2 {
+				if len(args) < 3 {
 					logger.Error("not enough arguments passed to " + method)
 					return nil
 				}
 
 				id := args[0]
 				historyId := args[1]
+				callbackId := args[2]
 
 				// Get the right connection
 				c, ok := connections[id]
@@ -162,63 +168,99 @@ func main() {
 						logger.Error(err.Error())
 						return
 					}
-					_, _, err = c.PageCurrent(0, bufferOutput)
+					logger.Debug(method + " executed successfully")
+					err = callbacker.TriggerCallback(callbackId)
 					if err != nil {
 						logger.Error(err.Error())
 						return
 					}
-					logger.Debug(method + " finished successfully")
+					logger.Debug(method + " successfully triggered callback")
 				}()
 
 				logger.Debug(method + " returned successfully")
 				return nil
 			})
 
-		// pages result to buffer output, returns current page and total pages
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_page"},
-			func(args []string) ([]int, error) {
+		// pages result to buffer output, returns total number of rows
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_get_current_result"},
+			func(args []string) (int, error) {
 				method := "Dbee_page"
-				logger.Debug("calling " + method)
-				if len(args) < 2 {
-					logger.Error("not enough arguments passed to " + method)
-					return nil, nil
-				}
-
-				id := args[0]
-				page, err := strconv.Atoi(args[1])
-				if err != nil {
-					logger.Error(err.Error())
-					return nil, nil
-				}
-
-				// Get the right connection
-				c, ok := connections[id]
-				if !ok {
-					logger.Error("connection with id " + id + " not registered")
-					return nil, nil
-				}
-
-				currentPage, totalPages, err := c.PageCurrent(page, bufferOutput)
-				if err != nil {
-					logger.Error(err.Error())
-					return nil, nil
-				}
-				logger.Debug(method + " returned successfully")
-				return []int{currentPage, totalPages}, nil
-			})
-
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_save"},
-			func(args []string) error {
-				method := "Dbee_save"
 				logger.Debug("calling " + method)
 				if len(args) < 3 {
 					logger.Error("not enough arguments passed to " + method)
-					return nil
+					return 0, nil
 				}
 
 				id := args[0]
-				format := args[1]
-				file := args[2]
+				from, err := strconv.Atoi(args[1])
+				if err != nil {
+					logger.Error(err.Error())
+					return 0, nil
+				}
+				to, err := strconv.Atoi(args[2])
+				if err != nil {
+					logger.Error(err.Error())
+					return 0, nil
+				}
+
+				// Get the right connection
+				c, ok := connections[id]
+				if !ok {
+					logger.Error("connection with id " + id + " not registered")
+					return 0, nil
+				}
+
+				length, err := c.GetCurrentResult(from, to, bufferOutput)
+				if err != nil {
+					logger.Error(err.Error())
+					return 0, nil
+				}
+				logger.Debug(method + " returned successfully")
+				return length, nil
+			})
+
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_store"},
+			func(v *nvim.Nvim, args []string) error {
+				method := "Dbee_store"
+				logger.Debug("calling " + method)
+				if len(args) < 5 {
+					logger.Error("not enough arguments passed to " + method)
+					return nil
+				}
+				id := args[0]
+				// format
+				fmat := args[1]
+				// output
+				out := args[2]
+				// range of rows
+				from, err := strconv.Atoi(args[3])
+				if err != nil {
+					return err
+				}
+				to, err := strconv.Atoi(args[4])
+				if err != nil {
+					return err
+				}
+				// param is an extra parameter for some outputs/formatters
+				param := ""
+				if len(args) >= 6 {
+					param = args[5]
+				}
+
+				getBufnr := func(p string) (nvim.Buffer, error) {
+					b, err := strconv.Atoi(p)
+					if err != nil {
+						return -1, err
+					}
+					return nvim.Buffer(b), nil
+				}
+
+				getFile := func(p string) (string, error) {
+					if p == "" {
+						return "", fmt.Errorf("invalid file name: \"\"")
+					}
+					return p, nil
+				}
 
 				// Get the right connection
 				c, ok := connections[id]
@@ -227,17 +269,44 @@ func main() {
 					return nil
 				}
 
-				var out conn.Output
-				switch format {
+				var formatter output.Formatter
+				switch fmat {
 				case "json":
-					out = output.NewJSONOutput(file, logger)
+					formatter = format.NewJSON()
 				case "csv":
-					out = output.NewCSVOutput(file, logger)
+					formatter = format.NewCSV()
+				case "table":
+					formatter = format.NewTable()
 				default:
-					logger.Error("save format: \"" + format + "\" is not supported")
+					logger.Error("store format: \"" + fmat + "\" is not supported")
 					return nil
 				}
-				err := c.WriteCurrent(out)
+
+				var outpt conn.Output
+				switch out {
+				case "file":
+					file, err := getFile(param)
+					if err != nil {
+						logger.Error(err.Error())
+						return nil
+					}
+					outpt = output.NewFile(file, formatter, logger)
+				case "buffer":
+					buf, err := getBufnr(param)
+					if err != nil {
+						logger.Error(err.Error())
+						return nil
+					}
+					outpt = output.NewBuffer(v, formatter, buf)
+				case "yank":
+					outpt = output.NewYankRegister(v, formatter)
+				default:
+					logger.Error("store output: \"" + out + "\" is not supported")
+					return nil
+				}
+
+				_, err = c.GetCurrentResult(from, to, outpt)
+
 				if err != nil {
 					logger.Error(err.Error())
 					return nil

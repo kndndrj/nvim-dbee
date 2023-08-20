@@ -30,14 +30,16 @@ function Editor:new(ui, handler, opts)
   -- check for any existing scratches
   vim.fn.mkdir(SCRATCHES_DIR, "p")
   local scratches = {}
-  local active = ""
+  local active
   for _, file in pairs(vim.split(vim.fn.glob(SCRATCHES_DIR .. "/*"), "\n")) do
     if file ~= "" then
       local id = file .. tostring(os.clock())
       scratches[id] = { id = id, file = file, type = "file", bufnr = nil }
-      active = id
+      active = active or id
     end
   end
+
+  -- create a blank scratchpad if none of the existing scratchpads were found
   if vim.tbl_isempty(scratches) then
     local file = SCRATCHES_DIR .. "/scratch." .. tostring(os.clock()) .. ".sql"
     local id = file .. tostring(os.clock())
@@ -50,7 +52,7 @@ function Editor:new(ui, handler, opts)
     ui = ui,
     handler = handler,
     scratches = scratches,
-    active_scratch = active,
+    active_scratch = active or "",
   }
   setmetatable(o, self)
   self.__index = self
@@ -150,7 +152,7 @@ function Editor:layout()
   for _, s in pairs(self.scratches) do
     ---@type Layout
     local sch = {
-      id = "__scratchpad_" .. s.file .. "__",
+      id = s.id,
       name = vim.fs.basename(s.file),
       type = "scratch",
       action_1 = function(cb)
@@ -182,6 +184,10 @@ function Editor:layout()
     table.insert(scratches, sch)
   end
 
+  table.sort(scratches, function(k1, k2)
+    return k1.name < k2.name
+  end)
+
   return {
     {
       id = "__master_scratchpad__",
@@ -198,6 +204,11 @@ function Editor:set_active_scratch(id)
     error("no id specified!")
   end
   self.active_scratch = id
+end
+
+---@return scratch_id # scratch id
+function Editor:get_active_scratch()
+  return self.active_scratch
 end
 
 ---@private
