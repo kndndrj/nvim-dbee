@@ -160,9 +160,11 @@ func (c *Conn) Layout() ([]models.Layout, error) {
 			return nil, err
 		}
 
-		dbLayout := models.NewListLayout("DB: "+currentDB, availableDBs)
-		dbLayout.Type = models.LayoutTypeDatabaseSwitch
-		layout = append(layout, dbLayout)
+		layout = append(layout, models.Layout{
+			Name:      "DB: " + currentDB,
+			Type:      models.LayoutTypeDatabaseSwitch,
+			PickItems: availableDBs,
+		})
 	}
 
 	return layout, nil

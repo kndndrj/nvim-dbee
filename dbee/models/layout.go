@@ -15,29 +15,15 @@ const (
 // it's primarely used for the tree view
 type Layout struct {
 	// Name to be displayed
-	Name     string `json:"name"`
-	Schema   string `json:"schema"`
-	Database string `json:"database"`
+	Name     string
+	Schema   string
+	Database string
 	// Type of layout
-	Type LayoutType `json:"type"`
+	Type LayoutType
 	// Children layout nodes
-	Children []Layout `json:"children"`
-}
-
-// NewListLayout converts a list of strings to layout
-func NewListLayout(parentName string, list []string) Layout {
-	children := make([]Layout, len(list))
-	for i := range list {
-		children[i] = Layout{
-			Name: list[i],
-		}
-	}
-
-	return Layout{
-		Name:     parentName,
-		Type:     LayoutTypeNone,
-		Children: children,
-	}
+	Children []Layout
+	// PickItems represents a list of selections (example: database names)
+	PickItems []string
 }
 
 func (s LayoutType) String() string {
@@ -57,16 +43,18 @@ func (s LayoutType) String() string {
 
 func (s *Layout) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
-		Name     string   `json:"name"`
-		Schema   string   `json:"schema"`
-		Database string   `json:"database"`
-		Type     string   `json:"type"`
-		Children []Layout `json:"children"`
+		Name      string   `json:"name"`
+		Schema    string   `json:"schema"`
+		Database  string   `json:"database"`
+		Type      string   `json:"type"`
+		Children  []Layout `json:"children"`
+		PickItems []string `json:"pick_items"`
 	}{
-		Name:     s.Name,
-		Schema:   s.Schema,
-		Database: s.Database,
-		Type:     s.Type.String(),
-		Children: s.Children,
+		Name:      s.Name,
+		Schema:    s.Schema,
+		Database:  s.Database,
+		Type:      s.Type.String(),
+		Children:  s.Children,
+		PickItems: s.PickItems,
 	})
 }

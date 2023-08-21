@@ -9,7 +9,8 @@ local callbacker = require("dbee.handler.__callbacks")
 ---@field type ""|"table"|"history"|"database_switch" type of layout -> this infers action
 ---@field schema? string parent schema
 ---@field database? string parent database
----@field children? Layout[] child layout nodes
+---@field children? _LayoutGo[] child layout nodes
+---@field pick_items?  string[] pick items
 
 -- Conn is a 1:1 mapping to go's connections
 ---@class Conn
@@ -224,49 +225,39 @@ function Conn:layout()
 
     local new_layouts = {}
     for _, lgo in ipairs(layout_go) do
-      -- action 1 executes query or history
-      local action_1
-      local on_pick
-      if lgo.type == "table" then
-        action_1 = function(cb)
-          local helpers = self.helpers:get(self.type, { table = lgo.name, schema = lgo.schema, dbname = lgo.database })
-          vim.ui.select(utils.sorted_keys(helpers), {
-            prompt = "select a helper to execute:",
-          }, function(selection)
-            if selection then
-              self:execute(helpers[selection], cb)
-            end
-          end)
-        end
-      elseif lgo.type == "history" then
-        action_1 = function(cb)
-          self:history(lgo.name, cb)
-        end
-      elseif lgo.type == "database_switch" then
-        on_pick = function(selection, cb)
-          self:switch_database(selection)
-          cb()
-        end
-      end
-      -- action 2 activates the connection manually
-      local action_2 = function(cb)
-        cb()
-      end
-      -- action_3 is empty
-
       local l_id = (parent_id or "") .. "__connection_" .. lgo.name .. lgo.schema .. lgo.type .. "__"
+      ---@type Layout
       local ly = {
         id = l_id,
         name = lgo.name,
         schema = lgo.schema,
         database = lgo.database,
         type = lgo.type,
-        action_1 = action_1,
-        action_2 = action_2,
-        action_3 = nil,
-        on_pick = on_pick,
+        pick_items = lgo.pick_items,
+        action_2 = function(cb)
+          cb()
+        end,
         children = to_layout(lgo.children, l_id),
       }
+
+      if lgo.type == "table" then
+        ly.on_pick = function(selection, cb)
+          local helpers = self.helpers:get(self.type, { table = lgo.name, schema = lgo.schema, dbname = lgo.database })
+          self:execute(helpers[selection], cb)
+        end
+        ly.pick_items = function()
+          return self.helpers:list(self.type)
+        end
+      elseif lgo.type == "history" then
+        ly.action_1 = function(cb)
+          self:history(lgo.name, cb)
+        end
+      elseif lgo.type == "database_switch" then
+        ly.on_pick = function(selection, cb)
+          self:switch_database(selection)
+          cb()
+        end
+      end
 
       table.insert(new_layouts, ly)
     end

@@ -328,4 +328,12 @@ function Helpers:add(helpers)
   self.extras = vim.tbl_deep_extend("force", self.extras, ext)
 end
 
+---@param type string
+---@return string[] # list of available table helpers for given type
+function Helpers:list(type)
+  local helpers = self:get(type, {})
+
+  return utils.sorted_keys(helpers)
+end
+
 return Helpers

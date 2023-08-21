@@ -13,11 +13,12 @@ local utils = require("dbee.utils")
 ---@field type ""|"table"|"history"|"scratch"|"database"|"database_switch"|"add"|"edit"|"remove"|"help"|"source" type of layout
 ---@field schema? string parent schema
 ---@field database? string parent database
----@field on_pick? fun(selection: string, cb: fun()) if present, children nodes are treated as values for selection menu (children are shown in the selection menu)
+---@field pick_items? string[]|fun():string[] if present, this is used as a selection list, the selection is passed to "on_pick" function
+---@field on_pick? fun(selection: string, cb: fun()) pick list callback - overwrites action_1 if present
 ---@field action_1? fun(cb: fun()) primary action - takes single arg: callback closure
 ---@field action_2? fun(cb: fun()) secondary action - takes single arg: callback closure
 ---@field action_3? fun(cb: fun()) tertiary action - takes single arg: callback closure
----@field children? Layout[]|fun():Layout[ ] child layout nodes
+---@field children? Layout[]|fun():Layout[] child layout nodes
 ---@field default_expand? Once expand on startup? - basically a bool
 
 -- node is Layout converted to NuiTreeNode
@@ -88,7 +89,7 @@ function Drawer:create_tree(bufnr)
 
       line:append(string.rep("  ", node:get_depth() - 1))
 
-      if (node:has_children() or node.getter) and node.on_pick == nil then
+      if node:has_children() or node.getter then
         local candy = self.candies["node_closed"] or { icon = ">", icon_highlight = "NonText" }
         if node:is_expanded() then
           candy = self.candies["node_expanded"] or { icon = "v", icon_highlight = "NonText" }
@@ -134,16 +135,6 @@ function Drawer:create_tree(bufnr)
   }
 end
 
----@param children Layout[]
----@return string[] # list of child layout names
-local function layout_children_to_list(children)
-  local list = {}
-  for _, l in ipairs(children) do
-    table.insert(list, l.name)
-  end
-  return list
-end
-
 ---@private
 ---@param mappings table<string, mapping>
 ---@return keymap[]
@@ -165,24 +156,6 @@ function Drawer:generate_keymap(mappings)
         nested_node:expand()
         expand_all_single(nested_node)
       end
-    end
-
-    -- if on_pick field is present, show the menu with it's children and trigger callback
-    if type(node.on_pick) == "function" then
-      if #node.children < 1 then
-        return
-      end
-
-      vim.ui.select(layout_children_to_list(node.children), {
-        prompt = "pick a " .. node.name .. ":",
-      }, function(selection)
-        if selection then
-          node.on_pick(selection, function()
-            self:refresh()
-          end)
-        end
-      end)
-      return
     end
 
     local expanded = node:is_expanded()
@@ -209,7 +182,22 @@ function Drawer:generate_keymap(mappings)
     {
       action = function()
         local node = self.tree:get_node()
-        if type(node.action_1) == "function" then
+
+        -- if on_pick field is present, show the menu and trigger callback
+        if type(node.on_pick) == "function" and node.pick_items then
+          local pick_items = node.pick_items
+          if type(node.pick_items) == "function" then
+            pick_items = node.pick_items()
+          end
+
+          utils.menu.open(self.ui:window(), pick_items, function(selection)
+            node.on_pick(selection, function()
+              self:refresh()
+            end)
+          end)
+
+        -- otherwise call action_1
+        elseif type(node.action_1) == "function" then
           node.action_1(function()
             self:refresh()
           end)
