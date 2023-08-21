@@ -5,7 +5,8 @@ local M = {}
 ---@param winid integer window id
 ---@param items string[] items to select from
 ---@param on_select fun(item: string) selection callback
-function M.open(winid, items, on_select)
+---@param title string
+function M.open(winid, items, on_select, title)
   local width = vim.api.nvim_win_get_width(winid)
   local row, _ = unpack(vim.api.nvim_win_get_cursor(winid))
 
@@ -15,7 +16,7 @@ function M.open(winid, items, on_select)
       winid = winid,
     },
     position = {
-      row = row,
+      row = row + 1,
       col = 0,
     },
     size = {
@@ -23,6 +24,10 @@ function M.open(winid, items, on_select)
     },
     border = {
       style = { "─", "─", "─", "", "─", "─", "─", "" },
+      text = {
+        top = title,
+        top_align = "left",
+      },
     },
     win_options = {
       cursorline = true,

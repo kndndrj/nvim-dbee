@@ -262,15 +262,18 @@ function Handler:layout_real()
 
     for _, conn in ipairs(self.lookup:get_connections(source_id)) do
       local details = conn:details()
-      table.insert(children, {
+
+      ---@type Layout
+      local ly = {
         id = details.id,
         name = details.name,
-        type = "database",
+        type = "connection",
         -- set connection as active manually
         action_1 = function(cb)
           self:set_active(details.id)
           cb()
         end,
+        -- edit connection
         action_2 = function(cb)
           local original_details = conn:original_details()
           local prompt = {
@@ -295,20 +298,21 @@ function Handler:layout_real()
             end,
           })
         end,
-        -- remove connection (also trigger the source's function)
-        action_3 = function(cb)
-          vim.ui.input({ prompt = 'confirm deletion of "' .. details.name .. '"', default = "Y" }, function(input)
-            if not input or string.lower(input) ~= "y" then
-              return
-            end
+        pick_title = "Confirm Deletion",
+        pick_items = { "Yes", "No" },
+        -- remove connection
+        action_3 = function(cb, selection)
+          if selection == "Yes" then
             self:remove_connection(details.id)
-            cb()
-          end)
+          end
+          cb()
         end,
         children = function()
           return conn:layout()
         end,
-      })
+      }
+
+      table.insert(children, ly)
     end
 
     if #children > 0 then

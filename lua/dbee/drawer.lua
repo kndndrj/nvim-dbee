@@ -10,14 +10,14 @@ local utils = require("dbee.utils")
 ---@class Layout
 ---@field id string unique identifier
 ---@field name string display name
----@field type ""|"table"|"history"|"scratch"|"database"|"database_switch"|"add"|"edit"|"remove"|"help"|"source" type of layout
+---@field type ""|"table"|"history"|"scratch"|"connection"|"database_switch"|"add"|"edit"|"remove"|"help"|"source" type of layout
 ---@field schema? string parent schema
 ---@field database? string parent database
----@field pick_items? string[]|fun():string[] if present, this is used as a selection list, the selection is passed to "on_pick" function
----@field on_pick? fun(selection: string, cb: fun()) pick list callback - overwrites action_1 if present
----@field action_1? fun(cb: fun()) primary action - takes single arg: callback closure
----@field action_2? fun(cb: fun()) secondary action - takes single arg: callback closure
----@field action_3? fun(cb: fun()) tertiary action - takes single arg: callback closure
+---@field pick_title? string if present, it's used as a title for pick list
+---@field pick_items? string[]|fun():string[] if present, this is used as a selection list, the selection is passed to the action functions if supported
+---@field action_1? fun(cb: fun(), selection?: string) primary action if function takes a second selection parameter, pick_items get picked before the call
+---@field action_2? fun(cb: fun(), selection?: string) secondary action if function takes a second selection parameter, pick_items get picked before the call
+---@field action_3? fun(cb: fun(), selection?: string) tertiary action if function takes a second selection parameter, pick_items get picked before the call
 ---@field children? Layout[]|fun():Layout[] child layout nodes
 ---@field default_expand? Once expand on startup? - basically a bool
 
@@ -172,6 +172,34 @@ function Drawer:generate_keymap(mappings)
     self.tree:render()
   end
 
+  -- wrapper for actions (e.g. action_1, action_2, action_3)
+  ---@param node Node
+  ---@param func fun(cb: fun(), selection?: string)
+  local function perform_action(node, func)
+    if type(func) ~= "function" then
+      return
+    end
+
+    -- if pick_items field is present, and the function takes an extra arg,
+    -- show the menu and then trigger the function with it
+    if node.pick_items and utils.get_function_param_number(func) > 1 then
+      local pick_items = node.pick_items
+      if type(node.pick_items) == "function" then
+        pick_items = node.pick_items()
+      end
+
+      utils.menu.open(self.ui:window(), pick_items --[[@as string[] ]], function(selection)
+        func(function()
+          self:refresh()
+        end, selection)
+      end, node.pick_title)
+    else
+      func(function()
+        self:refresh()
+      end)
+    end
+  end
+
   return {
     {
       action = function()
@@ -182,50 +210,30 @@ function Drawer:generate_keymap(mappings)
     {
       action = function()
         local node = self.tree:get_node()
-
-        -- if on_pick field is present, show the menu and trigger callback
-        if type(node.on_pick) == "function" and node.pick_items then
-          local pick_items = node.pick_items
-          if type(node.pick_items) == "function" then
-            pick_items = node.pick_items()
-          end
-
-          utils.menu.open(self.ui:window(), pick_items, function(selection)
-            node.on_pick(selection, function()
-              self:refresh()
-            end)
-          end)
-
-        -- otherwise call action_1
-        elseif type(node.action_1) == "function" then
-          node.action_1(function()
-            self:refresh()
-          end)
-        else
-          expand_node(node)
+        if not node then
+          return
         end
+        perform_action(node, node.action_1)
       end,
       mapping = mappings["action_1"],
     },
     {
       action = function()
         local node = self.tree:get_node()
-        if type(node.action_2) == "function" then
-          node.action_2(function()
-            self:refresh()
-          end)
+        if not node then
+          return
         end
+        perform_action(node, node.action_2)
       end,
       mapping = mappings["action_2"],
     },
     {
       action = function()
         local node = self.tree:get_node()
-        if type(node.action_3) == "function" then
-          node.action_3(function()
-            self:refresh()
-          end)
+        if not node then
+          return
         end
+        perform_action(node, node.action_3)
       end,
       mapping = mappings["action_3"],
     },

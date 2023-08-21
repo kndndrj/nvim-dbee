@@ -32,7 +32,6 @@ function Lookup:add_source(source)
   self.sources[id] = {
     source = source,
     connections = {},
-    active_connection = "",
   }
 end
 

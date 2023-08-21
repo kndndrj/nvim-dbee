@@ -167,7 +167,7 @@ func (c *Conn) Layout() ([]models.Layout, error) {
 		}
 
 		layout = append(layout, models.Layout{
-			Name:      "DB: " + currentDB,
+			Name:      currentDB,
 			Type:      models.LayoutTypeDatabaseSwitch,
 			PickItems: availableDBs,
 		})

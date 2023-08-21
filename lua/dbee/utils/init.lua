@@ -113,4 +113,16 @@ function M.sorted_keys(obj)
   return keys
 end
 
+-- Get number of parameters that a function takes
+---@param fun fun(...):any function to get the number of parameters of
+---@return integer # number of parameters
+function M.get_function_param_number(fun)
+  local info = debug.getinfo(fun)
+  if info == nil then
+    return 0
+  end
+
+  return info.nparams or 0
+end
+
 return M

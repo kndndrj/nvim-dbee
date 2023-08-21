@@ -220,7 +220,7 @@ function Conn:layout()
 
     -- sort keys
     table.sort(layout_go, function(k1, k2)
-      return k1.name < k2.name
+      return k1.type .. k1.name < k2.type .. k2.name
     end)
 
     local new_layouts = {}
@@ -241,22 +241,24 @@ function Conn:layout()
       }
 
       if lgo.type == "table" then
-        ly.on_pick = function(selection, cb)
+        ly.action_1 = function(cb, selection)
           local helpers = self.helpers:get(self.type, { table = lgo.name, schema = lgo.schema, dbname = lgo.database })
           self:execute(helpers[selection], cb)
         end
         ly.pick_items = function()
           return self.helpers:list(self.type)
         end
+        ly.pick_title = "Select a Query"
       elseif lgo.type == "history" then
         ly.action_1 = function(cb)
           self:history(lgo.name, cb)
         end
       elseif lgo.type == "database_switch" then
-        ly.on_pick = function(selection, cb)
+        ly.action_1 = function(cb, selection)
           self:switch_database(selection)
           cb()
         end
+        ly.pick_title = "Select a Database"
       end
 
       table.insert(new_layouts, ly)
