@@ -131,29 +131,35 @@ func (c *Conn) GetCurrentResult(from int, to int, outputs ...Output) (int, error
 }
 
 func (c *Conn) Layout() ([]models.Layout, error) {
+	var layout []models.Layout
+
+	// structure
 	structure, err := c.driver.Layout()
 	if err != nil {
 		return nil, err
 	}
+	if len(structure) > 0 {
+		layout = append(layout, models.Layout{
+			Name:     "structure",
+			Type:     models.LayoutTypeNone,
+			Children: structure,
+		})
+	}
+
+	// history
 	history, err := c.history.Layout()
 	if err != nil {
 		return nil, err
 	}
-
-	layout := []models.Layout{
-		{
-			Name:     "structure",
-			Type:     models.LayoutTypeNone,
-			Children: structure,
-		},
-		{
+	if len(history) > 0 {
+		layout = append(layout, models.Layout{
 			Name:     "history",
 			Type:     models.LayoutTypeNone,
 			Children: history,
-		},
+		})
 	}
 
-	// add database switching if supported
+	// databases
 	if switcher, ok := c.driver.(DatabaseSwitcher); ok {
 		currentDB, availableDBs, err := switcher.ListDatabases()
 		if err != nil {
@@ -164,6 +170,14 @@ func (c *Conn) Layout() ([]models.Layout, error) {
 			Name:      "DB: " + currentDB,
 			Type:      models.LayoutTypeDatabaseSwitch,
 			PickItems: availableDBs,
+		})
+	}
+
+	// fallback to not confuse users
+	if len(layout) < 1 {
+		layout = append(layout, models.Layout{
+			Name: "no schema to show",
+			Type: models.LayoutTypeNone,
 		})
 	}
 

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
@@ -58,10 +57,6 @@ func NewMongo(rawURL string) (*MongoClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("mongo: invalid url: %w", err)
 	}
-	dbName := strings.TrimPrefix(u.Path, "/")
-	if dbName == "" {
-		return nil, fmt.Errorf("mongo: url doesn't comply to schema: database name must be set")
-	}
 
 	opts := options.Client().ApplyURI(rawURL)
 	client, err := mongo.Connect(context.TODO(), opts)
@@ -71,21 +66,44 @@ func NewMongo(rawURL string) (*MongoClient, error) {
 
 	return &MongoClient{
 		c:      client,
-		dbName: dbName,
+		dbName: u.Path[1:],
 	}, nil
 }
 
+func (c *MongoClient) getCurrentDatabase(ctx context.Context) (string, error) {
+	if c.dbName != "" {
+		return c.dbName, nil
+	}
+
+	dbs, err := c.c.ListDatabaseNames(ctx, bson.D{})
+	if err != nil {
+		return "", fmt.Errorf("failed to select default database: %w", err)
+	}
+	if len(dbs) < 1 {
+		return "", fmt.Errorf("no databases found")
+	}
+	c.dbName = dbs[0]
+
+	return c.dbName, nil
+}
+
 func (c *MongoClient) Query(query string) (models.IterResult, error) {
-	db := c.c.Database(c.dbName)
+	ctx := context.Background()
+
+	dbName, err := c.getCurrentDatabase(ctx)
+	if err != nil {
+		return nil, err
+	}
+	db := c.c.Database(dbName)
 
 	var command any
-	err := bson.UnmarshalExtJSON([]byte(query), false, &command)
+	err = bson.UnmarshalExtJSON([]byte(query), false, &command)
 	if err != nil {
 		return nil, fmt.Errorf("cannot marshal command: \"%v\" to bson: %v", query, err)
 	}
 
 	var resp bson.M
-	err = db.RunCommand(context.TODO(), command).Decode(&resp)
+	err = db.RunCommand(ctx, command).Decode(&resp)
 	if err != nil {
 		return nil, err
 	}
@@ -100,22 +118,22 @@ func (c *MongoClient) Query(query string) (models.IterResult, error) {
 			return nil, errors.New("type assertion for cursor object failed")
 		}
 
-		c := make(chan any)
+		ch := make(chan any)
 		go func() {
-			defer close(c)
+			defer close(ch)
 			for _, b := range cursor {
 				batch, ok := b.(bson.A)
 				if !ok {
 					continue
 				}
 				for _, item := range batch {
-					c <- item
+					ch <- item
 				}
 			}
 		}()
 
 		nextFunc = func() (models.Row, error) {
-			val, ok := <-c
+			val, ok := <-ch
 			if !ok {
 				return nil, nil
 			}
@@ -148,7 +166,14 @@ func (c *MongoClient) Query(query string) (models.IterResult, error) {
 }
 
 func (c *MongoClient) Layout() ([]models.Layout, error) {
-	collections, err := c.c.Database(c.dbName).ListCollectionNames(context.TODO(), bson.D{})
+	ctx := context.Background()
+
+	dbName, err := c.getCurrentDatabase(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	collections, err := c.c.Database(dbName).ListCollectionNames(ctx, bson.D{})
 	if err != nil {
 		return nil, err
 	}
@@ -169,6 +194,36 @@ func (c *MongoClient) Layout() ([]models.Layout, error) {
 
 func (c *MongoClient) Close() {
 	_ = c.c.Disconnect(context.TODO())
+}
+
+func (c *MongoClient) ListDatabases() (current string, available []string, err error) {
+	ctx := context.Background()
+
+	dbName, err := c.getCurrentDatabase(ctx)
+	if err != nil {
+		return "", nil, err
+	}
+
+	all, err := c.c.ListDatabaseNames(ctx, bson.D{{
+		Key: "name",
+		Value: bson.D{{
+			Key: "$not",
+			Value: bson.D{{
+				Key:   "$regex",
+				Value: dbName,
+			}},
+		}},
+	}})
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to retrieve database names: %w", err)
+	}
+
+	return dbName, all, nil
+}
+
+func (c *MongoClient) SelectDatabase(name string) error {
+	c.dbName = name
+	return nil
 }
 
 // mongoResponse serves as a wrapper around the mongo response

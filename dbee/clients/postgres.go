@@ -135,6 +135,10 @@ func (c *PostgresClient) Layout() ([]models.Layout, error) {
 	return layout, nil
 }
 
+func (c *PostgresClient) Close() {
+	c.c.Close()
+}
+
 func (c *PostgresClient) ListDatabases() (current string, available []string, err error) {
 	query := `
 		SELECT current_database(), datname FROM pg_database
@@ -165,19 +169,13 @@ func (c *PostgresClient) ListDatabases() (current string, available []string, er
 }
 
 func (c *PostgresClient) SelectDatabase(name string) error {
-	url := *c.url
-	url.Path = fmt.Sprintf("/%s", name)
-	db, err := sql.Open("postgres", url.String())
+	c.url.Path = fmt.Sprintf("/%s", name)
+	db, err := sql.Open("postgres", c.url.String())
 	if err != nil {
 		return fmt.Errorf("unable to switch databases: %w", err)
 	}
 
-	c.url = &url
 	c.c.Swap(db)
 
 	return nil
-}
-
-func (c *PostgresClient) Close() {
-	c.c.Close()
 }

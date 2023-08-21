@@ -144,8 +144,13 @@ function M.edit(file, opts)
   vim.api.nvim_create_autocmd({ "BufLeave", "BufWritePost" }, {
     buffer = bufnr,
     callback = function()
-      pcall(vim.api.nvim_win_close, winid, true)
-      pcall(vim.api.nvim_buf_delete, bufnr, {})
+      -- close the window if not using "wq" already
+      local cmd_hist = vim.api.nvim_exec2(":history cmd -1", { output = true })
+      local last_cmd = cmd_hist.output:gsub(".*\n>%s*%d+%s*(.*)%s*", "%1")
+      if not last_cmd:find("^wq") then
+        pcall(vim.api.nvim_win_close, winid, true)
+        pcall(vim.api.nvim_buf_delete, bufnr, {})
+      end
     end,
   })
 
