@@ -92,6 +92,10 @@ M.default = {
         icon = "",
         icon_highlight = "Conditional",
       },
+      view = {
+        icon = "",
+        icon_highlight = "Conditional",
+      },
       add = {
         icon = "",
         icon_highlight = "String",
