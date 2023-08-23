@@ -259,9 +259,54 @@ function Helpers:__duck()
     Constraints = "SELECT * FROM duckdb_constraints() WHERE table_name = '{table}'",
   }
 end
+---
+---@private
+---@param materialization string
+---@return table_helpers helpers list of table helpers
+function Helpers:__redshift(materialization)
+  local default_list_query = 'SELECT * FROM "{schema}"."{table}" LIMIT 500;'
+  if materialization == "table" then
+    return {
+      List = default_list_query,
+      Columns = "SELECT * FROM information_schema.columns WHERE table_name='{table}' AND table_schema='{schema}';",
+      Indexes = "SELECT * FROM pg_indexes where tablename='{table}' AND schemaname='{schema}';",
+      ["Foreign Keys"] = [[
+      SELECT tc.constraint_name, tc.table_name, kcu.column_name, ccu.table_name AS foreign_table_name, ccu.column_name AS foreign_column_name, rc.update_rule, rc.delete_rule
+      FROM
+           information_schema.table_constraints AS tc
+           JOIN information_schema.key_column_usage AS kcu
+             ON tc.constraint_name = kcu.constraint_name
+           JOIN information_schema.referential_constraints as rc
+             ON tc.constraint_name = rc.constraint_name
+           JOIN information_schema.constraint_column_usage AS ccu
+             ON ccu.constraint_name = tc.constraint_name
+      WHERE constraint_type = 'FOREIGN KEY' AND tc.table_name = '{table}' AND tc.table_schema = '{schema}';
+      ]],
+      ["Table Definition"] = [[
+    SELECT
+        *
+    FROM svv_table_info
+    WHERE "schema" = '{schema}'
+      AND "table" = '{table}';
+    ]],
+    }
+  elseif materialization == "view" then
+    return {
+      List = default_list_query,
+      ["View Definition"] = [[
+    SELECT
+        *
+    FROM pg_views
+    WHERE schemaname = '{schema}'
+      AND viewname = '{table}';
+    ]],
+    }
+  end
+  return {}
+end
 
 ---@param type string
----@param vars { table: string, schema: string, dbname: string }
+---@param vars { table: string, schema: string, dbname: string , materialization: string}
 ---@return table_helpers helpers list of table helpers
 function Helpers:get(type, vars)
   local helpers
@@ -283,6 +328,8 @@ function Helpers:get(type, vars)
     helpers = self:__oracle()
   elseif type == "duck" then
     helpers = self:__duck()
+  elseif type == "redshift" then
+    helpers = self:__redshift(vars.materialization)
   end
 
   if not helpers then

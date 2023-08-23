@@ -7,6 +7,7 @@ local callbacker = require("dbee.handler.__callbacks")
 ---@class _LayoutGo
 ---@field name string display name
 ---@field type ""|"table"|"history"|"database_switch" type of layout -> this infers action
+---@field type ""|"table"|"history"|"view" type of layout -> this infers action
 ---@field schema? string parent schema
 ---@field database? string parent database
 ---@field children? _LayoutGo[] child layout nodes
@@ -19,7 +20,7 @@ local callbacker = require("dbee.handler.__callbacks")
 ---@field private __original connection_details original unmodified fields passed on initialization (params)
 ---@field private id conn_id
 ---@field private name string
----@field private type string --TODO enum?
+---@field private type string type of connection, e.g. "postgres", "mysql", "sqlite" TODO: enum?
 ---@field private page_size integer
 ---@field private page_index integer index of the current page
 ---@field private page_ammount integer number of pages in the current result set
