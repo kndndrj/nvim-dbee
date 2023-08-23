@@ -180,7 +180,6 @@ func (c *Conn) Layout() ([]models.Layout, error) {
 			Type: models.LayoutTypeNone,
 		})
 	}
-
 	return layout, nil
 }
 
