@@ -6,10 +6,11 @@ import (
 	nurl "net/url"
 	"strings"
 
+	_ "github.com/lib/pq"
+
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
-	_ "github.com/lib/pq"
 )
 
 // Register client
@@ -95,44 +96,7 @@ func (c *PostgresClient) Layout() ([]models.Layout, error) {
 		return nil, err
 	}
 
-	children := make(map[string][]models.Layout)
-
-	for {
-		row, err := rows.Next()
-		if row == nil {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		// We know for a fact there are 2 string fields (see query above)
-		schema := row[0].(string)
-		table := row[1].(string)
-
-		children[schema] = append(children[schema], models.Layout{
-			Name:   table,
-			Schema: schema,
-			// TODO:
-			Database: "",
-			Type:     models.LayoutTypeTable,
-		})
-	}
-
-	var layout []models.Layout
-
-	for k, v := range children {
-		layout = append(layout, models.Layout{
-			Name:   k,
-			Schema: k,
-			// TODO:
-			Database: "",
-			Type:     models.LayoutTypeNone,
-			Children: v,
-		})
-	}
-
-	return layout, nil
+	return fetchPsqlLayouts(rows, "postgres")
 }
 
 func (c *PostgresClient) Close() {
