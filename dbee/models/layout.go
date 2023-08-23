@@ -9,6 +9,24 @@ const (
 	LayoutTypeTable
 	LayoutTypeHistory
 	LayoutTypeDatabaseSwitch
+type (
+	LayoutType int
+	// Layout is a dict which represents a database structure
+	// it's primarely used for the tree view
+	Layout struct {
+		Name     string     `json:"name"`
+		Schema   string     `json:"schema"`
+		Database string     `json:"database"`
+		Children []Layout   `json:"children"`
+		Type     LayoutType `json:"type"`
+	}
+)
+
+const (
+	LayoutNone LayoutType = iota
+	LayoutTable
+	LayoutHistory
+	LayoutView
 )
 
 // Layout is a dict which represents a database structure
@@ -36,6 +54,8 @@ func (s LayoutType) String() string {
 		return "history"
 	case LayoutTypeDatabaseSwitch:
 		return "database_switch"
+	case LayoutView:
+		return "view"
 	default:
 		return ""
 	}
