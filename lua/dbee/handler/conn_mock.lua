@@ -55,6 +55,10 @@ function MockConn:history(history_id, cb)
   cb()
 end
 
+function MockConn:switch_database(name)
+  print("trying to switch to database: " .. name .. " on a mocked connection")
+end
+
 function MockConn:page_next()
   self.on_exec()
 end

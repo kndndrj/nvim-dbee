@@ -178,7 +178,7 @@ func (c *BigQueryClient) Layout() (layouts []models.Layout, err error) {
 			Name:     dataset.DatasetID,
 			Schema:   dataset.DatasetID,
 			Database: dataset.ProjectID,
-			Type:     models.LayoutNone,
+			Type:     models.LayoutTypeNone,
 			Children: []models.Layout{},
 		}
 
@@ -197,7 +197,7 @@ func (c *BigQueryClient) Layout() (layouts []models.Layout, err error) {
 				Name:     table.TableID,
 				Schema:   table.DatasetID,
 				Database: table.ProjectID,
-				Type:     models.LayoutTable,
+				Type:     models.LayoutTypeTable,
 				Children: nil,
 			})
 		}
