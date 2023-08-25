@@ -1,6 +1,8 @@
 package conn
 
 import (
+	"fmt"
+
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
@@ -28,6 +30,12 @@ type (
 		Input
 		Close()
 		Layout() ([]models.Layout, error)
+	}
+
+	// DatabaseSwitcher is an optional interface for clients that have database switching capabilities
+	DatabaseSwitcher interface {
+		SelectDatabase(string) error
+		ListDatabases() (current string, available []string, err error)
 	}
 )
 
@@ -100,8 +108,20 @@ func (c *Conn) setResultToCache(rows models.IterResult, fresh bool) error {
 	return nil
 }
 
-func (c *Conn) ListHistory() ([]models.Layout, error) {
-	return c.history.Layout()
+// SwitchDatabase tries to switch to a given database with the used client.
+// on error, the switch doesn't happen and the previous connection remains active.
+func (c *Conn) SwitchDatabase(name string) error {
+	switcher, ok := c.driver.(DatabaseSwitcher)
+	if !ok {
+		return fmt.Errorf("connection does not support database switching")
+	}
+
+	err := switcher.SelectDatabase(name)
+	if err != nil {
+		return fmt.Errorf("failed to switch to different database: %w", err)
+	}
+
+	return nil
 }
 
 // GetCurrentResult pipes the selected range of rows to the outputs
@@ -111,30 +131,54 @@ func (c *Conn) GetCurrentResult(from int, to int, outputs ...Output) (int, error
 }
 
 func (c *Conn) Layout() ([]models.Layout, error) {
+	var layout []models.Layout
+
+	// structure
 	structure, err := c.driver.Layout()
 	if err != nil {
 		return nil, err
 	}
+	if len(structure) > 0 {
+		layout = append(layout, models.Layout{
+			Name:     "structure",
+			Type:     models.LayoutTypeNone,
+			Children: structure,
+		})
+	}
+
+	// history
 	history, err := c.history.Layout()
 	if err != nil {
 		return nil, err
 	}
-
-	layout := []models.Layout{
-		{
-			Name:     "structure",
-			Schema:   "",
-			Database: "",
-			Type:     models.LayoutNone,
-			Children: structure,
-		},
-		{
+	if len(history) > 0 {
+		layout = append(layout, models.Layout{
 			Name:     "history",
-			Schema:   "",
-			Database: "",
-			Type:     models.LayoutNone,
+			Type:     models.LayoutTypeNone,
 			Children: history,
-		},
+		})
+	}
+
+	// databases
+	if switcher, ok := c.driver.(DatabaseSwitcher); ok {
+		currentDB, availableDBs, err := switcher.ListDatabases()
+		if err != nil {
+			return nil, err
+		}
+
+		layout = append(layout, models.Layout{
+			Name:      currentDB,
+			Type:      models.LayoutTypeDatabaseSwitch,
+			PickItems: availableDBs,
+		})
+	}
+
+	// fallback to not confuse users
+	if len(layout) < 1 {
+		layout = append(layout, models.Layout{
+			Name: "no schema to show",
+			Type: models.LayoutTypeNone,
+		})
 	}
 
 	return layout, nil

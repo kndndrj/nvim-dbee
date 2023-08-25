@@ -117,7 +117,7 @@ func (c *RedisClient) Layout() ([]models.Layout, error) {
 			Name:     "DB",
 			Schema:   "",
 			Database: "",
-			Type:     models.LayoutTable,
+			Type:     models.LayoutTypeTable,
 		},
 	}, nil
 }

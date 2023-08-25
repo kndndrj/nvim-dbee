@@ -170,15 +170,13 @@ function Editor:layout()
           cb()
         end)
       end,
-      action_3 = function(cb)
-        local file = self.scratches[s.id].file
-        vim.ui.input({ prompt = 'confirm deletion of "' .. file .. '"', default = "Y" }, function(input)
-          if not input or string.lower(input) ~= "y" then
-            return
-          end
+      pick_title = "Confirm Deletion",
+      pick_items = { "Yes", "No" },
+      action_3 = function(cb, selection)
+        if selection == "Yes" then
           self:delete_scratch(s.id)
-          cb()
-        end)
+        end
+        cb()
       end,
     }
     table.insert(scratches, sch)

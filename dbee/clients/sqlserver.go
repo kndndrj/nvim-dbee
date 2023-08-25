@@ -3,6 +3,7 @@ package clients
 import (
 	"database/sql"
 	"fmt"
+	nurl "net/url"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
@@ -20,17 +21,24 @@ func init() {
 }
 
 type SQLServerClient struct {
-	c *common.Client
+	c   *common.Client
+	url *nurl.URL
 }
 
 func NewSQLServer(url string) (*SQLServerClient, error) {
-	db, err := sql.Open("sqlserver", url)
+	u, err := nurl.Parse(url)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse db connection string: %w: ", err)
+	}
+
+	db, err := sql.Open("sqlserver", u.String())
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to sqlserver database: %v", err)
 	}
 
 	return &SQLServerClient{
-		c: common.NewClient(db),
+		c:   common.NewClient(db),
+		url: u,
 	}, nil
 }
 
@@ -97,7 +105,7 @@ func (c *SQLServerClient) Layout() ([]models.Layout, error) {
 			Schema: schema,
 			// TODO:
 			Database: "",
-			Type:     models.LayoutTable,
+			Type:     models.LayoutTypeTable,
 		})
 
 	}
@@ -110,7 +118,7 @@ func (c *SQLServerClient) Layout() ([]models.Layout, error) {
 			Schema: k,
 			// TODO:
 			Database: "",
-			Type:     models.LayoutNone,
+			Type:     models.LayoutTypeNone,
 			Children: v,
 		})
 	}
@@ -120,4 +128,48 @@ func (c *SQLServerClient) Layout() ([]models.Layout, error) {
 
 func (c *SQLServerClient) Close() {
 	c.c.Close()
+}
+
+func (c *SQLServerClient) ListDatabases() (current string, available []string, err error) {
+	query := `
+		SELECT DB_NAME(), name
+		FROM sys.databases
+		WHERE name != DB_NAME();
+	`
+
+	rows, err := c.Query(query)
+	if err != nil {
+		return "", nil, err
+	}
+
+	for {
+		row, err := rows.Next()
+		if row == nil {
+			break
+		}
+		if err != nil {
+			return "", nil, err
+		}
+
+		// We know for a fact there are 2 string fields (see query above)
+		current = row[0].(string)
+		available = append(available, row[1].(string))
+	}
+
+	return current, available, nil
+}
+
+func (c *SQLServerClient) SelectDatabase(name string) error {
+	q := c.url.Query()
+	q.Set("database", name)
+	c.url.RawQuery = q.Encode()
+
+	db, err := sql.Open("sqlserver", c.url.String())
+	if err != nil {
+		return fmt.Errorf("unable to switch databases: %w", err)
+	}
+
+	c.c.Swap(db)
+
+	return nil
 }

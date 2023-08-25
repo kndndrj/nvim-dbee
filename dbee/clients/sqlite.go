@@ -95,7 +95,7 @@ func (c *SqliteClient) Layout() ([]models.Layout, error) {
 			Schema: "",
 			// TODO:
 			Database: "",
-			Type:     models.LayoutTable,
+			Type:     models.LayoutTypeTable,
 		})
 	}
 

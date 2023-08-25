@@ -81,7 +81,7 @@ func (c *DuckClient) Layout() ([]models.Layout, error) {
 			Schema: "",
 			// TODO:
 			Database: "",
-			Type:     models.LayoutTable,
+			Type:     models.LayoutTypeTable,
 		})
 	}
 

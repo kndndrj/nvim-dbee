@@ -181,6 +181,35 @@ func main() {
 				return nil
 			})
 
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_switch_database"},
+			func(args []string) error {
+				method := "Dbee_switch_database"
+				logger.Debug("calling " + method)
+				if len(args) < 2 {
+					logger.Error("not enough arguments passed to " + method)
+					return nil
+				}
+
+				id := args[0]
+				name := args[1]
+
+				// Get the right connection
+				c, ok := connections[id]
+				if !ok {
+					logger.Error("connection with id " + id + " not registered")
+					return nil
+				}
+
+				err := c.SwitchDatabase(name)
+				if err != nil {
+					logger.Error(err.Error())
+					return nil
+				}
+
+				logger.Debug(method + " returned successfully")
+				return nil
+			})
+
 		// pages result to buffer output, returns total number of rows
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_get_current_result"},
 			func(args []string) (int, error) {

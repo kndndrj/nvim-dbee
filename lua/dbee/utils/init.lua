@@ -8,6 +8,8 @@ M.prompt = require("dbee.utils.prompt")
 
 M.once = require("dbee.utils.once")
 
+M.menu = require("dbee.utils.menu")
+
 -- Get random key from table
 ---@param tbl table key-value table
 ---@return any|nil key
@@ -109,6 +111,18 @@ function M.sorted_keys(obj)
   end
   table.sort(keys)
   return keys
+end
+
+-- Get number of parameters that a function takes
+---@param fun fun(...):any function to get the number of parameters of
+---@return integer # number of parameters
+function M.get_function_param_number(fun)
+  local info = debug.getinfo(fun)
+  if info == nil then
+    return 0
+  end
+
+  return info.nparams or 0
 end
 
 return M
