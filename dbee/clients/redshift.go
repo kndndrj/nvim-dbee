@@ -3,6 +3,7 @@ package clients
 import (
 	"database/sql"
 	"fmt"
+	"net/url"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
@@ -25,10 +26,15 @@ type RedshiftClient struct {
 	c *common.Client
 }
 
-func NewRedshift(url string) (*RedshiftClient, error) {
-	db, err := sql.Open("postgres", url)
+func NewRedshift(rawURL string) (*RedshiftClient, error) {
+	u, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to redshift database: %v", err)
+		return nil, fmt.Errorf("could not parse db connection string: %w: ", err)
+	}
+
+	db, err := sql.Open("postgres", u.String())
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to postgres database: %w", err)
 	}
 
 	return &RedshiftClient{
