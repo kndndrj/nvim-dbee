@@ -10,7 +10,7 @@ local utils = require("dbee.utils")
 ---@class Layout
 ---@field id string unique identifier
 ---@field name string display name
----@field type ""|"table"|"history"|"scratch"|"connection"|"database_switch"|"add"|"edit"|"remove"|"help"|"source" type of layout
+---@field type ""|"table"|"history"|"scratch"|"connection"|"database_switch"|"add"|"edit"|"remove"|"help"|"source"|"view" type of layout
 ---@field schema? string parent schema
 ---@field database? string parent database
 ---@field pick_title? string if present, it's used as a title for pick list

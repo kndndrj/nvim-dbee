@@ -377,9 +377,10 @@ function Helpers:add(helpers)
 end
 
 ---@param type string
+---@param vars { table: string, schema: string, dbname: string , materialization: string}
 ---@return string[] # list of available table helpers for given type
-function Helpers:list(type)
-  local helpers = self:get(type, {})
+function Helpers:list(type, vars)
+  local helpers = self:get(type, vars)
 
   return utils.sorted_keys(helpers)
 end

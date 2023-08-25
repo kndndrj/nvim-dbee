@@ -6,8 +6,7 @@ local callbacker = require("dbee.handler.__callbacks")
 --
 ---@class _LayoutGo
 ---@field name string display name
----@field type ""|"table"|"history"|"database_switch" type of layout -> this infers action
----@field type ""|"table"|"history"|"view" type of layout -> this infers action
+---@field type ""|"table"|"history"|"database_switch"|"view" type of layout -> this infers action
 ---@field schema? string parent schema
 ---@field database? string parent database
 ---@field children? _LayoutGo[] child layout nodes
@@ -251,14 +250,19 @@ function Conn:layout()
         end,
         children = to_layout(lgo.children, l_id),
       }
-
-      if lgo.type == "table" then
+      if lgo.type == "table" or lgo.type == "view" then
         ly.action_1 = function(cb, selection)
-          local helpers = self.helpers:get(self.type, { table = lgo.name, schema = lgo.schema, dbname = lgo.database })
+          local helpers = self.helpers:get(
+            self.type,
+            { table = lgo.name, schema = lgo.schema, dbname = lgo.database, materialization = lgo.type }
+          )
           self:execute(helpers[selection], cb)
         end
         ly.pick_items = function()
-          return self.helpers:list(self.type)
+          return self.helpers:list(
+            self.type,
+            { table = lgo.name, schema = lgo.schema, dbname = lgo.database, materialization = lgo.type }
+          )
         end
         ly.pick_title = "Select a Query"
       elseif lgo.type == "history" then
