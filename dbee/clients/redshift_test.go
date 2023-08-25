@@ -3,7 +3,6 @@ package clients
 import (
 	"database/sql"
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -217,7 +216,79 @@ func TestRedshiftClient_Layout(t *testing.T) {
 		want    []models.Layout
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "Valid layout",
+			fields: fields{
+				c: &mockClient{
+					ConnFn: func() (common.DatabaseConnection, error) {
+						return &mockConnection{
+							QueryFn: func(query string) (models.IterResult, error) {
+								return &mockIterResult{
+									MetaFn: func() (models.Meta, error) {
+										return models.Meta{
+											Query: "SELECT * FROM table",
+										}, nil
+									},
+									HeaderFn: func() (models.Header, error) {
+										return models.Header{}, nil
+									},
+									NextFn: func() (models.Row, error) {
+										// we expect results as
+										// schema, table, type
+										// for redshift.
+										// e.g.
+										// return models.Row{
+										// 	"public", "mytable1", "TABLE",
+										// 	"public", "mytable2", "TABLE",
+										// 	"public", "mytable3", "TABLE",
+										// 	"public", "myview1", "VIEW",
+										// 	"public", "myview2", "VIEW",
+										// 	"public", "myview3", "VIEW",
+										// }, nil
+										// but difficult to test this.
+										return nil, nil
+									},
+								}, nil
+							},
+							CloseFn: func() error {
+								return nil
+							},
+						}, nil
+					},
+				},
+			},
+			want: []models.Layout{},
+		},
+		{
+			name: "Invalid row.Next",
+			fields: fields{
+				c: &mockClient{
+					ConnFn: func() (common.DatabaseConnection, error) {
+						return &mockConnection{
+							QueryFn: func(query string) (models.IterResult, error) {
+								return &mockIterResult{
+									MetaFn: func() (models.Meta, error) {
+										return models.Meta{
+											Query: "SELECT * FROM table",
+										}, nil
+									},
+									HeaderFn: func() (models.Header, error) {
+										return models.Header{}, nil
+									},
+									NextFn: func() (models.Row, error) {
+										return models.Row{}, fmt.Errorf("invalid next err")
+									},
+								}, nil
+							},
+							CloseFn: func() error {
+								return nil
+							},
+						}, nil
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -229,14 +300,22 @@ func TestRedshiftClient_Layout(t *testing.T) {
 				t.Errorf("RedshiftClient.Layout() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("RedshiftClient.Layout() = %v, want %v", got, tt.want)
+
+			if tt.wantErr {
+				require.Nil(t, got)
+				require.Error(t, err)
+				return
 			}
+			require.Len(t, got, 0)
 		})
 	}
 }
 
 func Test_fetchPsqlLayouts(t *testing.T) {
+	// NOTE: this function currently tests partly the fetchPsqlLayouts
+	// function. Mainly because NextFn needs to be refactored so it return
+	// different models.Row upon each call during the while loop.
+	// This should be tested in the future.
 	type args struct {
 		rows   models.IterResult
 		dbType string
@@ -247,7 +326,40 @@ func Test_fetchPsqlLayouts(t *testing.T) {
 		want    []models.Layout
 		wantErr bool
 	}{
-		// TODO: Add test cases.
+		{
+			name: "Valid layout redshift",
+			args: args{
+				rows: &mockIterResult{
+					NextFn: func() (models.Row, error) {
+						return nil, nil
+					},
+				},
+				dbType: "redshift",
+			},
+		},
+		{
+			name: "Valid layout postgres",
+			args: args{
+				rows: &mockIterResult{
+					NextFn: func() (models.Row, error) {
+						return nil, nil
+					},
+				},
+				dbType: "postgres",
+			},
+		},
+		{
+			name: "Invalid layout",
+			args: args{
+				rows: &mockIterResult{
+					NextFn: func() (models.Row, error) {
+						return models.Row{}, fmt.Errorf("err next")
+					},
+				},
+				dbType: "postgres",
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -256,9 +368,12 @@ func Test_fetchPsqlLayouts(t *testing.T) {
 				t.Errorf("fetchPsqlLayouts() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("fetchPsqlLayouts() = %v, want %v", got, tt.want)
+			if tt.wantErr {
+				require.Nil(t, got)
+				require.Error(t, err)
+				return
 			}
+			require.Len(t, got, 0)
 		})
 	}
 }
