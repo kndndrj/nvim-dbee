@@ -82,11 +82,8 @@ FROM
 JOIN
     pg_namespace AS n ON c.relnamespace = n.oid
 WHERE
-    n.nspname NOT IN ('information_schema', 'pg_catalog')
-ORDER BY
-    schema_name,
-    table_name;
-	`
+    n.nspname NOT IN ('information_schema', 'pg_catalog');
+`
 
 	rows, err := c.Query(query)
 	if err != nil {
@@ -110,7 +107,7 @@ func fetchPsqlLayouts(rows models.IterResult, dbType string) ([]models.Layout, e
 		}
 
 		schema, table := row[0].(string), row[1].(string)
-		if dbType == "redshift" {
+		if dbType == redshiftClient {
 			typ := row[2].(string)
 			children[schema] = append(children[schema], models.Layout{
 				Name:     table,
@@ -124,7 +121,7 @@ func fetchPsqlLayouts(rows models.IterResult, dbType string) ([]models.Layout, e
 			Name:     table,
 			Schema:   schema,
 			Database: dbType,
-			Type:     models.LayoutTable,
+			Type:     models.LayoutTypeTable,
 		})
 	}
 
@@ -135,7 +132,7 @@ func fetchPsqlLayouts(rows models.IterResult, dbType string) ([]models.Layout, e
 			Name:     k,
 			Schema:   k,
 			Database: dbType,
-			Type:     models.LayoutNone,
+			Type:     models.LayoutTypeNone,
 			Children: v,
 		})
 	}
@@ -146,10 +143,10 @@ func fetchPsqlLayouts(rows models.IterResult, dbType string) ([]models.Layout, e
 func getLayoutType(typ string) models.LayoutType {
 	switch typ {
 	case "TABLE":
-		return models.LayoutTable
+		return models.LayoutTypeTable
 	case "VIEW":
 		return models.LayoutView
 	default:
-		return models.LayoutNone
+		return models.LayoutTypeNone
 	}
 }
