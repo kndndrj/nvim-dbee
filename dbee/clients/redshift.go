@@ -12,6 +12,8 @@ import (
 
 var redshiftClient = "redshift"
 
+// init registers the RedshiftClient to the store,
+// i.e. to lua frontend.
 func init() {
 	c := func(url string) (conn.Client, error) {
 		return NewRedshift(url)
@@ -19,10 +21,14 @@ func init() {
 	_ = Store.Register(redshiftClient, c)
 }
 
+// RedshiftClient is a sql client for Redshift.
+// Mainly uses the postgres driver under the hood but with
+// custom Layout function to get the table and view names correctly.
 type RedshiftClient struct {
 	c common.DatabaseClient
 }
 
+// NewRedshift creates a new RedshiftClient.
 func NewRedshift(rawURL string) (*RedshiftClient, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -39,6 +45,7 @@ func NewRedshift(rawURL string) (*RedshiftClient, error) {
 	}, nil
 }
 
+// Query executes a query and returns the result as an IterResult.
 func (c *RedshiftClient) Query(query string) (models.IterResult, error) {
 	con, err := c.c.Conn()
 	if err != nil {
@@ -61,10 +68,15 @@ func (c *RedshiftClient) Query(query string) (models.IterResult, error) {
 	return rows, nil
 }
 
+// Close closes the underlying sql.DB connection.
 func (c *RedshiftClient) Close() {
+	// TODO: perhaps worth check err return statement here.
 	c.c.Close()
 }
 
+// Layout returns the layout of the database. This represents the
+// "schema" with all the tables and views. Note that ordering is not
+// done here. The ordering is done in the lua frontend.
 func (c *RedshiftClient) Layout() ([]models.Layout, error) {
 	query := `
 	SELECT
@@ -90,6 +102,7 @@ WHERE
 	return fetchPsqlLayouts(rows, redshiftClient)
 }
 
+// fetchPsqlLayouts fetches the layout from the postgres database.
 func fetchPsqlLayouts(rows models.IterResult, dbType string) ([]models.Layout, error) {
 	children := make(map[string][]models.Layout)
 
@@ -137,6 +150,7 @@ func fetchPsqlLayouts(rows models.IterResult, dbType string) ([]models.Layout, e
 	return layout, nil
 }
 
+// getLayoutType returns the layout type based on the string.
 func getLayoutType(typ string) models.LayoutType {
 	switch typ {
 	case "TABLE":
