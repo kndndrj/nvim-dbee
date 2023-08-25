@@ -122,14 +122,12 @@ func main() {
 
 				// execute and open the first page
 				go func() {
-					err := c.Execute(query)
-					if err != nil {
+					if err := c.Execute(query); err != nil {
 						logger.Error(err.Error())
 						return
 					}
 					logger.Debugf("%q executed successfully", method)
-					err = callbacker.TriggerCallback(callbackId)
-					if err != nil {
+					if err := callbacker.TriggerCallback(callbackId); err != nil {
 						logger.Error(err.Error())
 						return
 					}
@@ -159,14 +157,12 @@ func main() {
 				}
 
 				go func() {
-					err := c.History(historyId)
-					if err != nil {
+					if err := c.History(historyId); err != nil {
 						logger.Error(err.Error())
 						return
 					}
 					logger.Debugf("%q executed successfully", method)
-					err = callbacker.TriggerCallback(callbackId)
-					if err != nil {
+					if err := callbacker.TriggerCallback(callbackId); err != nil {
 						logger.Error(err.Error())
 						return
 					}
@@ -196,8 +192,7 @@ func main() {
 					return nil
 				}
 
-				err := c.SwitchDatabase(name)
-				if err != nil {
+				if err := c.SwitchDatabase(name); err != nil {
 					logger.Error(err.Error())
 					return nil
 				}
