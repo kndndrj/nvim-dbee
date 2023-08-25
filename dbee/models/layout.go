@@ -9,7 +9,7 @@ const (
 	LayoutTypeTable
 	LayoutTypeHistory
 	LayoutTypeDatabaseSwitch
-	LayoutView
+	LayoutTypeView
 )
 
 // Layout is a dict which represents a database structure
@@ -37,7 +37,7 @@ func (s LayoutType) String() string {
 		return "history"
 	case LayoutTypeDatabaseSwitch:
 		return "database_switch"
-	case LayoutView:
+	case LayoutTypeView:
 		return "view"
 	default:
 		return ""
