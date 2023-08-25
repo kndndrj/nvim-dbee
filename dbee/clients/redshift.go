@@ -19,11 +19,8 @@ func init() {
 	_ = Store.Register(redshiftClient, c)
 }
 
-// RedshiftClient is a client for Redshift database.
-// Similar to PostgresClient, but with different connection string
-// and layout query (e.g. doesn't have information_schema and pg_views).
 type RedshiftClient struct {
-	c *common.Client
+	c common.DatabaseClient
 }
 
 func NewRedshift(rawURL string) (*RedshiftClient, error) {
@@ -145,7 +142,7 @@ func getLayoutType(typ string) models.LayoutType {
 	case "TABLE":
 		return models.LayoutTypeTable
 	case "VIEW":
-		return models.LayoutView
+		return models.LayoutTypeView
 	default:
 		return models.LayoutTypeNone
 	}
