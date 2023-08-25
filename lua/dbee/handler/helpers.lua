@@ -34,7 +34,7 @@ function Helpers:__postgres()
            ON ccu.constraint_name = tc.constraint_name ]]
 
   return {
-    List = 'SELECT * FROM "{table}" LIMIT 500',
+    List = 'SELECT * FROM "{schema}"."{table}" LIMIT 500',
     Columns = "SELECT * FROM information_schema.columns WHERE table_name='{table}' AND table_schema='{schema}'",
     Indexes = "SELECT * FROM pg_indexes WHERE tablename='{table}' AND schemaname='{schema}'",
     ["Foreign Keys"] = basic_constraint_query
