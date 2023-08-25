@@ -286,6 +286,7 @@ function Conn:layout()
 end
 
 function Conn:start_progress_display()
+  -- TODO: make this configurable in config.lua
   local interval_step = 100 -- Update interval in millis
   local prefix_progress_text = "Query in progress... "
 
