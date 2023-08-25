@@ -113,10 +113,15 @@ function Conn:execute(query, cb)
   cb = cb or function() end
   self.on_exec()
 
+  self:start_progress_display()
+
   local cb_id = tostring(math.random(10000))
   callbacker.register(cb_id, function()
     self:show_page(0)
     cb()
+
+    -- stop progress display
+    vim.fn.timer_stop(self.progress_timer)
   end)
 
   self.page_index = 0
@@ -189,7 +194,17 @@ function Conn:show_page(page)
   end
 
   -- set winbar status
-  vim.api.nvim_win_set_option(winid, "winbar", "%=" .. tostring(page + 1) .. "/" .. tostring(self.page_ammount + 1))
+  vim.api.nvim_win_set_option(
+    winid,
+    "winbar",
+    "%="
+      .. "Finished in "
+      .. string.format("%.3f", self.remaining_time)
+      .. "s | "
+      .. tostring(page + 1)
+      .. "/"
+      .. tostring(self.page_ammount + 1)
+  )
 
   return page
 end
@@ -268,6 +283,26 @@ function Conn:layout()
   end
 
   return to_layout(vim.fn.json_decode(vim.fn.Dbee_layout(self.id)), self.id)
+end
+
+function Conn:start_progress_display()
+  local interval_step = 100 -- Update interval in millis
+  local prefix_progress_text = "Query in progress... "
+
+  local progress_buf = self.ui:buffer()
+  local function draw_progress(remaining_time)
+    local progress_text = string.format(prefix_progress_text .. "%.3f seconds", remaining_time)
+    vim.api.nvim_buf_set_lines(progress_buf, 0, 1, false, { progress_text })
+  end
+
+  self.start_time = vim.fn.reltimefloat(vim.fn.reltime())
+
+  local function update_progress()
+    self.remaining_time = vim.fn.reltimefloat(vim.fn.reltime()) - self.start_time
+    draw_progress(self.remaining_time)
+  end
+
+  self.progress_timer = vim.fn.timer_start(interval_step, update_progress, { ["repeat"] = -1 })
 end
 
 return Conn
