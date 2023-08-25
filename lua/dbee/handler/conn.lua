@@ -193,6 +193,10 @@ function Conn:show_page(page)
     self.page_ammount = self.page_ammount - 1
   end
 
+  if self.remaining_time == nil then
+    self.remaining_time = 0.0
+  end
+
   -- set winbar status
   vim.api.nvim_win_set_option(
     winid,
@@ -289,10 +293,13 @@ function Conn:start_progress_display()
   -- TODO: make this configurable in config.lua
   local interval_step = 100 -- Update interval in millis
   local prefix_progress_text = "Query in progress... "
+  local icon_sequence = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" } -- Rotating progress icons
+  local icon_index = 1
 
   local progress_buf = self.ui:buffer()
   local function draw_progress(remaining_time)
-    local progress_text = string.format(prefix_progress_text .. "%.3f seconds", remaining_time)
+    local progress_text =
+      string.format(prefix_progress_text .. "%.3f seconds %s", remaining_time, icon_sequence[icon_index])
     vim.api.nvim_buf_set_lines(progress_buf, 0, 1, false, { progress_text })
   end
 
@@ -300,6 +307,7 @@ function Conn:start_progress_display()
 
   local function update_progress()
     self.remaining_time = vim.fn.reltimefloat(vim.fn.reltime()) - self.start_time
+    icon_index = (icon_index % #icon_sequence) + 1
     draw_progress(self.remaining_time)
   end
 
