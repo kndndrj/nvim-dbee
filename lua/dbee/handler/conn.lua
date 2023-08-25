@@ -116,12 +116,13 @@ function Conn:execute(query, cb)
   self:start_progress_display()
 
   local cb_id = tostring(math.random(10000))
-  callbacker.register(cb_id, function()
-    self:show_page(0)
-    cb()
+  callbacker.register(cb_id, function(ok)
+    if ok then
+      self:show_page(0)
+    end
 
-    -- stop progress display
     vim.fn.timer_stop(self.progress_timer)
+    cb()
   end)
 
   self.page_index = 0
@@ -137,8 +138,10 @@ function Conn:history(history_id, cb)
   self.on_exec()
 
   local cb_id = tostring(math.random(10000))
-  callbacker.register(cb_id, function()
-    self:show_page(0)
+  callbacker.register(cb_id, function(ok)
+    if ok then
+      self:show_page(0)
+    end
     cb()
   end)
 

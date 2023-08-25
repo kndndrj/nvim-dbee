@@ -2,19 +2,22 @@
 -- It uses unique ids to register the callbacks and trigger them.
 
 local M = {
-  ---@type table<string, fun()>
+  ---@type table<string, fun(success: boolean)>
   callbacks = {},
 }
 
 ---@param id string id to register callback with
----@param cb fun() callback function
+---@param cb fun(success: boolean) callback function
 function M.register(id, cb)
   M.callbacks[id] = cb
 end
 
-function M.trigger(id)
-  local cb = M.callbacks[id] or function() end
-  cb()
+---@param id string
+---@param success boolean
+function M.trigger(id, success)
+  success = success or false
+  local cb = M.callbacks[id] or function(_) end
+  cb(success)
 end
 
 return M

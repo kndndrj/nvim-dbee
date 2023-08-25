@@ -124,18 +124,18 @@ func main() {
 
 				// execute and open the first page
 				go func() {
+					ok := true
 					err := c.Execute(query)
+					if err != nil {
+						ok = false
+						logger.Error(err.Error())
+					}
+					err = callbacker.TriggerCallback(callbackId, ok)
 					if err != nil {
 						logger.Error(err.Error())
 						return
 					}
 					logger.Debug(method + " executed successfully")
-					err = callbacker.TriggerCallback(callbackId)
-					if err != nil {
-						logger.Error(err.Error())
-						return
-					}
-					logger.Debug(method + " successfully triggered callback")
 				}()
 
 				logger.Debug(method + " returned successfully")
@@ -163,18 +163,18 @@ func main() {
 				}
 
 				go func() {
+					ok := true
 					err := c.History(historyId)
+					if err != nil {
+						ok = false
+						logger.Error(err.Error())
+					}
+					err = callbacker.TriggerCallback(callbackId, ok)
 					if err != nil {
 						logger.Error(err.Error())
 						return
 					}
 					logger.Debug(method + " executed successfully")
-					err = callbacker.TriggerCallback(callbackId)
-					if err != nil {
-						logger.Error(err.Error())
-						return
-					}
-					logger.Debug(method + " successfully triggered callback")
 				}()
 
 				logger.Debug(method + " returned successfully")
