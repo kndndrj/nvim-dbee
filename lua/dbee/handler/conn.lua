@@ -193,17 +193,13 @@ function Conn:show_page(page)
     self.page_ammount = self.page_ammount - 1
   end
 
-  if self.remaining_time == nil then
-    self.remaining_time = 0.0
-  end
-
   -- set winbar status
   vim.api.nvim_win_set_option(
     winid,
     "winbar",
     "%="
       .. "Finished in "
-      .. string.format("%.3f", self.remaining_time)
+      .. string.format("%.3f", self.remaining_time or 0.0)
       .. "s | "
       .. tostring(page + 1)
       .. "/"
