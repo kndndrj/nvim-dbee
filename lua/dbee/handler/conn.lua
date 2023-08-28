@@ -121,7 +121,7 @@ function Conn:execute(query, cb)
       self:show_page(0)
     end
 
-    vim.fn.timer_stop(self.progress_timer)
+    self:stop_progress_display()
     cb()
   end)
 
@@ -288,6 +288,7 @@ function Conn:layout()
   return to_layout(vim.fn.json_decode(vim.fn.Dbee_layout(self.id)), self.id)
 end
 
+--- Starts the progress display timer using vim.fn.timer_start
 function Conn:start_progress_display()
   -- TODO: make this configurable in config.lua
   local interval_step = 100 -- Update interval in millis
@@ -311,6 +312,13 @@ function Conn:start_progress_display()
   end
 
   self.progress_timer = vim.fn.timer_start(interval_step, update_progress, { ["repeat"] = -1 })
+end
+
+--- Stops the progress display timer using vim.fn.timer_stop
+function Conn:stop_progress_display()
+  if self.progress_timer then
+    vim.fn.timer_stop(self.progress_timer)
+  end
 end
 
 return Conn
