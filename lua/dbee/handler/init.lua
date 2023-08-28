@@ -4,7 +4,7 @@ local MockedConn = require("dbee.handler.conn_mock")
 local Helpers = require("dbee.handler.helpers")
 local Lookup = require("dbee.handler.lookup")
 
----@alias handler_config { fallback_page_size: integer }
+---@alias handler_config { fallback_page_size: integer , icon: table, text_prefix: string}
 
 -- Handler is an aggregator of connections
 ---@class Handler
@@ -75,6 +75,8 @@ function Handler:source_reload(id)
       on_exec = function()
         self:set_active(conn:details().id)
       end,
+      icon = self.opts.icon,
+      text_prefix = self.opts.text_prefix,
     })
     if ok then
       -- add it to lookup

@@ -1,4 +1,5 @@
 local layout = require("dbee.utils").layout
+local spinners = require("dbee.spinners")
 
 local M = {}
 local m = {}
@@ -47,6 +48,13 @@ M.default = {
 
   -- number of rows in the results set to display per page
   page_size = 100,
+
+  progress_bar = {
+    -- spinner to use, see lua/dbee/spinners.lua
+    icon = spinners.dots,
+    -- prefix to display before the timer
+    text_prefix = "Executing...",
+  },
 
   -- drawer window config
   drawer = {

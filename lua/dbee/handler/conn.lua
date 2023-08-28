@@ -29,7 +29,7 @@ local Conn = {}
 ---@param ui Ui
 ---@param helpers Helpers
 ---@param params connection_details
----@param opts? { fallback_page_size: integer, on_exec: fun() }
+---@param opts? { fallback_page_size: integer, on_exec: fun(), icon: table, text_prefix: string}}
 ---@return Conn
 function Conn:new(ui, helpers, params, opts)
   params = params or {}
@@ -80,6 +80,10 @@ function Conn:new(ui, helpers, params, opts)
     page_index = 0,
     page_ammount = 0,
     on_exec = opts.on_exec or function() end,
+    progress_bar_opts = {
+      icon = opts.icon,
+      text_prefix = opts.text_prefix,
+    },
   }
   setmetatable(o, self)
   self.__index = self
@@ -290,16 +294,14 @@ end
 
 --- Starts the progress display timer using vim.fn.timer_start
 function Conn:start_progress_display()
-  -- TODO: make this configurable in config.lua
-  local interval_step = 100 -- Update interval in millis
-  local prefix_progress_text = "Query in progress... "
-  local icon_sequence = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" } -- Rotating progress icons
+  local interval_step = 100 -- milliseconds
   local icon_index = 1
+  local prefix_progress_text = self.progress_bar_opts.text_prefix
+  local icon = self.progress_bar_opts.icon
 
   local progress_buf = self.ui:buffer()
   local function draw_progress(remaining_time)
-    local progress_text =
-      string.format(prefix_progress_text .. "%.3f seconds %s", remaining_time, icon_sequence[icon_index])
+    local progress_text = string.format(prefix_progress_text .. " %.3f seconds %s ", remaining_time, icon[icon_index])
     vim.api.nvim_buf_set_lines(progress_buf, 0, 1, false, { progress_text })
   end
 
@@ -307,7 +309,7 @@ function Conn:start_progress_display()
 
   local function update_progress()
     self.remaining_time = vim.fn.reltimefloat(vim.fn.reltime()) - self.start_time
-    icon_index = (icon_index % #icon_sequence) + 1
+    icon_index = (icon_index % #icon) + 1
     draw_progress(self.remaining_time)
   end
 
