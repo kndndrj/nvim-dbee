@@ -186,7 +186,7 @@ function Handler:layout_help()
       children = {
         {
           id = "__handler_help_id_child_1__",
-          name = 'Type ":h dbee.txt"',
+          name = 'Type ":h dbee"',
           type = "",
         },
         {

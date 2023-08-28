@@ -92,6 +92,7 @@ function M.setup(o)
     drawer_disable_help = { opts.drawer.disable_help, "boolean" },
     drawer_candies = { opts.drawer.candies, "table" },
     drawer_mappings = { opts.drawer.mappings, "table" },
+    result_mappings = { opts.result.mappings, "table" },
     -- ui
     ui_window_commands = { opts.ui.window_commands, "table" },
     ui_window_commands_drawer = { opts.ui.window_commands.drawer, { "string", "function" } },
@@ -119,6 +120,14 @@ function M.add_connection(params, source_id)
     return
   end
   m.handler:add_connection(params, source_id)
+end
+
+---@param source Source
+function M.add_source(source)
+  if not pcall_lazy_setup() then
+    return
+  end
+  m.handler:source_add(source)
 end
 
 function M.toggle()
@@ -158,7 +167,7 @@ function M.open()
 end
 
 function M.close()
-  if not pcall_lazy_setup() then
+  if not m.open or not pcall_lazy_setup() then
     return
   end
 

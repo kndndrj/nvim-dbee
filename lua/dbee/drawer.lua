@@ -29,7 +29,7 @@ local utils = require("dbee.utils")
 
 ---@class Drawer
 ---@field private ui Ui
----@field private tree table NuiTree
+---@field private tree? table NuiTree
 ---@field private handler Handler
 ---@field private editor Editor
 ---@field private mappings table<string, mapping>
@@ -331,7 +331,9 @@ function Drawer:set_layout(layout, node_id)
   end
 
   -- recurse layout
-  self.tree:set_nodes(to_node(layout), node_id)
+  if self.tree then
+    self.tree:set_nodes(to_node(layout), node_id)
+  end
 end
 
 ---@private
@@ -390,7 +392,9 @@ function Drawer:refresh()
 
   self:set_layout(layouts)
 
-  self.tree:render()
+  if self.tree then
+    self.tree:render()
+  end
 end
 
 -- Show drawer on screen
