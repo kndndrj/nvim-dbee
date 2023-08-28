@@ -2,14 +2,16 @@ local dbee = require("dbee")
 local ProjectorDbeeSource = require("projector_dbee.source")
 local ProjectorOutput = require("projector_dbee.output")
 
+local M = {}
+
 ---@class ProjectorOutputBuilder: OutputBuilder
 ---@field private source ProjectorDbeeSource
 ---@field private source_added boolean
-local ProjectorOutputBuilder = {}
+M.OutputBuilder = {}
 
 -- new builder
 ---@return ProjectorOutputBuilder
-function ProjectorOutputBuilder:new()
+function M.OutputBuilder:new()
   local o = {
     source = ProjectorDbeeSource:new(),
     source_added = false,
@@ -21,18 +23,18 @@ end
 
 -- build a new output
 ---@return ProjectorOutput
-function ProjectorOutputBuilder:build()
+function M.OutputBuilder:build()
   return ProjectorOutput:new()
 end
 
 ---@return task_mode mode
-function ProjectorOutputBuilder:mode_name()
+function M.OutputBuilder:mode_name()
   return "dbee"
 end
 
 ---@param selection configuraiton_picks
 ---@return configuraiton_picks # picked configs
-function ProjectorOutputBuilder:preprocess(selection)
+function M.OutputBuilder:preprocess(selection)
   -- get databases from all configs
   local connections = {}
   for _, config in pairs(selection) do
@@ -69,4 +71,4 @@ function ProjectorOutputBuilder:preprocess(selection)
   }
 end
 
-return ProjectorOutputBuilder
+return M
