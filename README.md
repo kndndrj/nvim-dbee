@@ -47,7 +47,7 @@
     end,
     config = function()
       require("dbee").setup(--[[optional config]])
-    end
+    end,
   }
   ```
 
@@ -402,8 +402,6 @@ connection:
 DBee is compatible with my other plugin
 [nvim-projector](https://github.com/kndndrj/nvim-projector), a
 code-runner/project-configurator.
-
-To use dbee with it, simply use `"dbee"` as one of it's outputs.
 
 <!-- DOCGEN_IGNORE_START -->
 
