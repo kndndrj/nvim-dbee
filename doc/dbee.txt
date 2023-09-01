@@ -49,7 +49,7 @@ INSTALLATION                                   *dbee-neovim-dbee-installation*
           end,
           config = function()
             require("dbee").setup(--[[optional config]])
-          end
+          end,
         }
     <
 - lazy.nvim:
@@ -526,8 +526,6 @@ PROJECTOR INTEGRATION                 *dbee-neovim-dbee-projector-integration*
 DBee is compatible with my other plugin nvim-projector
 <https://github.com/kndndrj/nvim-projector>, a
 code-runner/project-configurator.
-
-To use dbee with it, simply use `"dbee"` as one of it’s outputs.
 
 
 ==============================================================================
