@@ -222,7 +222,7 @@ function Conn:layout()
     ---@param children _LayoutGo[] -- children to sort
     ---@param field string -- field to sort by
     ---@param ascending bool -- set to true to sort ascendingly
-    local function sortChildrenByField(children, field, ascending)
+    local function sort_children_by_field(children, field, ascending)
       table.sort(children, function(k1, k2)
         if ascending then
           return k1[field] < k2[field]
@@ -235,15 +235,15 @@ function Conn:layout()
     for _, lgo in ipairs(layout_go) do
       if lgo.name == "history" then
         -- Sort descendingly to get the latest history first
-        sortChildrenByField(lgo.children, "name", false)
+        sort_children_by_field(lgo.children, "name", false)
       elseif lgo.name == "structure" then
         -- Sort ascendingly, alphabetically by schema
-        sortChildrenByField(lgo.children, "schema", true)
+        sort_children_by_field(lgo.children, "schema", true)
         -- 1. sort ascendingly, alphabetically by table/view name
         -- 2. sort ascendingly, alphabetically by materialization
         for _, schema in ipairs(lgo.children) do
-          sortChildrenByField(schema.children, "name", true)
-          sortChildrenByField(schema.children, "type", true)
+          sort_children_by_field(schema.children, "name", true)
+          sort_children_by_field(schema.children, "type", true)
         end
       end
     end
