@@ -80,18 +80,18 @@ func (c *RedshiftClient) Close() {
 func (c *RedshiftClient) Layout() ([]models.Layout, error) {
 	query := `
 	SELECT
-    trim(n.nspname) AS schema_name,
-    trim(c.relname) AS table_name,
-    CASE
+    trim(n.nspname) AS schema_name
+    , trim(c.relname) AS table_name
+    , CASE
         WHEN c.relkind = 'v' THEN 'VIEW'
         ELSE 'TABLE'
-    END AS table_type
-FROM
-    pg_class AS c
-JOIN
-    pg_namespace AS n ON c.relnamespace = n.oid
-WHERE
-    n.nspname NOT IN ('information_schema', 'pg_catalog');
+    	END AS table_type
+		FROM
+				pg_class AS c
+		INNER JOIN
+				pg_namespace AS n ON c.relnamespace = n.oid
+		WHERE
+				n.nspname NOT IN ('information_schema', 'pg_catalog');
 `
 
 	rows, err := c.Query(query)
