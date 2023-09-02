@@ -134,6 +134,9 @@ func (c *Connection) Query(query string) (models.IterResult, error) {
 			row := make(models.Row, len(dbCols))
 			for i := range dbCols {
 				val := *columnPointers[i].(*any)
+				// TODO: this breaks some types with some drivers (namely sqlserver newid()):
+				// add a generic way of doing this with ResultBuilder
+				// fix for some strings being interpreted as bytes
 				valb, ok := val.([]byte)
 				if ok {
 					val = string(valb)
