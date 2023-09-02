@@ -218,19 +218,33 @@ function Conn:layout()
       return {}
     end
 
-    -- sort children of keys in layout
+    --- Sort children by field in place (mutates the children array).
+    ---@param children _LayoutGo[] -- children to sort
+    ---@param field string -- field to sort by
+    ---@param ascending bool -- set to true to sort ascendingly
+    local function sortChildrenByField(children, field, ascending)
+      table.sort(children, function(k1, k2)
+        if ascending then
+          return k1[field] < k2[field]
+        else
+          return k1[field] > k2[field]
+        end
+      end)
+    end
+
     for _, lgo in ipairs(layout_go) do
       if lgo.name == "history" then
-        -- sort descendingly, latest query in the top
-        -- due to table.name is epoch time.
-        table.sort(lgo.children, function(k1, k2)
-          return k1.name > k2.name
-        end)
+        -- Sort descendingly to get the latest history first
+        sortChildrenByField(lgo.children, "name", false)
       elseif lgo.name == "structure" then
-        -- sort ascendingly, alphabetically
-        table.sort(lgo.children, function(k1, k2)
-          return k1.name < k2.name
-        end)
+        -- Sort ascendingly, alphabetically by schema
+        sortChildrenByField(lgo.children, "schema", true)
+        -- 1. sort ascendingly, alphabetically by table/view name
+        -- 2. sort ascendingly, alphabetically by materialization
+        for _, schema in ipairs(lgo.children) do
+          sortChildrenByField(schema.children, "name", true)
+          sortChildrenByField(schema.children, "type", true)
+        end
       end
     end
 
