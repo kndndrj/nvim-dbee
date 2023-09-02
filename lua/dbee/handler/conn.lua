@@ -298,8 +298,11 @@ function Conn:start_progress_display()
   local icon_index = 1
   local prefix_progress_text = self.progress_bar_opts.text_prefix
   local icon = self.progress_bar_opts.icon
-
   local progress_buf = self.ui:buffer()
+
+  -- clean the buffer before starting
+  vim.api.nvim_buf_set_lines(progress_buf, 0, -1, false, {})
+
   local function draw_progress(remaining_time)
     local progress_text = string.format(prefix_progress_text .. " %.3f seconds %s ", remaining_time, icon[icon_index])
     vim.api.nvim_buf_set_lines(progress_buf, 0, 1, false, { progress_text })
