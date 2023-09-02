@@ -363,7 +363,7 @@ func Test_fetchPsqlLayouts(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := fetchPsqlLayouts(tt.args.rows, tt.args.dbType)
+			got, err := fetchPGLayouts(tt.args.rows, tt.args.dbType)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("fetchPsqlLayouts() error = %v, wantErr %v", err, tt.wantErr)
 				return

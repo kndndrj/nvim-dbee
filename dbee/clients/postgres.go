@@ -96,7 +96,7 @@ func (c *PostgresClient) Layout() ([]models.Layout, error) {
 		return nil, err
 	}
 
-	return fetchPsqlLayouts(rows, "postgres")
+	return fetchPGLayouts(rows, "postgres")
 }
 
 func (c *PostgresClient) Close() {
@@ -142,4 +142,52 @@ func (c *PostgresClient) SelectDatabase(name string) error {
 	c.c.Swap(db)
 
 	return nil
+}
+
+// fetchPGLayouts fetches the layout from the postgres database.
+func fetchPGLayouts(rows models.IterResult, dbType string) ([]models.Layout, error) {
+	children := make(map[string][]models.Layout)
+
+	for {
+		row, err := rows.Next()
+		// break here to close the while loop. All layout nodes found.
+		if row == nil {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		schema, table := row[0].(string), row[1].(string)
+		if dbType == redshiftClient {
+			typ := row[2].(string)
+			children[schema] = append(children[schema], models.Layout{
+				Name:     table,
+				Schema:   schema,
+				Database: dbType,
+				Type:     getLayoutType(typ),
+			})
+			continue
+		}
+		children[schema] = append(children[schema], models.Layout{
+			Name:     table,
+			Schema:   schema,
+			Database: dbType,
+			Type:     models.LayoutTypeTable,
+		})
+	}
+
+	var layout []models.Layout
+
+	for k, v := range children {
+		layout = append(layout, models.Layout{
+			Name:     k,
+			Schema:   k,
+			Database: dbType,
+			Type:     models.LayoutTypeNone,
+			Children: v,
+		})
+	}
+
+	return layout, nil
 }
