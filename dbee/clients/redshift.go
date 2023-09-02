@@ -25,7 +25,7 @@ func init() {
 // Mainly uses the postgres driver under the hood but with
 // custom Layout function to get the table and view names correctly.
 type RedshiftClient struct {
-	c common.DatabaseClient
+	c *common.Client
 }
 
 // NewRedshift creates a new RedshiftClient.
