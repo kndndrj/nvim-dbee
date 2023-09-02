@@ -54,7 +54,7 @@ func main() {
 		// Control the results window
 		// This must be called before bufferOutput is used
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_set_results_buf"},
-			func(_ *nvim.Nvim, args []int) error {
+			func(args []int) error {
 				method := "Dbee_set_results_buf"
 				logger.Debugf("calling %q", method)
 				if len(args) < 1 {

@@ -169,7 +169,6 @@ end
 function Handler:layout()
   -- in case there are no sources defined, return a helper layout
   if #self.lookup:get_sources() < 1 then
-    vim.print(self:layout_help())
     return self:layout_help()
   end
   return self:layout_real()
