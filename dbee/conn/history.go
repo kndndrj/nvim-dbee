@@ -396,11 +396,3 @@ func (r *HistoryRows) Next() (models.Row, error) {
 func (r *HistoryRows) Close() {
 	// no-op
 }
-
-func (r *HistoryRows) SetCallback(callback func()) {
-	// no-op
-}
-
-func (r *HistoryRows) SetCustomHeader(header models.Header) {
-	// no-op
-}
