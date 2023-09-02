@@ -34,8 +34,6 @@ type (
 		Header() (Header, error)
 		Next() (Row, error)
 		Close()
-		SetCallback(callback func())
-		SetCustomHeader(header Header)
 	}
 
 	// Result is the "drained" form of the IterResult iterator used by Output

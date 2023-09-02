@@ -8,20 +8,7 @@ import (
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
-// DatabaseClient is an interface that represents a database client.
-type DatabaseClient interface {
-	Conn() (DatabaseConnection, error)
-	Close()
-	Swap(db *sql.DB)
-}
-
-// DatabaseConnection is an interface that represents a database connection.
-type DatabaseConnection interface {
-	Close() error
-	Exec(query string) (models.IterResult, error)
-	Query(query string) (models.IterResult, error)
-}
-
+// default sql client used by other specific implementations
 type Client struct {
 	db *sql.DB
 }
@@ -32,14 +19,12 @@ func NewClient(db *sql.DB) *Client {
 	}
 }
 
-func (c *Client) Conn() (DatabaseConnection, error) {
+func (c *Client) Conn() (*Conn, error) {
 	conn, err := c.db.Conn(context.TODO())
-	if err != nil {
-		return nil, err
-	}
-	return &Connection{
+
+	return &Conn{
 		conn: conn,
-	}, nil
+	}, err
 }
 
 func (c *Client) Close() {
@@ -51,20 +36,22 @@ func (c *Client) Swap(db *sql.DB) {
 	c.db = db
 }
 
-type Connection struct {
+// connection to use for execution
+type Conn struct {
 	conn *sql.Conn
 }
 
-func (c *Connection) Close() error {
+func (c *Conn) Close() error {
 	return c.conn.Close()
 }
 
-func (c *Connection) Exec(query string) (models.IterResult, error) {
+func (c *Conn) Exec(query string) (*Result, error) {
 	res, err := c.conn.ExecContext(context.TODO(), query)
 	if err != nil {
 		return nil, err
 	}
 
+	// create new rows
 	first := true
 
 	rows := NewResultBuilder().
@@ -90,12 +77,13 @@ func (c *Connection) Exec(query string) (models.IterResult, error) {
 	return rows, nil
 }
 
-func (c *Connection) Query(query string) (models.IterResult, error) {
+func (c *Conn) Query(query string) (*Result, error) {
 	dbRows, err := c.conn.QueryContext(context.TODO(), query)
 	if err != nil {
 		return nil, err
 	}
 
+	// create new rows
 	header, err := dbRows.Columns()
 	if err != nil {
 		return nil, err
@@ -108,6 +96,8 @@ func (c *Connection) Query(query string) (models.IterResult, error) {
 				return nil, err
 			}
 
+			// TODO: do we even support multiple result sets?
+			// if not next result, check for any new sets
 			if !dbRows.Next() {
 				if !dbRows.NextResultSet() {
 					return nil, nil
