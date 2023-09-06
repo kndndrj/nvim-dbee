@@ -97,8 +97,8 @@ M.default = {
         text_highlight = "",
       },
       view = {
-        icon = "",
-        icon_highlight = "Conditional",
+        icon = "",
+        icon_highlight = "Debug",
         text_highlight = "",
       },
       add = {

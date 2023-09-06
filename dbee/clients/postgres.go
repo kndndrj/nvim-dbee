@@ -87,8 +87,8 @@ func (c *PostgresClient) Query(query string) (models.IterResult, error) {
 
 func (c *PostgresClient) Layout() ([]models.Layout, error) {
 	query := `
-		SELECT table_schema, table_name FROM information_schema.tables UNION ALL
-		SELECT schemaname, matviewname FROM pg_matviews;
+		SELECT table_schema, table_name, table_type FROM information_schema.tables UNION ALL
+		SELECT schemaname, matviewname, 'VIEW' FROM pg_matviews;
 	`
 
 	rows, err := c.Query(query)
@@ -96,7 +96,7 @@ func (c *PostgresClient) Layout() ([]models.Layout, error) {
 		return nil, err
 	}
 
-	return fetchPGLayouts(rows, "postgres")
+	return getPGLayouts(rows)
 }
 
 func (c *PostgresClient) Close() {
@@ -144,8 +144,9 @@ func (c *PostgresClient) SelectDatabase(name string) error {
 	return nil
 }
 
-// fetchPGLayouts fetches the layout from the postgres database.
-func fetchPGLayouts(rows models.IterResult, dbType string) ([]models.Layout, error) {
+// getPGLayouts fetches the layout from the postgres database.
+// rows is at least 3 column wide result
+func getPGLayouts(rows models.IterResult) ([]models.Layout, error) {
 	children := make(map[string][]models.Layout)
 
 	for {
@@ -158,22 +159,12 @@ func fetchPGLayouts(rows models.IterResult, dbType string) ([]models.Layout, err
 			return nil, err
 		}
 
-		schema, table := row[0].(string), row[1].(string)
-		if dbType == redshiftClient {
-			typ := row[2].(string)
-			children[schema] = append(children[schema], models.Layout{
-				Name:     table,
-				Schema:   schema,
-				Database: dbType,
-				Type:     getLayoutType(typ),
-			})
-			continue
-		}
+		schema, table, tableType := row[0].(string), row[1].(string), row[2].(string)
+
 		children[schema] = append(children[schema], models.Layout{
-			Name:     table,
-			Schema:   schema,
-			Database: dbType,
-			Type:     models.LayoutTypeTable,
+			Name:   table,
+			Schema: schema,
+			Type:   getPGLayoutType(tableType),
 		})
 	}
 
@@ -183,11 +174,22 @@ func fetchPGLayouts(rows models.IterResult, dbType string) ([]models.Layout, err
 		layout = append(layout, models.Layout{
 			Name:     k,
 			Schema:   k,
-			Database: dbType,
 			Type:     models.LayoutTypeNone,
 			Children: v,
 		})
 	}
 
 	return layout, nil
+}
+
+// getPGLayoutType returns the layout type based on the string.
+func getPGLayoutType(typ string) models.LayoutType {
+	switch typ {
+	case "TABLE", "BASE TABLE":
+		return models.LayoutTypeTable
+	case "VIEW":
+		return models.LayoutTypeView
+	default:
+		return models.LayoutTypeNone
+	}
 }

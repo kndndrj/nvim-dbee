@@ -9,6 +9,7 @@ local callbacker = require("dbee.handler.__callbacks")
 ---@field type ""|"table"|"history"|"database_switch"|"view" type of layout -> this infers action
 ---@field schema? string parent schema
 ---@field database? string parent database
+---@field children_sort_order "asc"|"desc"
 ---@field children? _LayoutGo[] child layout nodes
 ---@field pick_items?  string[] pick items
 
@@ -212,40 +213,23 @@ end
 ---@return Layout[]
 function Conn:layout()
   ---@param layout_go _LayoutGo[] layout from go
+  ---@param parent_id string
+  ---@param sort_order? "asc"|"desc"
   ---@return Layout[] layout with actions
-  local function to_layout(layout_go, parent_id)
+  local function to_layout(layout_go, parent_id, sort_order)
     if not layout_go or layout_go == vim.NIL then
       return {}
     end
 
-    --- Sort children by field in place (mutates the children array).
-    ---@param children _LayoutGo[] -- children to sort
-    ---@param field string -- field to sort by
-    ---@param ascending bool -- set to true to sort ascendingly
-    local function sort_children_by_field(children, field, ascending)
-      table.sort(children, function(k1, k2)
-        if ascending then
-          return k1[field] < k2[field]
-        else
-          return k1[field] > k2[field]
-        end
+    -- sort keys based on order
+    if sort_order == "desc" then
+      table.sort(layout_go, function(k1, k2)
+        return k1.type .. k1.name > k2.type .. k2.name
       end)
-    end
-
-    for _, lgo in ipairs(layout_go) do
-      if lgo.name == "history" then
-        -- Sort descendingly to get the latest history first
-        sort_children_by_field(lgo.children, "name", false)
-      elseif lgo.name == "structure" then
-        -- Sort ascendingly, alphabetically by schema
-        sort_children_by_field(lgo.children, "schema", true)
-        -- 1. sort ascendingly, alphabetically by table/view name
-        -- 2. sort ascendingly, alphabetically by materialization
-        for _, schema in ipairs(lgo.children) do
-          sort_children_by_field(schema.children, "name", true)
-          sort_children_by_field(schema.children, "type", true)
-        end
-      end
+    else
+      table.sort(layout_go, function(k1, k2)
+        return k1.type .. k1.name < k2.type .. k2.name
+      end)
     end
 
     local new_layouts = {}
@@ -262,21 +246,16 @@ function Conn:layout()
         action_2 = function(cb)
           cb()
         end,
-        children = to_layout(lgo.children, l_id),
+        children = to_layout(lgo.children, l_id, lgo.children_sort_order),
       }
       if lgo.type == "table" or lgo.type == "view" then
+        local helper_opts = { table = lgo.name, schema = lgo.schema, dbname = lgo.database, materialization = lgo.type }
         ly.action_1 = function(cb, selection)
-          local helpers = self.helpers:get(
-            self.type,
-            { table = lgo.name, schema = lgo.schema, dbname = lgo.database, materialization = lgo.type }
-          )
+          local helpers = self.helpers:get(self.type, helper_opts)
           self:execute(helpers[selection], cb)
         end
         ly.pick_items = function()
-          return self.helpers:list(
-            self.type,
-            { table = lgo.name, schema = lgo.schema, dbname = lgo.database, materialization = lgo.type }
-          )
+          return self.helpers:list(self.type, helper_opts)
         end
         ly.pick_title = "Select a Query"
       elseif lgo.type == "history" then

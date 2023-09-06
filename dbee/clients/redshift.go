@@ -10,15 +10,13 @@ import (
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
-var redshiftClient = "redshift"
-
 // init registers the RedshiftClient to the store,
 // i.e. to lua frontend.
 func init() {
 	c := func(url string) (conn.Client, error) {
 		return NewRedshift(url)
 	}
-	_ = Store.Register(redshiftClient, c)
+	_ = Store.Register("redshift", c)
 }
 
 // RedshiftClient is a sql client for Redshift.
@@ -79,37 +77,25 @@ func (c *RedshiftClient) Close() {
 // done here. The ordering is done in the lua frontend.
 func (c *RedshiftClient) Layout() ([]models.Layout, error) {
 	query := `
-	SELECT
-    trim(n.nspname) AS schema_name
-    , trim(c.relname) AS table_name
-    , CASE
-        WHEN c.relkind = 'v' THEN 'VIEW'
-        ELSE 'TABLE'
-    	END AS table_type
-		FROM
-				pg_class AS c
-		INNER JOIN
-				pg_namespace AS n ON c.relnamespace = n.oid
-		WHERE
-				n.nspname NOT IN ('information_schema', 'pg_catalog');
-`
+		SELECT
+		trim(n.nspname) AS schema_name
+		, trim(c.relname) AS table_name
+		, CASE
+			WHEN c.relkind = 'v' THEN 'VIEW'
+			ELSE 'TABLE'
+			END AS table_type
+			FROM
+					pg_class AS c
+			INNER JOIN
+					pg_namespace AS n ON c.relnamespace = n.oid
+			WHERE
+					n.nspname NOT IN ('information_schema', 'pg_catalog');
+	`
 
 	rows, err := c.Query(query)
 	if err != nil {
 		return nil, err
 	}
 
-	return fetchPGLayouts(rows, redshiftClient)
-}
-
-// getLayoutType returns the layout type based on the string.
-func getLayoutType(typ string) models.LayoutType {
-	switch typ {
-	case "TABLE":
-		return models.LayoutTypeTable
-	case "VIEW":
-		return models.LayoutTypeView
-	default:
-		return models.LayoutTypeNone
-	}
+	return getPGLayouts(rows)
 }

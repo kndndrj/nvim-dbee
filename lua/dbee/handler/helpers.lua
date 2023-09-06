@@ -306,8 +306,11 @@ function Helpers:__redshift(materialization)
   return {}
 end
 
+---@alias materialization "table"|"view"
+---@alias helper_vars { table: string, schema: string, dbname: string , materialization: materialization}
+
 ---@param type string
----@param vars { table: string, schema: string, dbname: string , materialization: string}
+---@param vars helper_vars
 ---@return table_helpers helpers list of table helpers
 function Helpers:get(type, vars)
   local helpers
@@ -346,7 +349,7 @@ end
 
 ---@private
 ---@param obj string|table_helpers
----@param vars { table: string, schema: string, dbname: string }
+---@param vars helper_vars
 ---@return string|table_helpers # returns depending on what's passed in
 function Helpers:expand(obj, vars)
   local function exp(o)
@@ -377,7 +380,7 @@ function Helpers:add(helpers)
 end
 
 ---@param type string
----@param vars { table: string, schema: string, dbname: string , materialization: string}
+---@param vars helper_vars
 ---@return string[] # list of available table helpers for given type
 function Helpers:list(type, vars)
   local helpers = self:get(type, vars)
