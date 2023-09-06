@@ -1,5 +1,9 @@
 local utils = require("dbee.utils")
+local progress = require("dbee.progress")
 local callbacker = require("dbee.handler.__callbacks")
+
+---@alias duration integer time in microseconds
+---@alias call_stats { success: boolean, time_taken: duration }
 
 ---@alias conn_id string
 ---@alias connection_details { name: string, type: string, url: string, id: conn_id, page_size: integer }
@@ -24,12 +28,14 @@ local callbacker = require("dbee.handler.__callbacks")
 ---@field private page_index integer index of the current page
 ---@field private page_ammount integer number of pages in the current result set
 ---@field private on_exec fun() callback which gets triggered on any action
+---@field private progress_bar { spinner: spinner, text_prefix: string }
+---@field private stats call_stats
 local Conn = {}
 
 ---@param ui Ui
 ---@param helpers Helpers
 ---@param params connection_details
----@param opts? { fallback_page_size: integer, on_exec: fun(), icon: table, text_prefix: string}}
+---@param opts? { fallback_page_size: integer, on_exec: fun(), progress_bar: progress_config }
 ---@return Conn
 function Conn:new(ui, helpers, params, opts)
   params = params or {}
@@ -80,9 +86,10 @@ function Conn:new(ui, helpers, params, opts)
     page_index = 0,
     page_ammount = 0,
     on_exec = opts.on_exec or function() end,
-    progress_bar_opts = {
-      icon = opts.icon,
-      text_prefix = opts.text_prefix,
+    progress_bar = opts.progress_bar or {},
+    stats = {
+      time_taken = 0,
+      success = false,
     },
   }
   setmetatable(o, self)
@@ -117,15 +124,15 @@ function Conn:execute(query, cb)
   cb = cb or function() end
   self.on_exec()
 
-  self:start_progress_display()
+  local cancel = progress.display(self.ui:buffer(), self.progress_bar)
 
-  local cb_id = tostring(math.random(10000))
-  callbacker.register(cb_id, function(ok)
-    if ok then
+  local cb_id = tostring(math.random())
+  callbacker.register(cb_id, function(stats)
+    cancel()
+    self.stats = stats
+    if stats.success then
       self:show_page(0)
     end
-
-    self:stop_progress_display()
     cb()
   end)
 
@@ -141,9 +148,9 @@ function Conn:history(history_id, cb)
   cb = cb or function() end
   self.on_exec()
 
-  local cb_id = tostring(math.random(10000))
-  callbacker.register(cb_id, function(ok)
-    if ok then
+  local cb_id = tostring(math.random())
+  callbacker.register(cb_id, function(stats)
+    if stats.success then
       self:show_page(0)
     end
     cb()
@@ -200,17 +207,14 @@ function Conn:show_page(page)
     self.page_ammount = self.page_ammount - 1
   end
 
+  -- convert from microseconds to seconds
+  local seconds = self.stats.time_taken / 1000000
+
   -- set winbar status
   vim.api.nvim_win_set_option(
     winid,
     "winbar",
-    "%="
-      .. "Finished in "
-      .. string.format("%.3f", self.remaining_time or 0.0)
-      .. "s | "
-      .. tostring(page + 1)
-      .. "/"
-      .. tostring(self.page_ammount + 1)
+    string.format("%d/%d%%=Took %.3fs", page + 1, self.page_ammount + 1, seconds)
   )
 
   return page
@@ -290,40 +294,6 @@ function Conn:layout()
   end
 
   return to_layout(vim.fn.json_decode(vim.fn.Dbee_layout(self.id)), self.id)
-end
-
---- Starts the progress display timer using vim.fn.timer_start
-function Conn:start_progress_display()
-  local interval_step = 100 -- milliseconds
-  local icon_index = 1
-  local prefix_progress_text = self.progress_bar_opts.text_prefix
-  local icon = self.progress_bar_opts.icon
-  local progress_buf = self.ui:buffer()
-
-  -- clean the buffer before starting
-  vim.api.nvim_buf_set_lines(progress_buf, 0, -1, false, {})
-
-  local function draw_progress(remaining_time)
-    local progress_text = string.format(prefix_progress_text .. " %.3f seconds %s ", remaining_time, icon[icon_index])
-    vim.api.nvim_buf_set_lines(progress_buf, 0, 1, false, { progress_text })
-  end
-
-  self.start_time = vim.fn.reltimefloat(vim.fn.reltime())
-
-  local function update_progress()
-    self.remaining_time = vim.fn.reltimefloat(vim.fn.reltime()) - self.start_time
-    icon_index = (icon_index % #icon) + 1
-    draw_progress(self.remaining_time)
-  end
-
-  self.progress_timer = vim.fn.timer_start(interval_step, update_progress, { ["repeat"] = -1 })
-end
-
---- Stops the progress display timer using vim.fn.timer_stop
-function Conn:stop_progress_display()
-  if self.progress_timer then
-    vim.fn.timer_stop(self.progress_timer)
-  end
 end
 
 return Conn

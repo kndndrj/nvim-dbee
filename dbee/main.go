@@ -125,12 +125,13 @@ func main() {
 				// execute and open the first page
 				go func() {
 					ok := true
+					start := time.Now()
 					err := c.Execute(query)
 					if err != nil {
 						ok = false
 						logger.Error(err.Error())
 					}
-					err = callbacker.TriggerCallback(callbackId, ok)
+					err = callbacker.TriggerCallback(callbackId, ok, time.Since(start))
 					if err != nil {
 						logger.Error(err.Error())
 						return
@@ -164,12 +165,13 @@ func main() {
 
 				go func() {
 					ok := true
+					start := time.Now()
 					err := c.History(historyId)
 					if err != nil {
 						ok = false
 						logger.Error(err.Error())
 					}
-					err = callbacker.TriggerCallback(callbackId, ok)
+					err = callbacker.TriggerCallback(callbackId, ok, time.Since(start))
 					if err != nil {
 						logger.Error(err.Error())
 						return

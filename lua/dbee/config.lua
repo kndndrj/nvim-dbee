@@ -1,5 +1,5 @@
 local layout = require("dbee.utils").layout
-local spinners = require("dbee.spinners")
+local spinners = require("dbee.progress").spinners
 
 local M = {}
 local m = {}
@@ -21,6 +21,7 @@ local m = {}
 ---@field extra_helpers table<string, table_helpers> extra table helpers to provide besides built-ins. example: { postgres = { List = "select..." }
 ---@field lazy boolean lazy load the plugin or not?
 ---@field page_size integer
+---@field progress_bar progress_config
 ---@field drawer drawer_config
 ---@field editor editor_config
 ---@field result result_config

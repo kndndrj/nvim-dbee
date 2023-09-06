@@ -1,4 +1,7 @@
 -- Spinners inspired from https://github.com/j-hui/fidget.nvim
+
+---@alias spinner string[]
+
 local M = {
   dots = {
     "⠋",
