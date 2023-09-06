@@ -1,8 +1,10 @@
+-- this package contains various floating window utilities such as floating editor and an input prompt
+
 local M = {}
 
 ---@param prompt { name: string, default: string }[] list of lines with optional defaults to display as prompt
 ---@param opts? { width: integer, height: integer, title: string, border: string|string[], callback: fun(result: table<string, string>) } optional parameters
-function M.open(prompt, opts)
+function M.prompt(prompt, opts)
   opts = opts or {}
 
   -- create lines to display
@@ -103,7 +105,7 @@ end
 
 ---@param file string file to edit
 ---@param opts? { width: integer, height: integer, title: string, border: string|string[], callback: fun() } optional parameters
-function M.edit(file, opts)
+function M.editor(file, opts)
   opts = opts or {}
 
   local ui_spec = vim.api.nvim_list_uis()[1]

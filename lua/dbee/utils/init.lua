@@ -1,14 +1,8 @@
 local M = {}
 
--- layout exposed through here
+-- submodules exposed through here
 M.layout = require("dbee.utils.layout")
-
--- prompt for multiple parameters
-M.prompt = require("dbee.utils.prompt")
-
 M.once = require("dbee.utils.once")
-
-M.menu = require("dbee.utils.menu")
 
 -- Get random key from table
 ---@param tbl table key-value table

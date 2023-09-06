@@ -1,6 +1,7 @@
 local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
 local utils = require("dbee.utils")
+local menu = require("dbee.drawer.menu")
 
 ---@class Candy
 ---@field icon string
@@ -188,7 +189,7 @@ function Drawer:generate_keymap(mappings)
         pick_items = node.pick_items()
       end
 
-      utils.menu.open(self.ui:window(), pick_items --[[@as string[] ]], function(selection)
+      menu.open(self.ui:window(), pick_items --[[@as string[] ]], function(selection)
         func(function()
           self:refresh()
         end, selection)
