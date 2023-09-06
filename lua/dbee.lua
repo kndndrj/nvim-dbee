@@ -31,9 +31,15 @@ local function lazy_setup()
       winfixwidth = true,
       number = false,
     },
+    quit_handle = function()
+      m.close("result")
+    end,
   }
   local editor_ui = Ui:new {
     window_command = m.config.ui.window_commands.editor,
+    quit_handle = function()
+      m.close("editor")
+    end,
   }
   local drawer_ui = Ui:new {
     window_command = m.config.ui.window_commands.drawer,
@@ -49,6 +55,9 @@ local function lazy_setup()
       winfixwidth = true,
       number = false,
     },
+    quit_handle = function()
+      m.close("drawer")
+    end,
   }
 
   -- set up modules
@@ -165,19 +174,30 @@ function M.open()
   m.open = true
 end
 
-function M.close()
-  if not pcall_lazy_setup() then
+---@param exclude? "result"|"editor"|"drawer"
+function m.close(exclude)
+  if not m.open or not pcall_lazy_setup() then
     return
   end
 
   m.config.ui.pre_close_hook()
 
-  m.result:close()
-  m.drawer:close()
-  m.editor:close()
+  if exclude ~= "result" then
+    m.result:close()
+  end
+  if exclude ~= "drawer" then
+    m.drawer:close()
+  end
+  if exclude ~= "editor" then
+    m.editor:close()
+  end
 
   m.config.ui.post_close_hook()
   m.open = false
+end
+
+function M.close()
+  m.close()
 end
 
 function M.next()

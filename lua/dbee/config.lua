@@ -202,7 +202,7 @@ M.default = {
       result = "bo 15split",
       editor = function()
         vim.cmd("new")
-        vim.cmd("only")
+        layout.make_only(0)
         m.tmp_buf = vim.api.nvim_get_current_buf()
         return vim.api.nvim_get_current_win()
       end,

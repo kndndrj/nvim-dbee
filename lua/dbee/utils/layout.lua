@@ -2,23 +2,54 @@
 
 ---@alias _layout { type: string, winid: integer, bufnr: integer, win_opts: { string: any}, children: _layout[] }
 
----@alias layoutEgg { layout: _layout, restore: any }
+---@alias layoutEgg { layout: _layout, restore: string }
 
 -- vim.fn.winlayout() example structure:
 -- { "row", { { "leaf", winid }, { "col", { { "leaf", winid }, { "leaf", winid } } } } }
 
 local M = {}
 
--- closes all currently open floating windows
-local function close_all_floating()
-  local closed_windows = {}
-  for _, win in ipairs(vim.api.nvim_list_wins()) do
-    local config = vim.api.nvim_win_get_config(win)
-    if config.relative ~= "" then
-      vim.api.nvim_win_close(win, false)
-      table.insert(closed_windows, win)
+-- list all non-floating windows from the current tabpage
+---@return integer[] # list of non floating window ids
+local function list_non_floating_wins()
+  return vim.fn.filter(vim.api.nvim_tabpage_list_wins(vim.api.nvim_get_current_tabpage()), function(_, v)
+    return vim.api.nvim_win_get_config(v).relative == ""
+  end)
+end
+
+-- makes the window the only one on screen
+-- same as ":only" except ignores floating windows
+---@param winid integer
+function M.make_only(winid)
+  if not winid or winid == 0 then
+    winid = vim.api.nvim_get_current_win()
+  end
+
+  for _, wid in ipairs(list_non_floating_wins()) do
+    if wid ~= winid then
+      local winnr = vim.fn.win_id2win(wid)
+      vim.cmd(winnr .. "wincmd c")
     end
   end
+end
+
+-- exact clone of the builtin "winrestcmd()" with exclusion of floating windows
+-- https://github.com/neovim/neovim/blob/fcf3519c65a2d6736de437f686e788684a6c8564/src/nvim/eval/window.c#L770
+---@return string
+local function winrestcmd()
+  local cmd = ""
+
+  -- Do this twice to handle some window layouts properly.
+  for _ = 1, 2 do
+    local winnr = 1
+    for _, winid in ipairs(list_non_floating_wins()) do
+      cmd = string.format("%s%dresize %d|", cmd, winnr, vim.api.nvim_win_get_height(winid))
+      cmd = string.format("%svert %dresize %d|", cmd, winnr, vim.api.nvim_win_get_width(winid))
+      winnr = winnr + 1
+    end
+  end
+
+  return cmd
 end
 
 -- add bufnr to leaf
@@ -56,11 +87,8 @@ end
 
 ---@return layoutEgg layout egg (use with restore())
 function M.save()
-  -- close any floating windows first
-  close_all_floating()
-
   local layout = vim.fn.winlayout()
-  local restore_cmd = vim.fn.winrestcmd()
+  local restore_cmd = winrestcmd()
 
   layout = add_details(layout)
 
@@ -114,7 +142,7 @@ function M.restore(egg)
 
   -- make a new window and set it as the only one
   vim.cmd("new")
-  vim.cmd("only!")
+  M.make_only(0)
   local tmp_buf = vim.api.nvim_get_current_buf()
 
   -- apply layout and perform resize_cmd

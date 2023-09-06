@@ -288,7 +288,7 @@ function Editor:open()
 
   -- set keymaps ui's keymaps
   self.ui:set_buffer(bufnr)
-  self.ui:map_keys()
+  self.ui:configure_mappings()
 
   self.scratches[self.active_scratch].bufnr = bufnr
 
