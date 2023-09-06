@@ -2,7 +2,35 @@
 
 local M = {}
 
----@param prompt { name: string, default: string }[] list of lines with optional defaults to display as prompt
+---@alias prompt { name: string, default: string }[] list of lines with optional defaults to display as prompt
+
+--- highlight the prompt keys
+---@param prompt prompt
+---@param winid integer window to apply the highlight to
+local function highlight_prompt(prompt, winid)
+  -- assemble the command
+  ---@type string[]
+  local patterns = {}
+  for _, p in ipairs(prompt) do
+    table.insert(patterns, string.format([[^\s*%s]], p.name))
+  end
+
+  local cmd = string.format("match Question /%s/", table.concat(patterns, [[\|]]))
+
+  local current_win = vim.api.nvim_get_current_win()
+  -- just apply the highlight if we apply the highlight to current win
+  if not winid or winid == 0 or winid == current_win then
+    vim.cmd(cmd)
+    return
+  end
+
+  -- switch to provided window, apply hightlight and jump back
+  vim.api.nvim_set_current_win(winid)
+  vim.cmd(cmd)
+  vim.api.nvim_set_current_win(current_win)
+end
+
+---@param prompt prompt
 ---@param opts? { width: integer, height: integer, title: string, border: string|string[], callback: fun(result: table<string, string>) } optional parameters
 function M.prompt(prompt, opts)
   opts = opts or {}
@@ -44,6 +72,8 @@ function M.prompt(prompt, opts)
     title_pos = "center",
     style = "minimal",
   })
+  -- apply the highlighting of keys to window
+  highlight_prompt(prompt, winid)
 
   local callback = opts.callback or function() end
 
