@@ -8,7 +8,7 @@
 ---@field private buffer_options table<string, any>
 ---@field private window_command fun():integer function which opens a new window and returns a window id
 ---@field private keymap keymap[]
----@field private configured_buffers table<integer, boolean> which buffers have autocmds/keymaps configured
+---@field private configured_autocmd_buffers table<integer, boolean> which buffers have autocmds already configured
 ---@field private quit_handle fun() function to call on quit signal
 local Ui = {}
 
@@ -40,7 +40,7 @@ function Ui:new(opts)
     window_options = opts.window_options or {},
     buffer_options = opts.buffer_options or {},
     keymap = {},
-    configured_buffers = {},
+    configured_autocmd_buffers = {},
     quit_handle = opts.quit_handle or function() end,
   }
   setmetatable(o, self)
@@ -81,8 +81,7 @@ end
 
 -- configures keymaps and autocommands for the current buffer
 function Ui:configure_mappings()
-  if not self.bufnr or self.configured_buffers[self.bufnr] then
-    -- already mapped
+  if not self.bufnr then
     return
   end
 
@@ -95,16 +94,25 @@ function Ui:configure_mappings()
     end
   end
 
+  if self.configured_autocmd_buffers[self.bufnr] then
+    -- autocommands already configured
+    return
+  end
   -- autocommands
   vim.api.nvim_create_autocmd({ "QuitPre" }, {
     buffer = self.bufnr,
     callback = function()
-      self.quit_handle()
+      self:quit_all()
     end,
   })
 
   -- set buffers which have already been mapped
-  self.configured_buffers[self.bufnr] = true
+  self.configured_autocmd_buffers[self.bufnr] = true
+end
+
+-- quits the whole dbee
+function Ui:quit_all()
+  self.quit_handle()
 end
 
 ---@return integer winid

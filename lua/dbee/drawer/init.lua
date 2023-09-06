@@ -204,6 +204,12 @@ function Drawer:generate_keymap(mappings)
   return {
     {
       action = function()
+        self.ui:quit_all()
+      end,
+      mapping = mappings["quit"],
+    },
+    {
+      action = function()
         self:refresh()
       end,
       mapping = mappings["refresh"],

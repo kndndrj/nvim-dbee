@@ -63,6 +63,8 @@ M.default = {
     disable_help = false,
     -- mappings for the buffer
     mappings = {
+      -- quit the dbee interface
+      quit = { key = "q", mode = "n" },
       -- manually refresh drawer
       refresh = { key = "r", mode = "n" },
       -- actions perform different stuff depending on the node:
