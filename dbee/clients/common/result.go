@@ -9,10 +9,10 @@ import (
 // Result fills conn.IterResult interface for all sql dbs
 type Result struct {
 	next     func() (models.Row, error)
-	header   models.Header
 	close    func()
-	meta     models.Meta
 	callback func()
+	meta     models.Meta
+	header   models.Header
 	once     sync.Once
 }
 

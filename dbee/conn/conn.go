@@ -153,9 +153,10 @@ func (c *Conn) Layout() ([]models.Layout, error) {
 	}
 	if len(history) > 0 {
 		layout = append(layout, models.Layout{
-			Name:     "history",
-			Type:     models.LayoutTypeNone,
-			Children: history,
+			Name:              "history",
+			Type:              models.LayoutTypeNone,
+			ChildrenSortOrder: models.LayourtSortOrderDescending,
+			Children:          history,
 		})
 	}
 
@@ -180,7 +181,6 @@ func (c *Conn) Layout() ([]models.Layout, error) {
 			Type: models.LayoutTypeNone,
 		})
 	}
-
 	return layout, nil
 }
 

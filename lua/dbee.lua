@@ -76,12 +76,8 @@ local function pcall_lazy_setup()
   return true
 end
 
----@param o Config
-function M.setup(o)
-  o = o or {}
-  ---@type Config
-  local opts = vim.tbl_deep_extend("force", default_config, o)
-  -- validate config
+---@param opts Config
+local function validate_config(opts)
   vim.validate {
     sources = { opts.sources, "table" },
     lazy = { opts.lazy, "boolean" },
@@ -103,6 +99,15 @@ function M.setup(o)
     ui_pre_close_hook = { opts.ui.pre_close_hook, "function" },
     ui_post_close_hook = { opts.ui.post_close_hook, "function" },
   }
+end
+
+---@param o Config
+function M.setup(o)
+  o = o or {}
+  ---@type Config
+  local opts = vim.tbl_deep_extend("force", default_config, o)
+  -- validate config
+  validate_config(opts)
 
   m.config = opts
 

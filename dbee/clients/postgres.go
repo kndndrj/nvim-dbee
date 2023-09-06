@@ -6,10 +6,11 @@ import (
 	nurl "net/url"
 	"strings"
 
+	_ "github.com/lib/pq"
+
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
-	_ "github.com/lib/pq"
 )
 
 // Register client
@@ -86,8 +87,8 @@ func (c *PostgresClient) Query(query string) (models.IterResult, error) {
 
 func (c *PostgresClient) Layout() ([]models.Layout, error) {
 	query := `
-		SELECT table_schema, table_name FROM information_schema.tables UNION ALL
-		SELECT schemaname, matviewname FROM pg_matviews;
+		SELECT table_schema, table_name, table_type FROM information_schema.tables UNION ALL
+		SELECT schemaname, matviewname, 'VIEW' FROM pg_matviews;
 	`
 
 	rows, err := c.Query(query)
@@ -95,44 +96,7 @@ func (c *PostgresClient) Layout() ([]models.Layout, error) {
 		return nil, err
 	}
 
-	children := make(map[string][]models.Layout)
-
-	for {
-		row, err := rows.Next()
-		if row == nil {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		// We know for a fact there are 2 string fields (see query above)
-		schema := row[0].(string)
-		table := row[1].(string)
-
-		children[schema] = append(children[schema], models.Layout{
-			Name:   table,
-			Schema: schema,
-			// TODO:
-			Database: "",
-			Type:     models.LayoutTypeTable,
-		})
-	}
-
-	var layout []models.Layout
-
-	for k, v := range children {
-		layout = append(layout, models.Layout{
-			Name:   k,
-			Schema: k,
-			// TODO:
-			Database: "",
-			Type:     models.LayoutTypeNone,
-			Children: v,
-		})
-	}
-
-	return layout, nil
+	return getPGLayouts(rows)
 }
 
 func (c *PostgresClient) Close() {
@@ -178,4 +142,54 @@ func (c *PostgresClient) SelectDatabase(name string) error {
 	c.c.Swap(db)
 
 	return nil
+}
+
+// getPGLayouts fetches the layout from the postgres database.
+// rows is at least 3 column wide result
+func getPGLayouts(rows models.IterResult) ([]models.Layout, error) {
+	children := make(map[string][]models.Layout)
+
+	for {
+		row, err := rows.Next()
+		// break here to close the while loop. All layout nodes found.
+		if row == nil {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		schema, table, tableType := row[0].(string), row[1].(string), row[2].(string)
+
+		children[schema] = append(children[schema], models.Layout{
+			Name:   table,
+			Schema: schema,
+			Type:   getPGLayoutType(tableType),
+		})
+	}
+
+	var layout []models.Layout
+
+	for k, v := range children {
+		layout = append(layout, models.Layout{
+			Name:     k,
+			Schema:   k,
+			Type:     models.LayoutTypeNone,
+			Children: v,
+		})
+	}
+
+	return layout, nil
+}
+
+// getPGLayoutType returns the layout type based on the string.
+func getPGLayoutType(typ string) models.LayoutType {
+	switch typ {
+	case "TABLE", "BASE TABLE":
+		return models.LayoutTypeTable
+	case "VIEW":
+		return models.LayoutTypeView
+	default:
+		return models.LayoutTypeNone
+	}
 }

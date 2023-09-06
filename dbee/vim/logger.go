@@ -1,6 +1,7 @@
 package vim
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -92,14 +93,30 @@ func (l *Logger) Debug(msg string) {
 	l.log(nvim.LogDebugLevel, msg)
 }
 
+func (l *Logger) Debugf(format string, args ...any) {
+	l.log(nvim.LogDebugLevel, fmt.Sprintf(format, args...))
+}
+
 func (l *Logger) Info(msg string) {
 	l.log(nvim.LogInfoLevel, msg)
+}
+
+func (l *Logger) Infof(format string, args ...any) {
+	l.log(nvim.LogInfoLevel, fmt.Sprintf(format, args...))
 }
 
 func (l *Logger) Warn(msg string) {
 	l.log(nvim.LogWarnLevel, msg)
 }
 
+func (l *Logger) Warnf(format string, args ...any) {
+	l.log(nvim.LogWarnLevel, fmt.Sprintf(format, args...))
+}
+
 func (l *Logger) Error(msg string) {
 	l.log(nvim.LogErrorLevel, msg)
+}
+
+func (l *Logger) Errorf(format string, args ...any) {
+	l.log(nvim.LogErrorLevel, fmt.Sprintf(format, args...))
 }

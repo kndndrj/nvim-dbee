@@ -6,9 +6,10 @@ local callbacker = require("dbee.handler.__callbacks")
 --
 ---@class _LayoutGo
 ---@field name string display name
----@field type ""|"table"|"history"|"database_switch" type of layout -> this infers action
+---@field type ""|"table"|"history"|"database_switch"|"view" type of layout -> this infers action
 ---@field schema? string parent schema
 ---@field database? string parent database
+---@field children_sort_order "asc"|"desc"
 ---@field children? _LayoutGo[] child layout nodes
 ---@field pick_items?  string[] pick items
 
@@ -19,7 +20,7 @@ local callbacker = require("dbee.handler.__callbacks")
 ---@field private __original connection_details original unmodified fields passed on initialization (params)
 ---@field private id conn_id
 ---@field private name string
----@field private type string --TODO enum?
+---@field private type string type of connection, e.g. "postgres", "mysql", "sqlite" TODO: enum?
 ---@field private page_size integer
 ---@field private page_index integer index of the current page
 ---@field private page_ammount integer number of pages in the current result set
@@ -212,16 +213,24 @@ end
 ---@return Layout[]
 function Conn:layout()
   ---@param layout_go _LayoutGo[] layout from go
+  ---@param parent_id string
+  ---@param sort_order? "asc"|"desc"
   ---@return Layout[] layout with actions
-  local function to_layout(layout_go, parent_id)
+  local function to_layout(layout_go, parent_id, sort_order)
     if not layout_go or layout_go == vim.NIL then
       return {}
     end
 
-    -- sort keys
-    table.sort(layout_go, function(k1, k2)
-      return k1.type .. k1.name < k2.type .. k2.name
-    end)
+    -- sort keys based on order
+    if sort_order == "desc" then
+      table.sort(layout_go, function(k1, k2)
+        return k1.type .. k1.name > k2.type .. k2.name
+      end)
+    else
+      table.sort(layout_go, function(k1, k2)
+        return k1.type .. k1.name < k2.type .. k2.name
+      end)
+    end
 
     local new_layouts = {}
     for _, lgo in ipairs(layout_go) do
@@ -237,16 +246,16 @@ function Conn:layout()
         action_2 = function(cb)
           cb()
         end,
-        children = to_layout(lgo.children, l_id),
+        children = to_layout(lgo.children, l_id, lgo.children_sort_order),
       }
-
-      if lgo.type == "table" then
+      if lgo.type == "table" or lgo.type == "view" then
+        local helper_opts = { table = lgo.name, schema = lgo.schema, dbname = lgo.database, materialization = lgo.type }
         ly.action_1 = function(cb, selection)
-          local helpers = self.helpers:get(self.type, { table = lgo.name, schema = lgo.schema, dbname = lgo.database })
+          local helpers = self.helpers:get(self.type, helper_opts)
           self:execute(helpers[selection], cb)
         end
         ly.pick_items = function()
-          return self.helpers:list(self.type)
+          return self.helpers:list(self.type, helper_opts)
         end
         ly.pick_title = "Select a Query"
       elseif lgo.type == "history" then
