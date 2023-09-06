@@ -84,14 +84,17 @@ M.default = {
       history = {
         icon = "",
         icon_highlight = "Constant",
+        text_highlight = "",
       },
       scratch = {
         icon = "",
         icon_highlight = "Character",
+        text_highlight = "",
       },
       connection = {
         icon = "󱘖",
         icon_highlight = "SpecialChar",
+        text_highlight = "",
       },
       database_switch = {
         icon = "",
@@ -100,6 +103,12 @@ M.default = {
       table = {
         icon = "",
         icon_highlight = "Conditional",
+        text_highlight = "",
+      },
+      view = {
+        icon = "",
+        icon_highlight = "Debug",
+        text_highlight = "",
       },
       add = {
         icon = "",

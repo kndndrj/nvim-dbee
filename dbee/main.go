@@ -6,13 +6,14 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/neovim/go-client/nvim"
+	"github.com/neovim/go-client/nvim/plugin"
+
 	"github.com/kndndrj/nvim-dbee/dbee/clients"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/output"
 	"github.com/kndndrj/nvim-dbee/dbee/output/format"
 	"github.com/kndndrj/nvim-dbee/dbee/vim"
-	"github.com/neovim/go-client/nvim"
-	"github.com/neovim/go-client/nvim/plugin"
 )
 
 var deferFns []func()
@@ -53,32 +54,31 @@ func main() {
 		// Control the results window
 		// This must be called before bufferOutput is used
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_set_results_buf"},
-			func(v *nvim.Nvim, args []int) error {
+			func(args []int) error {
 				method := "Dbee_set_results_buf"
-				logger.Debug("calling " + method)
+				logger.Debugf("calling %q", method)
 				if len(args) < 1 {
-					logger.Error("not enough arguments passed to " + method)
+					logger.Errorf("not enough arguments passed to %q", method)
 					return nil
 				}
 
 				bufferOutput.SetBuffer(nvim.Buffer(args[0]))
 
-				logger.Debug(method + " returned successfully")
+				logger.Debugf("%q returned successfully", method)
 				return nil
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_register_connection"},
 			func(args []string) (bool, error) {
 				method := "Dbee_register_connection"
-				logger.Debug("calling " + method)
+				logger.Debugf("calling %q", method)
 				if len(args) < 4 {
-					logger.Error("not enough arguments passed to " + method)
+					logger.Errorf("not enough arguments passed to %q", method)
 					return false, nil
 				}
 
-				id := args[0]
-				url := args[1]
-				typ := args[2]
+				id, url, typ := args[0], args[1], args[2]
+
 				blockUntil, err := strconv.Atoi(args[3])
 				if err != nil {
 					logger.Error(err.Error())
@@ -98,7 +98,7 @@ func main() {
 
 				connections[id] = c
 
-				logger.Debug(method + " returned successfully")
+				logger.Debugf("%q returned successfully", method)
 				return true, nil
 			})
 
@@ -107,18 +107,16 @@ func main() {
 				method := "Dbee_execute"
 				logger.Debug("calling " + method)
 				if len(args) < 3 {
-					logger.Error("not enough arguments passed to " + method)
+					logger.Errorf("not enough arguments passed to %q", method)
 					return nil
 				}
 
-				id := args[0]
-				query := args[1]
-				callbackId := args[2]
+				id, query, callbackId := args[0], args[1], args[2]
 
 				// Get the right connection
 				c, ok := connections[id]
 				if !ok {
-					logger.Error("connection with id " + id + " not registered")
+					logger.Errorf("connection with id %q not registered", id)
 					return nil
 				}
 
@@ -136,10 +134,10 @@ func main() {
 						logger.Error(err.Error())
 						return
 					}
-					logger.Debug(method + " executed successfully")
+					logger.Debugf("%q executed successfully", method)
 				}()
 
-				logger.Debug(method + " returned successfully")
+				logger.Debugf("%q returned successfully", method)
 				return nil
 			})
 
@@ -148,18 +146,16 @@ func main() {
 				method := "Dbee_history"
 				logger.Debug("calling " + method)
 				if len(args) < 3 {
-					logger.Error("not enough arguments passed to " + method)
+					logger.Errorf("not enough arguments passed to %q", method)
 					return nil
 				}
 
-				id := args[0]
-				historyId := args[1]
-				callbackId := args[2]
+				id, historyId, callbackId := args[0], args[1], args[2]
 
 				// Get the right connection
 				c, ok := connections[id]
 				if !ok {
-					logger.Error("connection with id " + id + " not registered")
+					logger.Errorf("connection with id %q not registered", id)
 					return nil
 				}
 
@@ -176,10 +172,10 @@ func main() {
 						logger.Error(err.Error())
 						return
 					}
-					logger.Debug(method + " executed successfully")
+					logger.Debugf("%q executed successfully", method)
 				}()
 
-				logger.Debug(method + " returned successfully")
+				logger.Debugf("%q returned successfully", method)
 				return nil
 			})
 
@@ -202,8 +198,7 @@ func main() {
 					return nil
 				}
 
-				err := c.SwitchDatabase(name)
-				if err != nil {
+				if err := c.SwitchDatabase(name); err != nil {
 					logger.Error(err.Error())
 					return nil
 				}
@@ -216,9 +211,9 @@ func main() {
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_get_current_result"},
 			func(args []string) (int, error) {
 				method := "Dbee_page"
-				logger.Debug("calling " + method)
+				logger.Debugf("calling %q", method)
 				if len(args) < 3 {
-					logger.Error("not enough arguments passed to " + method)
+					logger.Errorf("not enough arguments passed to %q", method)
 					return 0, nil
 				}
 
@@ -237,7 +232,7 @@ func main() {
 				// Get the right connection
 				c, ok := connections[id]
 				if !ok {
-					logger.Error("connection with id " + id + " not registered")
+					logger.Errorf("connection with id %q not registered", id)
 					return 0, nil
 				}
 
@@ -246,23 +241,19 @@ func main() {
 					logger.Error(err.Error())
 					return 0, nil
 				}
-				logger.Debug(method + " returned successfully")
+				logger.Debugf("%q returned successfully", method)
 				return length, nil
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_store"},
 			func(v *nvim.Nvim, args []string) error {
 				method := "Dbee_store"
-				logger.Debug("calling " + method)
+				logger.Debugf("calling %q", method)
 				if len(args) < 5 {
-					logger.Error("not enough arguments passed to " + method)
+					logger.Errorf("not enough arguments passed to %q", method)
 					return nil
 				}
-				id := args[0]
-				// format
-				fmat := args[1]
-				// output
-				out := args[2]
+				id, fmat, out := args[0], args[1], args[2]
 				// range of rows
 				from, err := strconv.Atoi(args[3])
 				if err != nil {
@@ -296,7 +287,7 @@ func main() {
 				// Get the right connection
 				c, ok := connections[id]
 				if !ok {
-					logger.Error("connection with id " + id + " not registered")
+					logger.Errorf("connection with id %q not registered", id)
 					return nil
 				}
 
@@ -309,7 +300,7 @@ func main() {
 				case "table":
 					formatter = format.NewTable()
 				default:
-					logger.Error("store format: \"" + fmat + "\" is not supported")
+					logger.Errorf("store output: %q is not supported", fmat)
 					return nil
 				}
 
@@ -332,7 +323,7 @@ func main() {
 				case "yank":
 					outpt = output.NewYankRegister(v, formatter)
 				default:
-					logger.Error("store output: \"" + out + "\" is not supported")
+					logger.Errorf("store output: %q is not supported", out)
 					return nil
 				}
 
@@ -343,7 +334,7 @@ func main() {
 					return nil
 				}
 
-				logger.Debug(method + " returned successfully")
+				logger.Debugf("%q returned successfully", method)
 				return nil
 			})
 
@@ -351,10 +342,12 @@ func main() {
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_layout"},
 			func(args []string) (string, error) {
 				method := "Dbee_layout"
-				logger.Debug("calling " + method)
+				layoutErrString := "{}"
+
+				logger.Debugf("calling %q", method)
 				if len(args) < 1 {
-					logger.Error("not enough arguments passed to " + method)
-					return "{}", nil
+					logger.Errorf("not enough arguments passed to %q", method)
+					return layoutErrString, nil
 				}
 
 				id := args[0]
@@ -362,23 +355,22 @@ func main() {
 				// Get the right connection
 				c, ok := connections[id]
 				if !ok {
-					logger.Error("connection with id " + id + " not registered")
-					return "{}", nil
+					logger.Errorf("connection with id %q not registered", id)
+					return layoutErrString, nil
 				}
 
 				layout, err := c.Layout()
 				if err != nil {
 					logger.Error(err.Error())
-					return "{}", nil
+					return layoutErrString, nil
 				}
-
 				parsed, err := json.Marshal(layout)
 				if err != nil {
 					logger.Error(err.Error())
-					return "{}", nil
+					return layoutErrString, nil
 				}
 
-				logger.Debug(method + " returned successfully")
+				logger.Debugf("%q returned successfully", method)
 				return string(parsed), nil
 			})
 

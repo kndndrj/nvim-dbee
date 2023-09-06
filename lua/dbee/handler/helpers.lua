@@ -34,15 +34,15 @@ function Helpers:__postgres()
            ON ccu.constraint_name = tc.constraint_name ]]
 
   return {
-    List = 'select * from "{table}" LIMIT 500',
-    Columns = "select * from information_schema.columns where table_name='{table}' and table_schema='{schema}'",
-    Indexes = "SELECT * FROM pg_indexes where tablename='{table}' and schemaname='{schema}'",
+    List = 'SELECT * FROM "{schema}"."{table}" LIMIT 500',
+    Columns = "SELECT * FROM information_schema.columns WHERE table_name='{table}' AND table_schema='{schema}'",
+    Indexes = "SELECT * FROM pg_indexes WHERE tablename='{table}' AND schemaname='{schema}'",
     ["Foreign Keys"] = basic_constraint_query
-      .. "WHERE constraint_type = 'FOREIGN KEY' and tc.table_name = '{table}' and tc.table_schema = '{schema}'",
+      .. "WHERE constraint_type = 'FOREIGN KEY' AND tc.table_name = '{table}' AND tc.table_schema = '{schema}'",
     References = basic_constraint_query
-      .. "WHERE constraint_type = 'FOREIGN KEY' and ccu.table_name = '{table}' and tc.table_schema = '{schema}'",
+      .. "WHERE constraint_type = 'FOREIGN KEY' AND ccu.table_name = '{table}' AND tc.table_schema = '{schema}'",
     ["Primary Keys"] = basic_constraint_query
-      .. "WHERE constraint_type = 'PRIMARY KEY' and tc.table_name = '{table}' and tc.table_schema = '{schema}'",
+      .. "WHERE constraint_type = 'PRIMARY KEY' AND tc.table_name = '{table}' AND tc.table_schema = '{schema}'",
   }
 end
 
@@ -50,7 +50,7 @@ end
 ---@return table_helpers helpers list of table helpers
 function Helpers:__mysql()
   return {
-    List = "SELECT * from `{table}` LIMIT 500",
+    List = "SELECT * FROM `{table}` LIMIT 500",
     Columns = "DESCRIBE `{table}`",
     Indexes = "SHOW INDEXES FROM `{table}`",
     ["Foreign Keys"] = "SELECT * FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = '{schema}' AND TABLE_NAME = '{table}' AND CONSTRAINT_TYPE = 'FOREIGN KEY'",
@@ -62,7 +62,7 @@ end
 ---@return table_helpers helpers list of table helpers
 function Helpers:__sqlite()
   return {
-    List = 'select * from "{table}" LIMIT 500',
+    List = 'SELECT * FROM "{table}" LIMIT 500',
     Indexes = "SELECT * FROM pragma_index_list('{table}')",
     ["Foreign Keys"] = "SELECT * FROM pragma_foreign_key_list('{table}')",
     ["Primary Keys"] = "SELECT * FROM pragma_index_list('{table}') WHERE origin = 'pk'",
@@ -98,67 +98,67 @@ end
 ---@return table_helpers helpers list of table helpers
 function Helpers:__sqlserver()
   local column_summary_query = [[
-      select c.column_name + ' (' +
-          isnull(( select 'PK, ' from information_schema.table_constraints as k join information_schema.key_column_usage as kcu on k.constraint_name = kcu.constraint_name where constraint_type='PRIMARY KEY' and k.table_name = c.table_name and kcu.column_name = c.column_name), '') +
-          isnull(( select 'FK, ' from information_schema.table_constraints as k join information_schema.key_column_usage as kcu on k.constraint_name = kcu.constraint_name where constraint_type='FOREIGN KEY' and k.table_name = c.table_name and kcu.column_name = c.column_name), '') +
-          data_type + coalesce('(' + rtrim(cast(character_maximum_length as varchar)) + ')','(' + rtrim(cast(numeric_precision as varchar)) + ',' + rtrim(cast(numeric_scale as varchar)) + ')','(' + rtrim(cast(datetime_precision as varchar)) + ')','') + ', ' +
-          case when is_nullable = 'YES' then 'null' else 'not null' end + ')' as Columns
-      from information_schema.columns c where c.table_name='{table}' and c.TABLE_SCHEMA = '{schema}' ]]
+      SELECT c.column_name + ' (' +
+          ISNULL(( SELECT 'PK, ' FROM information_schema.table_constraints AS k JOIN information_schema.key_column_usage AS kcu ON k.constraint_name = kcu.constraint_name WHERE constraint_type='PRIMARY KEY' AND k.table_name = c.table_name AND kcu.column_name = c.column_name), '') +
+          ISNULL(( SELECT 'FK, ' FROM information_schema.table_constraints AS k JOIN information_schema.key_column_usage AS kcu ON k.constraint_name = kcu.constraint_name WHERE constraint_type='FOREIGN KEY' AND k.table_name = c.table_name AND kcu.column_name = c.column_name), '') +
+          data_type + COALESCE('(' + RTRIM(CAST(character_maximum_length AS VARCHAR)) + ')','(' + RTRIM(CAST(numeric_precision AS VARCHAR)) + ',' + RTRIM(CAST(numeric_scale AS VARCHAR)) + ')','(' + RTRIM(CAST(datetime_precision AS VARCHAR)) + ')','') + ', ' +
+          CASE WHEN is_nullable = 'YES' THEN 'null' ELSE 'not null' END + ')' AS Columns
+      FROM information_schema.columns c WHERE c.table_name='{table}' AND c.TABLE_SCHEMA = '{schema}' ]]
 
   local foreign_keys_query = [[
       SELECT c.constraint_name
-         ,kcu.column_name as column_name
-         ,c2.table_name as foreign_table_name
-         ,kcu2.column_name as foreign_column_name
-      from   information_schema.table_constraints c
-             inner join information_schema.key_column_usage kcu
-               on c.constraint_schema = kcu.constraint_schema
-                  and c.constraint_name = kcu.constraint_name
-             inner join information_schema.referential_constraints rc
-               on c.constraint_schema = rc.constraint_schema
-                  and c.constraint_name = rc.constraint_name
-             inner join information_schema.table_constraints c2
-               on rc.unique_constraint_schema = c2.constraint_schema
-                  and rc.unique_constraint_name = c2.constraint_name
-             inner join information_schema.key_column_usage kcu2
-               on c2.constraint_schema = kcu2.constraint_schema
-                  and c2.constraint_name = kcu2.constraint_name
-                  and kcu.ordinal_position = kcu2.ordinal_position
-      where  c.constraint_type = 'FOREIGN KEY'
-      and c.TABLE_NAME = '{table}' and c.TABLE_SCHEMA = '{schema}' ]]
+         , kcu.column_name AS column_name
+         , c2.table_name AS foreign_table_name
+         , kcu2.column_name AS foreign_column_name
+      FROM information_schema.table_constraints c
+            INNER JOIN information_schema.key_column_usage kcu
+              ON c.constraint_schema = kcu.constraint_schema
+                AND c.constraint_name = kcu.constraint_name
+            INNER JOIN information_schema.referential_constraints rc
+              ON c.constraint_schema = rc.constraint_schema
+                AND c.constraint_name = rc.constraint_name
+            INNER JOIN information_schema.table_constraints c2
+              ON rc.unique_constraint_schema = c2.constraint_schema
+                AND rc.unique_constraint_name = c2.constraint_name
+            INNER JOIN information_schema.key_column_usage kcu2
+              ON c2.constraint_schema = kcu2.constraint_schema
+                AND c2.constraint_name = kcu2.constraint_name
+                AND kcu.ordinal_position = kcu2.ordinal_position
+      WHERE c.constraint_type = 'FOREIGN KEY'
+      AND c.TABLE_NAME = '{table}' AND c.TABLE_SCHEMA = '{schema}' ]]
 
   local references_query = [[
-      select kcu1.constraint_name as constraint_name
-          ,kcu1.table_name as foreign_table_name
-          ,kcu1.column_name as foreign_column_name
-          ,kcu2.column_name as column_name
-      from information_schema.referential_constraints as rc
-      inner join information_schema.key_column_usage as kcu1
-          on kcu1.constraint_catalog = rc.constraint_catalog
-          and kcu1.constraint_schema = rc.constraint_schema
-          and kcu1.constraint_name = rc.constraint_name
-      inner join information_schema.key_column_usage as kcu2
-          on kcu2.constraint_catalog = rc.unique_constraint_catalog
-          and kcu2.constraint_schema = rc.unique_constraint_schema
-          and kcu2.constraint_name = rc.unique_constraint_name
-          and kcu2.ordinal_position = kcu1.ordinal_position
-      where kcu2.table_name='{table}' and kcu2.table_schema = '{schema}' ]]
+      SELECT kcu1.constraint_name AS constraint_name
+          , kcu1.table_name AS foreign_table_name
+          , kcu1.column_name AS foreign_column_name
+          , kcu2.column_name AS column_name
+      FROM information_schema.referential_constraints AS rc
+      INNER JOIN information_schema.key_column_usage AS kcu1
+          ON kcu1.constraint_catalog = rc.constraint_catalog
+          AND kcu1.constraint_schema = rc.constraint_schema
+          AND kcu1.constraint_name = rc.constraint_name
+      INNER JOIN information_schema.key_column_usage AS kcu2
+          ON kcu2.constraint_catalog = rc.unique_constraint_catalog
+          AND kcu2.constraint_schema = rc.unique_constraint_schema
+          AND kcu2.constraint_name = rc.unique_constraint_name
+          AND kcu2.ordinal_position = kcu1.ordinal_position
+      WHERE kcu2.table_name='{table}' AND kcu2.table_schema = '{schema}' ]]
 
   local primary_keys_query = [[
-       select tc.constraint_name, kcu.column_name
-       from
+       SELECT tc.constraint_name, kcu.column_name
+       FROM
            information_schema.table_constraints AS tc
            JOIN information_schema.key_column_usage AS kcu
              ON tc.constraint_name = kcu.constraint_name
            JOIN information_schema.constraint_column_usage AS ccu
              ON ccu.constraint_name = tc.constraint_name
-      where constraint_type = 'PRIMARY KEY'
-      and tc.table_name = '{table}' and tc.table_schema = '{schema}' ]]
+      WHERE constraint_type = 'PRIMARY KEY'
+      AND tc.table_name = '{table}' AND tc.table_schema = '{schema}' ]]
 
   local constraints_query = [[
       SELECT u.CONSTRAINT_NAME, c.CHECK_CLAUSE FROM INFORMATION_SCHEMA.CONSTRAINT_TABLE_USAGE u
-          inner join INFORMATION_SCHEMA.CHECK_CONSTRAINTS c on u.CONSTRAINT_NAME = c.CONSTRAINT_NAME
-      where TABLE_NAME = '{table}' and u.TABLE_SCHEMA = '{schema}' ]]
+          INNER JOIN INFORMATION_SCHEMA.CHECK_CONSTRAINTS c ON u.CONSTRAINT_NAME = c.CONSTRAINT_NAME
+      WHERE TABLE_NAME = '{table}' AND u.TABLE_SCHEMA = '{schema}' ]]
 
   return {
     List = "select top 200 * from [{table}]",
@@ -196,21 +196,22 @@ function Helpers:__oracle()
   end
 
   return {
-    Columns = [[ select col.column_id,
-          col.owner as schema_name,
+    Columns = [[ SELECT col.column_id,
+          col.owner AS schema_name,
           col.table_name,
           col.column_name,
           col.data_type,
           col.data_length,
           col.data_precision,
           col.data_scale,
-                col.nullable
-        from sys.all_tab_columns col
-        inner join sys.all_tables t on col.owner = t.owner
-                                      and col.table_name = t.table_name
-        where col.owner = '{schema}'
+          col.nullable
+        FROM sys.all_tab_columns col
+        INNER JOIN sys.all_tables t
+          ON col.owner = t.owner
+          AND col.table_name = t.table_name
+        WHERE col.owner = '{schema}'
         AND col.table_name = '{table}'
-        order by col.owner, col.table_name, col.column_id ]],
+        ORDER BY col.owner, col.table_name, col.column_id ]],
     ["Foreign Keys"] = oracle_key_cmd("R"),
     Indexes = [[
           SELECT DISTINCT
@@ -259,9 +260,57 @@ function Helpers:__duck()
     Constraints = "SELECT * FROM duckdb_constraints() WHERE table_name = '{table}'",
   }
 end
+---
+---@private
+---@param materialization string
+---@return table_helpers helpers list of table helpers
+function Helpers:__redshift(materialization)
+  local default_list_query = 'SELECT * FROM "{schema}"."{table}" LIMIT 500;'
+  if materialization == "table" then
+    return {
+      List = default_list_query,
+      Columns = "SELECT * FROM information_schema.columns WHERE table_name='{table}' AND table_schema='{schema}';",
+      Indexes = "SELECT * FROM pg_indexes WHERE tablename='{table}' AND schemaname='{schema}';",
+      ["Foreign Keys"] = [[
+      SELECT tc.constraint_name, tc.table_name, kcu.column_name, ccu.table_name AS foreign_table_name, ccu.column_name AS foreign_column_name, rc.update_rule, rc.delete_rule
+      FROM
+           information_schema.table_constraints AS tc
+           JOIN information_schema.key_column_usage AS kcu
+             ON tc.constraint_name = kcu.constraint_name
+           JOIN information_schema.referential_constraints as rc
+             ON tc.constraint_name = rc.constraint_name
+           JOIN information_schema.constraint_column_usage AS ccu
+             ON ccu.constraint_name = tc.constraint_name
+      WHERE constraint_type = 'FOREIGN KEY' AND tc.table_name = '{table}' AND tc.table_schema = '{schema}';
+      ]],
+      ["Table Definition"] = [[
+    SELECT
+        *
+    FROM svv_table_info
+    WHERE "schema" = '{schema}'
+      AND "table" = '{table}';
+    ]],
+    }
+  elseif materialization == "view" then
+    return {
+      List = default_list_query,
+      ["View Definition"] = [[
+    SELECT
+        *
+    FROM pg_views
+    WHERE schemaname = '{schema}'
+      AND viewname = '{table}';
+    ]],
+    }
+  end
+  return {}
+end
+
+---@alias materialization "table"|"view"
+---@alias helper_vars { table: string, schema: string, dbname: string , materialization: materialization}
 
 ---@param type string
----@param vars { table: string, schema: string, dbname: string }
+---@param vars helper_vars
 ---@return table_helpers helpers list of table helpers
 function Helpers:get(type, vars)
   local helpers
@@ -283,6 +332,8 @@ function Helpers:get(type, vars)
     helpers = self:__oracle()
   elseif type == "duck" then
     helpers = self:__duck()
+  elseif type == "redshift" then
+    helpers = self:__redshift(vars.materialization)
   end
 
   if not helpers then
@@ -298,7 +349,7 @@ end
 
 ---@private
 ---@param obj string|table_helpers
----@param vars { table: string, schema: string, dbname: string }
+---@param vars helper_vars
 ---@return string|table_helpers # returns depending on what's passed in
 function Helpers:expand(obj, vars)
   local function exp(o)
@@ -329,9 +380,10 @@ function Helpers:add(helpers)
 end
 
 ---@param type string
+---@param vars helper_vars
 ---@return string[] # list of available table helpers for given type
-function Helpers:list(type)
-  local helpers = self:get(type, {})
+function Helpers:list(type, vars)
+  local helpers = self:get(type, vars)
 
   return utils.sorted_keys(helpers)
 end

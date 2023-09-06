@@ -159,7 +159,7 @@ function Handler:add_helpers(helpers)
 end
 
 ---@param type string
----@param vars { table: string, schema: string, dbname: string }
+---@param vars helper_vars
 ---@return table_helpers helpers list of table helpers
 function Handler:get_helpers(type, vars)
   return self.helpers:get(type, vars)

@@ -10,8 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
 type historyRecord struct {
@@ -393,4 +394,5 @@ func (r *HistoryRows) Next() (models.Row, error) {
 }
 
 func (r *HistoryRows) Close() {
+	// no-op
 }
