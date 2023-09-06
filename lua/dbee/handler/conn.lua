@@ -1,5 +1,9 @@
 local utils = require("dbee.utils")
+local progress = require("dbee.progress")
 local callbacker = require("dbee.handler.__callbacks")
+
+---@alias duration integer time in microseconds
+---@alias call_stats { success: boolean, time_taken: duration }
 
 ---@alias conn_id string
 ---@alias connection_details { name: string, type: string, url: string, id: conn_id, page_size: integer }
@@ -25,12 +29,14 @@ local callbacker = require("dbee.handler.__callbacks")
 ---@field private page_index integer index of the current page
 ---@field private page_ammount integer number of pages in the current result set
 ---@field private on_exec fun() callback which gets triggered on any action
+---@field private progress_bar { spinner: spinner, text_prefix: string }
+---@field private stats call_stats
 local Conn = {}
 
 ---@param ui Ui
 ---@param helpers Helpers
 ---@param params connection_details
----@param opts? { fallback_page_size: integer, on_exec: fun() }
+---@param opts? { fallback_page_size: integer, on_exec: fun(), progress_bar: progress_config }
 ---@return Conn
 function Conn:new(ui, helpers, params, opts)
   params = params or {}
@@ -81,6 +87,11 @@ function Conn:new(ui, helpers, params, opts)
     page_index = 0,
     page_ammount = 0,
     on_exec = opts.on_exec or function() end,
+    progress_bar = opts.progress_bar or {},
+    stats = {
+      time_taken = 0,
+      success = false,
+    },
   }
   setmetatable(o, self)
   self.__index = self
@@ -114,9 +125,15 @@ function Conn:execute(query, cb)
   cb = cb or function() end
   self.on_exec()
 
-  local cb_id = tostring(math.random(10000))
-  callbacker.register(cb_id, function()
-    self:show_page(0)
+  local cancel = progress.display(self.ui:buffer(), self.progress_bar)
+
+  local cb_id = tostring(math.random())
+  callbacker.register(cb_id, function(stats)
+    cancel()
+    self.stats = stats
+    if stats.success then
+      self:show_page(0)
+    end
     cb()
   end)
 
@@ -132,9 +149,11 @@ function Conn:history(history_id, cb)
   cb = cb or function() end
   self.on_exec()
 
-  local cb_id = tostring(math.random(10000))
-  callbacker.register(cb_id, function()
-    self:show_page(0)
+  local cb_id = tostring(math.random())
+  callbacker.register(cb_id, function(stats)
+    if stats.success then
+      self:show_page(0)
+    end
     cb()
   end)
 
@@ -189,8 +208,15 @@ function Conn:show_page(page)
     self.page_ammount = self.page_ammount - 1
   end
 
+  -- convert from microseconds to seconds
+  local seconds = self.stats.time_taken / 1000000
+
   -- set winbar status
-  vim.api.nvim_win_set_option(winid, "winbar", "%=" .. tostring(page + 1) .. "/" .. tostring(self.page_ammount + 1))
+  vim.api.nvim_win_set_option(
+    winid,
+    "winbar",
+    string.format("%d/%d%%=Took %.3fs", page + 1, self.page_ammount + 1, seconds)
+  )
 
   return page
 end

@@ -122,16 +122,19 @@ func main() {
 
 				// execute and open the first page
 				go func() {
-					if err := c.Execute(query); err != nil {
+					ok := true
+					start := time.Now()
+					err := c.Execute(query)
+					if err != nil {
+						ok = false
+						logger.Error(err.Error())
+					}
+					err = callbacker.TriggerCallback(callbackId, ok, time.Since(start))
+					if err != nil {
 						logger.Error(err.Error())
 						return
 					}
 					logger.Debugf("%q executed successfully", method)
-					if err := callbacker.TriggerCallback(callbackId); err != nil {
-						logger.Error(err.Error())
-						return
-					}
-					logger.Debugf("%q successfully triggered callback", method)
 				}()
 
 				logger.Debugf("%q returned successfully", method)
@@ -157,16 +160,19 @@ func main() {
 				}
 
 				go func() {
-					if err := c.History(historyId); err != nil {
+					ok := true
+					start := time.Now()
+					err := c.History(historyId)
+					if err != nil {
+						ok = false
+						logger.Error(err.Error())
+					}
+					err = callbacker.TriggerCallback(callbackId, ok, time.Since(start))
+					if err != nil {
 						logger.Error(err.Error())
 						return
 					}
 					logger.Debugf("%q executed successfully", method)
-					if err := callbacker.TriggerCallback(callbackId); err != nil {
-						logger.Error(err.Error())
-						return
-					}
-					logger.Debugf("%q successfully triggered callback", method)
 				}()
 
 				logger.Debugf("%q returned successfully", method)

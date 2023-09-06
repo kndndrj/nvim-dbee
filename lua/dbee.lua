@@ -52,7 +52,10 @@ local function lazy_setup()
   }
 
   -- set up modules
-  m.handler = Handler:new(result_ui, m.config.sources, { fallback_page_size = m.config.page_size })
+  m.handler = Handler:new(result_ui, m.config.sources, {
+    fallback_page_size = m.config.page_size,
+    progress = m.config.progress_bar,
+  })
   m.result = Result:new(result_ui, m.handler, m.config.result)
   m.editor = Editor:new(editor_ui, m.handler, m.config.editor)
   m.drawer = Drawer:new(drawer_ui, m.handler, m.editor, m.config.drawer)

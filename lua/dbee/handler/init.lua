@@ -4,7 +4,7 @@ local MockedConn = require("dbee.handler.conn_mock")
 local Helpers = require("dbee.handler.helpers")
 local Lookup = require("dbee.handler.lookup")
 
----@alias handler_config { fallback_page_size: integer }
+---@alias handler_config { fallback_page_size: integer, progress: progress_config }
 
 -- Handler is an aggregator of connections
 ---@class Handler
