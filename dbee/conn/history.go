@@ -6,9 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"sort"
 	"strconv"
-	"sync"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -16,103 +14,67 @@ import (
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
-type historyRecord struct {
-	dir    string
-	header models.Header
-	meta   models.Meta
-}
-
-// key int64 - unix timestamp
-// value historyRecord
-type historyMap struct {
-	storage sync.Map
-}
-
-func (hm *historyMap) store(key string, value historyRecord) {
-	hm.storage.Store(key, value)
-}
-
-func (hm *historyMap) load(key string) (historyRecord, bool) {
-	val, ok := hm.storage.Load(key)
-	if !ok {
-		return historyRecord{}, false
-	}
-
-	return val.(historyRecord), true
-}
-
-func (hm *historyMap) keys() []string {
-	var keys []string
-	hm.storage.Range(func(key, value any) bool {
-		k := key.(string)
-		keys = append(keys, k)
-		return true
-	})
-
-	return keys
-}
-
-type HistoryOutput struct {
-	records historyMap
-	// searchId is used to identify history records over restarts
-	searchId  string
-	directory string
-	log       models.Logger
-}
-
-func NewHistory(searchId string, logger models.Logger) *HistoryOutput {
+func init() {
 	// gob doesn't know how to encode/decode time otherwise
 	gob.Register(time.Time{})
+}
 
-	h := &HistoryOutput{
-		records:  historyMap{},
-		searchId: searchId,
+type HistoryState int
+
+const (
+	HistoryStateAvailable HistoryState = iota
+	HistoryStateFilling
+	HistoryStateFilled
+	HistoryStateFailed
+)
+
+// HistoryOutput is a subcomponent of a call, which holds the result on disk
+type HistoryOutput struct {
+	directory string
+	state     HistoryState
+}
+
+func NewHistory(searchID string) *HistoryOutput {
+	ho := &HistoryOutput{
 		// TODO: handle windows
-		directory: "/tmp/dbee-history",
-		log:       logger,
+		directory: filepath.Join("/tmp/dbee-history", searchID),
+		state:     HistoryStateAvailable,
 	}
 
-	// concurrently gather info about any existing histories
-	go func() {
-		err := h.scanOld()
-		if err != nil {
-			logger.Error(err.Error())
-		}
-	}()
+	_, err := os.Stat(ho.directory)
+	if err == nil {
+		ho.state = HistoryStateFilled
+	}
+	return ho
+}
 
-	return h
+func (ho *HistoryOutput) HasResult() bool {
+	return ho.state == HistoryStateFilled
 }
 
 // Act as an output (create a new record every time Write gets invoked)
-func (ho *HistoryOutput) Write(ctx context.Context, result models.Result) error {
-	defer func() {
-		_ = contextUpdateCallState(ctx, CallStateArchived)
-	}()
-
-	id := strconv.FormatInt(time.Now().UnixNano(), 10)
-	call, err := contextGetCall(ctx)
-	if err == nil {
-		id = call.ID
+func (ho *HistoryOutput) Write(_ context.Context, result models.Result) error {
+	if ho.state != HistoryStateAvailable {
+		return ErrAlreadyFilled
 	}
 
-	// someting like /tmp/dbee/conn_id/unix_timestamp/
-	dir := filepath.Join(ho.directory, ho.searchId, id)
+	ho.state = HistoryStateFilling
 
 	// create the directory for the history record
-	err = os.MkdirAll(dir, os.ModePerm)
+	err := os.MkdirAll(ho.directory, os.ModePerm)
 	if err != nil {
 		return err
 	}
 
 	// serialize the data
-	// files inside the directory ..../unix_timestamp/:
+	// files inside the directory ..../call_id/:
 	// header.gob - header
 	// meta.gob - meta
 	// row_0.gob - first row
 	// row_n.gob - n-th row
 
 	// header
-	fileName := filepath.Join(dir, "header.gob")
+	fileName := filepath.Join(ho.directory, "header.gob")
 	file, err := os.Create(fileName)
 	if err != nil {
 		return err
@@ -126,7 +88,7 @@ func (ho *HistoryOutput) Write(ctx context.Context, result models.Result) error 
 	}
 
 	// meta
-	fileName = filepath.Join(dir, "meta.gob")
+	fileName = filepath.Join(ho.directory, "meta.gob")
 	file, err = os.Create(fileName)
 	if err != nil {
 		return err
@@ -160,7 +122,7 @@ func (ho *HistoryOutput) Write(ctx context.Context, result models.Result) error 
 				return nil
 			}
 
-			fileName := filepath.Join(dir, "row_"+strconv.Itoa(index)+".gob")
+			fileName := filepath.Join(ho.directory, "row_"+strconv.Itoa(index)+".gob")
 			file, err := os.Create(fileName)
 			if err != nil {
 				return err
@@ -180,134 +142,85 @@ func (ho *HistoryOutput) Write(ctx context.Context, result models.Result) error 
 		return err
 	}
 
-	rec := historyRecord{
-		dir:    dir,
-		header: result.Header,
-		meta:   result.Meta,
-	}
-	ho.records.store(id, rec)
+	ho.state = HistoryStateFilled
 
 	return nil
 }
 
-// History is also a client
-func (ho *HistoryOutput) Query(_ context.Context, historyID string) (models.IterResult, error) {
-	rec, ok := ho.records.load(historyID)
-	if !ok {
-		return nil, errors.New("no such input in history")
+func (ho *HistoryOutput) Query(_ context.Context) (models.IterResult, error) {
+	if ho.state != HistoryStateFilled {
+		return nil, errors.New("no result stored in history")
 	}
 
-	return newHistoryRows(rec)
-}
-
-func (ho *HistoryOutput) Layout() ([]models.Layout, error) {
-	keys := ho.records.keys()
-
-	// sort the slice
-	sort.Slice(keys, func(i, j int) bool {
-		return keys[i] < keys[j]
-	})
-
-	var layouts []models.Layout
-	for _, key := range keys {
-
-		rec, ok := ho.records.load(key)
-		if !ok {
-			continue
-		}
-
-		layout := models.Layout{
-			Name:     key,
-			Schema:   "",
-			Database: "",
-			Type:     models.LayoutTypeHistory,
-			Children: []models.Layout{
-				{
-					Name:     rec.meta.Timestamp.String(),
-					Schema:   "",
-					Database: "",
-					Type:     models.LayoutTypeNone,
-				},
-				{
-					Name:     rec.meta.Query,
-					Schema:   "",
-					Database: "",
-					Type:     models.LayoutTypeNone,
-				},
-			},
-		}
-		layouts = append(layouts, layout)
-	}
-
-	return layouts, nil
+	return newHistoryRows(ho.directory)
 }
 
 // scanOld scans the ho.directory/ho.searchId to find any existing history records
-func (ho *HistoryOutput) scanOld() error {
-	// list directory contents
-	searchDir := filepath.Join(ho.directory, ho.searchId)
+// func (ho *HistoryOutput) scanOld() error {
+// 	// list directory contents
+// 	searchDir := filepath.Join(ho.directory, ho.searchID)
 
-	// check if dir exists and is a directory
-	dirInfo, err := os.Stat(searchDir)
-	if os.IsNotExist(err) || !dirInfo.IsDir() {
-		return nil
-	}
+// 	// check if dir exists and is a directory
+// 	dirInfo, err := os.Stat(searchDir)
+// 	if os.IsNotExist(err) || !dirInfo.IsDir() {
+// 		return nil
+// 	}
 
-	contents, err := os.ReadDir(searchDir)
-	if err != nil {
-		return err
-	}
-	for _, c := range contents {
-		if !c.IsDir() {
-			continue
-		}
+// 	contents, err := os.ReadDir(searchDir)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	for _, c := range contents {
+// 		if !c.IsDir() {
+// 			continue
+// 		}
 
-		id := c.Name()
+// 		id := c.Name()
 
-		dir := filepath.Join(searchDir, c.Name())
+// 		dir := filepath.Join(searchDir, c.Name())
 
-		// header
-		var header models.Header
-		fileName := filepath.Join(dir, "header.gob")
-		file, err := os.Open(fileName)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
+// 		// header
+// 		var header models.Header
+// 		fileName := filepath.Join(dir, "header.gob")
+// 		file, err := os.Open(fileName)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		defer file.Close()
 
-		decoder := gob.NewDecoder(file)
-		err = decoder.Decode(&header)
-		if err != nil {
-			return err
-		}
+// 		decoder := gob.NewDecoder(file)
+// 		err = decoder.Decode(&header)
+// 		if err != nil {
+// 			return err
+// 		}
 
-		// meta
-		var meta models.Meta
-		fileName = filepath.Join(dir, "meta.gob")
-		file, err = os.Open(fileName)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
+// 		// meta
+// 		var meta models.Meta
+// 		fileName = filepath.Join(dir, "meta.gob")
+// 		file, err = os.Open(fileName)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		defer file.Close()
 
-		decoder = gob.NewDecoder(file)
-		err = decoder.Decode(&meta)
-		if err != nil {
-			return err
-		}
+// 		decoder = gob.NewDecoder(file)
+// 		err = decoder.Decode(&meta)
+// 		if err != nil {
+// 			return err
+// 		}
 
-		rec := historyRecord{
-			dir:    dir,
-			header: header,
-			meta:   meta,
-		}
+// 		rec := historyRecord{
+// 			dir:    dir,
+// 			header: header,
+// 			meta:   meta,
+// 		}
 
-		ho.records.store(id, rec)
+// 		ho.records.store(id, rec)
 
-	}
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 type HistoryRows struct {
 	header models.Header
@@ -315,14 +228,20 @@ type HistoryRows struct {
 	iter   func() (models.Row, error)
 }
 
-func newHistoryRows(record historyRecord) (*HistoryRows, error) {
+func newHistoryRows(dir string) (*HistoryRows, error) {
+	// read header and metadata
+	header, meta, err := readHeaderAndMeta(dir)
+	if err != nil {
+		return nil, err
+	}
+
 	// open the first file if it exists,
 	// loop through its contents and try the next file
 
 	// nextFile returns the contents of the next rows file
 	index := 0
 	nextFile := func() ([]models.Row, error, bool) {
-		fileName := filepath.Join(record.dir, "row_"+strconv.Itoa(index)+".gob")
+		fileName := filepath.Join(dir, "row_"+strconv.Itoa(index)+".gob")
 		_, err := os.Stat(fileName)
 		if os.IsNotExist(err) {
 			return nil, nil, true
@@ -373,10 +292,44 @@ func newHistoryRows(record historyRecord) (*HistoryRows, error) {
 	}
 
 	return &HistoryRows{
-		header: record.header,
-		meta:   record.meta,
+		header: header,
+		meta:   meta,
 		iter:   iter,
 	}, nil
+}
+
+func readHeaderAndMeta(dir string) (models.Header, models.Meta, error) {
+	// header
+	var header models.Header
+	fileName := filepath.Join(dir, "header.gob")
+	file, err := os.Open(fileName)
+	if err != nil {
+		return nil, models.Meta{}, err
+	}
+	defer file.Close()
+
+	decoder := gob.NewDecoder(file)
+	err = decoder.Decode(&header)
+	if err != nil {
+		return nil, models.Meta{}, err
+	}
+
+	// meta
+	var meta models.Meta
+	fileName = filepath.Join(dir, "meta.gob")
+	file, err = os.Open(fileName)
+	if err != nil {
+		return nil, models.Meta{}, err
+	}
+	defer file.Close()
+
+	decoder = gob.NewDecoder(file)
+	err = decoder.Decode(&meta)
+	if err != nil {
+		return nil, models.Meta{}, err
+	}
+
+	return header, meta, nil
 }
 
 func (r *HistoryRows) Meta() (models.Meta, error) {

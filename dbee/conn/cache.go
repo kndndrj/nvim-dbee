@@ -2,159 +2,118 @@ package conn
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
-var ErrInvalidRange = func(from int, to int) error { return fmt.Errorf("invalid selection range: %d ... %d", from, to) }
+var (
+	ErrInvalidRange  = func(from int, to int) error { return fmt.Errorf("invalid selection range: %d ... %d", from, to) }
+	ErrAlreadyFilled = errors.New("cache is already filled")
+)
 
-type cacheRecord struct {
-	result  models.Result
-	drained bool
-}
+type CacheState int
 
-type cacheMap struct {
-	storage sync.Map
-}
+const (
+	CacheStateAvailable CacheState = iota
+	CacheStateFilling
+	CacheStateFilled
+	CacheStateFailed
+)
 
-func (cm *cacheMap) store(key string, value cacheRecord) {
-	cm.storage.Store(key, value)
-}
-
-func (cm *cacheMap) load(key string) (cacheRecord, bool) {
-	val, ok := cm.storage.Load(key)
-	if !ok {
-		return cacheRecord{}, false
-	}
-
-	return val.(cacheRecord), true
-}
-
-func (cm *cacheMap) delete(key string) {
-	cm.storage.Delete(key)
-}
-
-// cache maintains a map of currently active results
-// The non active results stay in the list until they are drained
+// cache is a subcomponent of Call, which holds the result in memory
 type cache struct {
-	records cacheMap
-	log     models.Logger
+	result models.Result
+	state  CacheState
 }
 
-func NewCache(pageSize int, logger models.Logger) *cache {
-	return &cache{
-		records: cacheMap{},
-		log:     logger,
+func NewCache() *cache {
+	return &cache{}
+}
+
+func (c *cache) HasResult() bool {
+	if c.state == CacheStateFilled || c.state == CacheStateFilling {
+		return true
 	}
+	return false
 }
 
-// Set sets a new record in cache
-func (c *cache) Set(ctx context.Context, iter models.IterResult, blockUntil int, id string) error {
+// Set sets a record to empty cache
+func (c *cache) Set(ctx context.Context, iter models.IterResult) error {
+	if c.HasResult() {
+		return ErrAlreadyFilled
+	}
+	c.state = CacheStateFilling
+
 	// function to call on fail
-	fail := func() {
+	var err error
+	defer func() {
 		iter.Close()
-	}
+		if err != nil {
+			c.state = CacheStateFailed
+		}
+	}()
 
 	header, err := iter.Header()
 	if err != nil {
-		fail()
 		return err
 	}
 
 	meta, err := iter.Meta()
 	if err != nil {
-		fail()
 		return err
 	}
 
 	// create a new result
-	result := models.Result{}
-	result.Header = header
-	result.Meta = meta
-
-	// set context to draining
-	_ = contextUpdateCallState(ctx, CallStateCaching)
-
-	c.log.Debug("processing result iterator start: " + id)
+	c.result.Header = header
+	c.result.Meta = meta
 
 	// drain the iterator
-	drained := make(chan bool)
-	go func() {
-		setDrained := func() {
-			select {
-			case drained <- true:
-			default:
-			}
-		}
-
-		defer func() { setDrained() }()
-
-		i := 0
+	drain := func() error {
 		for {
-			// check if context is valid
-			select {
-			case <-ctx.Done():
-				iter.Close()
-				c.log.Warn("operation cancled")
-				return
-			default:
-			}
-
-			// update records in chunks
-			if i >= blockUntil {
-				c.records.store(id, cacheRecord{
-					result: result,
-				})
-				i = 0
-
-				setDrained()
-			}
-
 			row, err := iter.Next()
 			if err != nil {
-				fail()
-				c.log.Error(err.Error())
-				return
+				return err
 			}
 			if row == nil {
-				_ = contextUpdateCallState(ctx, CallStateCached)
-				c.log.Debug("successfully exhausted iterator: " + id)
-				break
+				return nil
 			}
 
-			result.Rows = append(result.Rows, row)
-			i++
+			c.result.Rows = append(c.result.Rows, row)
+
+			// check if context is still valid
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 		}
+	}
 
-		// store one last time and set drained to true
-		c.records.store(id, cacheRecord{
-			drained: true,
-			result:  result,
-		})
-	}()
+	err = drain()
+	if err != nil {
+		return err
+	}
 
-	// wait until "blockUntil" or all results drained
-	<-drained
+	c.state = CacheStateFilled
 
 	return nil
 }
 
 // Get writes the selected line range to outputs
-// id - id of the cache record
 // from-to - range of rows:
 //
 //	starts with 0
 //	use negative number from the end
 //	for example, to pipe all records use: from:0 to:-1
 //
-// wipe - deletes the cache after paging
 // outputs - where to pipe the results
 //
 // returns a number of records
-func (c *cache) Get(ctx context.Context, id string, from int, to int, outputs ...Output) (int, error) {
+func (c *cache) Get(ctx context.Context, from int, to int, outputs ...Output) (int, error) {
+	if !c.HasResult() {
+		return 0, errors.New("no result")
+	}
 	// validation
 	if (from < 0 && to < 0) || (from >= 0 && to >= 0) {
 		if from > to {
@@ -166,32 +125,29 @@ func (c *cache) Get(ctx context.Context, id string, from int, to int, outputs ..
 		return 0, ErrInvalidRange(from, to)
 	}
 
-	var cachedResult models.Result
-
 	timeoutContext, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	// Wait for drain, available index or timeout
 	for {
-		rec, ok := c.records.load(id)
-		if !ok {
-			return 0, fmt.Errorf("record %s appears to be already flushed", id)
-		}
-
-		if rec.drained || (to >= 0 && to <= len(rec.result.Rows)) {
-			cachedResult = rec.result
+		if c.state == CacheStateFilled || (c.state == CacheStateFilling && to <= len(c.result.Rows)) {
 			break
 		}
 
+		// check timeout
 		if err := timeoutContext.Err(); err != nil {
-			return 0, fmt.Errorf("cache flushing timeout exceeded: %s", err)
+			return 0, fmt.Errorf("accessing cache timeout exceeded: %w", err)
+		}
+		// check context
+		if err := ctx.Err(); err != nil {
+			return 0, fmt.Errorf("accessing cache cancled: %w", err)
 		}
 		time.Sleep(1 * time.Second)
 	}
 
 	// calculate range
 
-	length := len(cachedResult.Rows)
+	length := len(c.result.Rows)
 	if from < 0 {
 		from += length + 1
 		if from < 0 {
@@ -214,10 +170,10 @@ func (c *cache) Get(ctx context.Context, id string, from int, to int, outputs ..
 
 	// create a new page
 	var result models.Result
-	result.Header = cachedResult.Header
-	result.Meta = cachedResult.Meta
+	result.Header = c.result.Header
+	result.Meta = c.result.Meta
 
-	result.Rows = cachedResult.Rows[from:to]
+	result.Rows = c.result.Rows[from:to]
 	result.Meta.ChunkStart = from
 
 	// write the page to outputs
@@ -231,8 +187,7 @@ func (c *cache) Get(ctx context.Context, id string, from int, to int, outputs ..
 	return length, nil
 }
 
-// Wipe the record with id from cache
-func (c *cache) Wipe(id string) {
-	c.records.delete(id)
-	c.log.Debug("successfully wiped record from cache")
+func (c *cache) Wipe() {
+	c.result = models.Result{}
+	c.state = CacheStateAvailable
 }

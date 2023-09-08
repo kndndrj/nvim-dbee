@@ -73,18 +73,12 @@ func main() {
 			func(args []string) (bool, error) {
 				method := "Dbee_register_connection"
 				logger.Debugf("calling %q", method)
-				if len(args) < 4 {
+				if len(args) < 3 {
 					logger.Errorf("not enough arguments passed to %q", method)
 					return false, nil
 				}
 
 				id, url, typ := args[0], args[1], args[2]
-
-				blockUntil, err := strconv.Atoi(args[3])
-				if err != nil {
-					logger.Error(err.Error())
-					return false, nil
-				}
 
 				// Get the right client
 				client, err := clients.NewFromType(url, typ)
@@ -93,9 +87,7 @@ func main() {
 					return false, nil
 				}
 
-				h := conn.NewHistory(id, logger)
-
-				c := conn.New(client, blockUntil, h, logger)
+				c := conn.New(client, logger)
 
 				connections[id] = c
 
@@ -164,17 +156,7 @@ func main() {
 
 				calls := c.ListCalls()
 
-				// TODO:
-				var ps []map[string]string
-				for _, c := range calls {
-					ps = append(ps, map[string]string{
-						"id":    c.ID,
-						"query": c.Query,
-						"state": strconv.Itoa(int(c.State)),
-					})
-				}
-
-				parsed, err := json.Marshal(ps)
+				parsed, err := json.Marshal(calls)
 				if err != nil {
 					logger.Error(err.Error())
 					return "{}", nil
@@ -273,7 +255,13 @@ func main() {
 					return 0, nil
 				}
 
-				length, err := c.GetResult(callID, from, to, bufferOutput)
+				call := c.GetCall(callID)
+				if call == nil {
+					logger.Error("no call")
+					return 0, nil
+				}
+
+				length, err := call.GetResult(from, to, bufferOutput)
 				if err != nil {
 					logger.Error(err.Error())
 					return 0, nil
@@ -364,7 +352,8 @@ func main() {
 					return nil
 				}
 
-				_, err = c.GetResult(callID, from, to, outpt)
+				// TODO:
+				_, _, _, _, _ = c, callID, from, to, outpt
 
 				if err != nil {
 					logger.Error(err.Error())

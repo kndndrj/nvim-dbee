@@ -2,6 +2,8 @@ package conn
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -18,13 +20,6 @@ type (
 	// Output recieves a result and does whatever it wants with it
 	Output interface {
 		Write(context.Context, models.Result) error
-	}
-
-	// History is required to act as an input, output and provide a List method
-	History interface {
-		Output
-		Input
-		Layout() ([]models.Layout, error)
 	}
 
 	// Client is a special kind of input with extra stuff
@@ -44,7 +39,8 @@ type (
 type CallState int
 
 const (
-	CallStateExecuting CallState = iota
+	CallStateUninitialized CallState = iota
+	CallStateExecuting
 	CallStateCaching
 	CallStateCached
 	CallStateArchived
@@ -55,33 +51,126 @@ const (
 // Call represents a single call to database
 // it contains various metadata fields, state and a context cancelation function
 type Call struct {
-	ID     string
-	Query  string
-	State  CallState
-	Cancel func()
+	id      string
+	state   CallState
+	cancel  func()
+	cache   *cache
+	history *HistoryOutput
+	log     models.Logger
+}
+
+func makeCall(id string, connID string, logger models.Logger, exec func(context.Context) (models.IterResult, error)) *Call {
+	c := &Call{
+		id:      id,
+		state:   CallStateUninitialized,
+		cache:   NewCache(),
+		history: NewHistory(connID),
+		log:     logger,
+	}
+
+	// drain the exec function in a separate coroutine
+	go func() {
+		err := c.Do(exec)
+		if err != nil {
+			c.log.Error(err.Error())
+		}
+	}()
+
+	return c
+}
+
+func (c *Call) Do(exec func(context.Context) (models.IterResult, error)) error {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	if c.cancel != nil {
+		oldCancel := c.cancel
+		cancel = func() {
+			oldCancel()
+			cancel()
+		}
+	}
+	c.cancel = cancel
+
+	c.state = CallStateExecuting
+	rows, err := exec(ctx)
+	if err != nil {
+		c.state = CallStateFailed
+		if errors.Is(err, context.Canceled) {
+			c.state = CallStateCanceled
+		}
+		return err
+	}
+
+	// save to cache
+	c.state = CallStateCaching
+	err = c.cache.Set(ctx, rows)
+	if err != nil && !errors.Is(err, ErrAlreadyFilled) {
+		c.state = CallStateFailed
+		if errors.Is(err, context.Canceled) {
+			c.state = CallStateCanceled
+		}
+		return err
+	}
+
+	// save to history
+	c.state = CallStateCached
+	_, err = c.cache.Get(ctx, 0, -1, c.history)
+	if err != nil && !errors.Is(err, ErrAlreadyFilled) {
+		return err
+	}
+	c.state = CallStateArchived
+
+	return nil
+}
+
+// GetResult pipes the selected range of rows to the outputs
+// returns length of the result set
+func (c *Call) GetResult(from int, to int, outputs ...Output) (int, error) {
+	if !c.cache.HasResult() && c.history.HasResult() {
+		go func() {
+			err := c.Do(c.history.Query)
+			if err != nil {
+				c.log.Error(err.Error())
+			}
+		}()
+	}
+
+	ctx := context.TODO()
+
+	return c.cache.Get(ctx, from, to, outputs...)
+}
+
+func (c *Call) Cancel() {
+	if c.cancel != nil {
+		c.cancel()
+	}
+}
+
+func (s *Call) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		ID    string `json:"id"`
+		State int    `json:"state"`
+	}{
+		ID:    s.id,
+		State: int(s.state),
+	})
 }
 
 type Conn struct {
 	driver Client
-	cache  *cache
 	// how many results to wait for in the main thread? -> see cache.go
-	blockUntil int
-	history    History
-	log        models.Logger
+	log models.Logger
 	// id of the current call
 	currentCallID string
 	// map of call stats
 	calls map[string]*Call
 }
 
-func New(driver Client, blockUntil int, history History, logger models.Logger) *Conn {
+func New(driver Client, logger models.Logger) *Conn {
 	return &Conn{
-		blockUntil: blockUntil,
-		driver:     driver,
-		history:    history,
-		cache:      NewCache(blockUntil, logger),
-		log:        logger,
-		calls:      make(map[string]*Call),
+		driver: driver,
+		log:    logger,
+		calls:  make(map[string]*Call),
 	}
 }
 
@@ -97,6 +186,9 @@ func (c *Conn) ListCalls() []*Call {
 }
 
 func (c *Conn) GetCall(callID string) *Call {
+	if callID == "" {
+		callID = c.currentCallID
+	}
 	return c.calls[callID]
 }
 
@@ -107,55 +199,10 @@ func (c *Conn) Execute(callID string, query string) error {
 		callID = uuid.New().String()
 	}
 
-	// create a new call
-	call := &Call{
-		ID:    callID,
-		Query: query,
-		State: CallStateExecuting,
-	}
-	ctx, cancel := newCallContext(call)
-	call.Cancel = func() {
-		cancel()
-		call.State = CallStateCanceled
-	}
-
+	c.calls[callID] = makeCall(callID, "TODO", c.log, func(ctx context.Context) (models.IterResult, error) {
+		return c.driver.Query(ctx, query)
+	})
 	c.currentCallID = callID
-	c.calls[callID] = call
-
-	rows, err := c.driver.Query(ctx, query)
-	if err != nil {
-		call.State = CallStateFailed
-		return err
-	}
-
-	return c.setResultToCache(ctx, rows, call, true)
-}
-
-func (c *Conn) setResultToCache(ctx context.Context, rows models.IterResult, call *Call, fresh bool) error {
-	// set new record in cache
-	err := c.cache.Set(ctx, rows, c.blockUntil, call.ID)
-	if err != nil {
-		call.State = CallStateFailed
-		return err
-	}
-	// check if context is still valid
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-
-	if !fresh {
-		return nil
-	}
-
-	// save record to history
-	go func() {
-		_, err := c.cache.Get(ctx, call.ID, 0, -1, c.history)
-		if err != nil {
-			c.log.Debugf("failed flushing result to history: %s", err.Error())
-		}
-
-		// TODO: delete old record from cache
-	}()
 
 	return nil
 }
@@ -176,19 +223,6 @@ func (c *Conn) SwitchDatabase(name string) error {
 	return nil
 }
 
-// GetResult pipes the selected range of rows to the outputs
-// returns length of the result set
-func (c *Conn) GetResult(callID string, from int, to int, outputs ...Output) (int, error) {
-	ctx := context.TODO()
-
-	call, ok := c.calls[callID]
-	if !ok {
-		return 0, fmt.Errorf("call with id %q doesn't exist", callID)
-	}
-
-	return c.cache.Get(ctx, call.ID, from, to, outputs...)
-}
-
 func (c *Conn) Layout() ([]models.Layout, error) {
 	var layout []models.Layout
 
@@ -202,20 +236,6 @@ func (c *Conn) Layout() ([]models.Layout, error) {
 			Name:     "structure",
 			Type:     models.LayoutTypeNone,
 			Children: structure,
-		})
-	}
-
-	// history
-	history, err := c.history.Layout()
-	if err != nil {
-		return nil, err
-	}
-	if len(history) > 0 {
-		layout = append(layout, models.Layout{
-			Name:              "history",
-			Type:              models.LayoutTypeNone,
-			ChildrenSortOrder: models.LayourtSortOrderDescending,
-			Children:          history,
 		})
 	}
 

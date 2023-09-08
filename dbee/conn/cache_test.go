@@ -2,50 +2,14 @@ package conn_test
 
 import (
 	"context"
-	"log"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"gotest.tools/assert"
 )
-
-type mockLogger struct{}
-
-func (ml *mockLogger) Debug(msg string) {
-	log.Default().Print(msg)
-}
-
-func (ml *mockLogger) Debugf(format string, args ...any) {
-	log.Default().Printf(format, args...)
-}
-
-func (ml *mockLogger) Info(msg string) {
-	log.Default().Print(msg)
-}
-
-func (ml *mockLogger) Infof(format string, args ...any) {
-	log.Default().Printf(format, args...)
-}
-
-func (ml *mockLogger) Warn(msg string) {
-	log.Default().Print(msg)
-}
-
-func (ml *mockLogger) Warnf(format string, args ...any) {
-	log.Default().Printf(format, args...)
-}
-
-func (ml *mockLogger) Error(msg string) {
-	log.Default().Print(msg)
-}
-
-func (ml *mockLogger) Errorf(format string, args ...any) {
-	log.Default().Printf(format, args...)
-}
 
 type mockedIterResult struct {
 	max     int
@@ -120,14 +84,12 @@ func (mo *mockOutput) Write(_ context.Context, result models.Result) error {
 
 func TestCache(t *testing.T) {
 	// prepare cache and mocks
-	cache := conn.NewCache(2, &mockLogger{})
+	cache := conn.NewCache()
 
 	numOfRows := 10
 	rows := newMockedIterResult(numOfRows, 0)
 
-	recordID := uuid.New().String()
-
-	err := cache.Set(context.Background(), rows, numOfRows, recordID)
+	err := cache.Set(context.Background(), rows)
 	assert.NilError(t, err)
 
 	type testCase struct {
@@ -190,8 +152,9 @@ func TestCache(t *testing.T) {
 			expectedResult: rows.Range(0, 3),
 			expectedError:  nil,
 			before: func() {
+				cache.Wipe()
 				// reset result with sleep between iterations
-				err = cache.Set(context.Background(), newMockedIterResult(numOfRows, 500*time.Millisecond), 0, recordID)
+				err = cache.Set(context.Background(), newMockedIterResult(numOfRows, 500*time.Millisecond))
 				assert.NilError(t, err)
 			},
 		},
@@ -202,8 +165,9 @@ func TestCache(t *testing.T) {
 			expectedResult: rows.Range(0, numOfRows),
 			expectedError:  nil,
 			before: func() {
+				cache.Wipe()
 				// reset result with sleep between iterations
-				err = cache.Set(context.Background(), newMockedIterResult(numOfRows, 500*time.Millisecond), 0, recordID)
+				err = cache.Set(context.Background(), newMockedIterResult(numOfRows, 500*time.Millisecond))
 				assert.NilError(t, err)
 			},
 		},
@@ -218,8 +182,8 @@ func TestCache(t *testing.T) {
 
 		output.expect(tc.expectedResult)
 
-		_, err := cache.Get(context.Background(),recordID, tc.from, tc.to, output)
-		if err != nil {
+		_, err := cache.Get(context.Background(), tc.from, tc.to, output)
+		if err != nil && tc.expectedError != nil {
 			assert.Equal(t, err.Error(), tc.expectedError.Error())
 		}
 	}
