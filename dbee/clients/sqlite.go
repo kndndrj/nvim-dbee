@@ -3,6 +3,7 @@
 package clients
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -35,8 +36,8 @@ func NewSqlite(url string) (*SqliteClient, error) {
 	}, nil
 }
 
-func (c *SqliteClient) Query(query string) (models.IterResult, error) {
-	con, err := c.c.Conn()
+func (c *SqliteClient) Query(ctx context.Context, query string) (models.IterResult, error) {
+	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +50,7 @@ func (c *SqliteClient) Query(query string) (models.IterResult, error) {
 		}
 	}()
 
-	rows, err := con.Query(query)
+	rows, err := con.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +66,7 @@ func (c *SqliteClient) Query(query string) (models.IterResult, error) {
 	rows.Close()
 
 	// empty header means no result -> get affected rows
-	rows, err = con.Query("select changes() as 'Rows Affected'")
+	rows, err = con.Query(ctx, "select changes() as 'Rows Affected'")
 	rows.SetCallback(cb)
 	return rows, err
 }
@@ -73,7 +74,7 @@ func (c *SqliteClient) Query(query string) (models.IterResult, error) {
 func (c *SqliteClient) Layout() ([]models.Layout, error) {
 	query := `SELECT name FROM sqlite_schema WHERE type ='table'`
 
-	rows, err := c.Query(query)
+	rows, err := c.Query(context.TODO(), query)
 	if err != nil {
 		return nil, err
 	}

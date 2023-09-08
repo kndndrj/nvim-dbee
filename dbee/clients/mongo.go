@@ -87,9 +87,7 @@ func (c *MongoClient) getCurrentDatabase(ctx context.Context) (string, error) {
 	return c.dbName, nil
 }
 
-func (c *MongoClient) Query(query string) (models.IterResult, error) {
-	ctx := context.Background()
-
+func (c *MongoClient) Query(ctx context.Context, query string) (models.IterResult, error) {
 	dbName, err := c.getCurrentDatabase(ctx)
 	if err != nil {
 		return nil, err

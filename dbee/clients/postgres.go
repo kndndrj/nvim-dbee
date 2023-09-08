@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	nurl "net/url"
@@ -43,8 +44,8 @@ func NewPostgres(url string) (*PostgresClient, error) {
 	}, nil
 }
 
-func (c *PostgresClient) Query(query string) (models.IterResult, error) {
-	con, err := c.c.Conn()
+func (c *PostgresClient) Query(ctx context.Context, query string) (models.IterResult, error) {
+	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +62,7 @@ func (c *PostgresClient) Query(query string) (models.IterResult, error) {
 	hasReturnValues := strings.Contains(strings.ToLower(query), " returning ")
 
 	if (action == "update" || action == "delete" || action == "insert") && !hasReturnValues {
-		rows, err := con.Exec(query)
+		rows, err := con.Exec(ctx, query)
 		if err != nil {
 			return nil, err
 		}
@@ -69,7 +70,7 @@ func (c *PostgresClient) Query(query string) (models.IterResult, error) {
 		return rows, nil
 	}
 
-	rows, err := con.Query(query)
+	rows, err := con.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +92,7 @@ func (c *PostgresClient) Layout() ([]models.Layout, error) {
 		SELECT schemaname, matviewname, 'VIEW' FROM pg_matviews;
 	`
 
-	rows, err := c.Query(query)
+	rows, err := c.Query(context.TODO(), query)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +111,7 @@ func (c *PostgresClient) ListDatabases() (current string, available []string, er
 		AND datname != current_database();
 	`
 
-	rows, err := c.Query(query)
+	rows, err := c.Query(context.TODO(), query)
 	if err != nil {
 		return "", nil, err
 	}

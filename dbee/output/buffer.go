@@ -3,6 +3,7 @@ package output
 import (
 	"bufio"
 	"bytes"
+	"context"
 
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"github.com/neovim/go-client/nvim"
@@ -26,7 +27,7 @@ func (bo *BufferOutput) SetBuffer(buffer nvim.Buffer) {
 	bo.buffer = buffer
 }
 
-func (bo *BufferOutput) Write(result models.Result) error {
+func (bo *BufferOutput) Write(_ context.Context, result models.Result) error {
 	_, err := bo.vim.IsBufferValid(bo.buffer)
 	if err != nil {
 		return err

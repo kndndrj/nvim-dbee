@@ -1,6 +1,7 @@
 package conn
 
 import (
+	"context"
 	"encoding/gob"
 	"errors"
 	"os"
@@ -27,11 +28,11 @@ type historyMap struct {
 	storage sync.Map
 }
 
-func (hm *historyMap) store(key int64, value historyRecord) {
+func (hm *historyMap) store(key string, value historyRecord) {
 	hm.storage.Store(key, value)
 }
 
-func (hm *historyMap) load(key int64) (historyRecord, bool) {
+func (hm *historyMap) load(key string) (historyRecord, bool) {
 	val, ok := hm.storage.Load(key)
 	if !ok {
 		return historyRecord{}, false
@@ -40,10 +41,10 @@ func (hm *historyMap) load(key int64) (historyRecord, bool) {
 	return val.(historyRecord), true
 }
 
-func (hm *historyMap) keys() []int64 {
-	var keys []int64
+func (hm *historyMap) keys() []string {
+	var keys []string
 	hm.storage.Range(func(key, value any) bool {
-		k := key.(int64)
+		k := key.(string)
 		keys = append(keys, k)
 		return true
 	})
@@ -83,15 +84,22 @@ func NewHistory(searchId string, logger models.Logger) *HistoryOutput {
 }
 
 // Act as an output (create a new record every time Write gets invoked)
-func (ho *HistoryOutput) Write(result models.Result) error {
-	// use unix nanoseconds as an id - easier sorting over restarts
-	id := time.Now().UnixNano()
+func (ho *HistoryOutput) Write(ctx context.Context, result models.Result) error {
+	defer func() {
+		_ = contextUpdateCallState(ctx, CallStateArchived)
+	}()
+
+	id := strconv.FormatInt(time.Now().UnixNano(), 10)
+	call, err := contextGetCall(ctx)
+	if err == nil {
+		id = call.ID
+	}
 
 	// someting like /tmp/dbee/conn_id/unix_timestamp/
-	dir := filepath.Join(ho.directory, ho.searchId, strconv.FormatInt(id, 10))
+	dir := filepath.Join(ho.directory, ho.searchId, id)
 
 	// create the directory for the history record
-	err := os.MkdirAll(dir, os.ModePerm)
+	err = os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -183,14 +191,8 @@ func (ho *HistoryOutput) Write(result models.Result) error {
 }
 
 // History is also a client
-func (ho *HistoryOutput) Query(historyId string) (models.IterResult, error) {
-	i, err := strconv.Atoi(historyId)
-	if err != nil {
-		return nil, err
-	}
-	id := int64(i)
-
-	rec, ok := ho.records.load(id)
+func (ho *HistoryOutput) Query(_ context.Context, historyID string) (models.IterResult, error) {
+	rec, ok := ho.records.load(historyID)
 	if !ok {
 		return nil, errors.New("no such input in history")
 	}
@@ -215,7 +217,7 @@ func (ho *HistoryOutput) Layout() ([]models.Layout, error) {
 		}
 
 		layout := models.Layout{
-			Name:     strconv.Itoa(int(key)),
+			Name:     key,
 			Schema:   "",
 			Database: "",
 			Type:     models.LayoutTypeHistory,
@@ -260,11 +262,7 @@ func (ho *HistoryOutput) scanOld() error {
 			continue
 		}
 
-		i, err := strconv.Atoi(c.Name())
-		if err != nil {
-			return err
-		}
-		id := int64(i)
+		id := c.Name()
 
 		dir := filepath.Join(searchDir, c.Name())
 

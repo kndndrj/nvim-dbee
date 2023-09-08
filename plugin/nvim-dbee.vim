@@ -35,10 +35,11 @@ call remote#host#Register('nvim_dbee', 'x', function('s:Start_dbee'))
 " name you use in the above call to remote#host#Register. e.g. in this case
 " the 'host' name is 'nvim_go_client_example'.
 call remote#host#RegisterPlugin('nvim_dbee', '0', [
+\ {'type': 'function', 'name': 'Dbee_cancel_call', 'sync': 1, 'opts': {}},
 \ {'type': 'function', 'name': 'Dbee_execute', 'sync': 1, 'opts': {}},
-\ {'type': 'function', 'name': 'Dbee_get_current_result', 'sync': 1, 'opts': {}},
-\ {'type': 'function', 'name': 'Dbee_history', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'Dbee_get_result', 'sync': 1, 'opts': {}},
 \ {'type': 'function', 'name': 'Dbee_layout', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'Dbee_list_calls', 'sync': 1, 'opts': {}},
 \ {'type': 'function', 'name': 'Dbee_register_connection', 'sync': 1, 'opts': {}},
 \ {'type': 'function', 'name': 'Dbee_set_results_buf', 'sync': 1, 'opts': {}},
 \ {'type': 'function', 'name': 'Dbee_store', 'sync': 1, 'opts': {}},

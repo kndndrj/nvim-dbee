@@ -31,6 +31,7 @@ local callbacker = require("dbee.handler.__callbacks")
 ---@field private on_exec fun() callback which gets triggered on any action
 ---@field private progress_bar { spinner: spinner, text_prefix: string }
 ---@field private stats call_stats
+---@field private current_call_id string
 local Conn = {}
 
 ---@param ui Ui
@@ -92,6 +93,7 @@ function Conn:new(ui, helpers, params, opts)
       time_taken = 0,
       success = false,
     },
+    current_call_id = "",
   }
   setmetatable(o, self)
   self.__index = self
@@ -140,9 +142,10 @@ function Conn:execute(query, cb)
   self.page_index = 0
   self.page_ammount = 0
 
-  vim.fn.Dbee_execute(self.id, query, cb_id)
+  self.current_call_id = vim.fn.Dbee_execute(self.id, query, cb_id)
 end
 
+-- TODO: remove this method
 ---@param history_id string history id
 ---@param cb? fun() callback to execute when finished
 function Conn:history(history_id, cb)
@@ -200,7 +203,7 @@ function Conn:show_page(page)
   vim.fn.Dbee_set_results_buf(bufnr)
 
   -- call go function
-  local length = vim.fn.Dbee_get_current_result(self.id, tostring(from), tostring(to))
+  local length = vim.fn.Dbee_get_result(self.id, self.current_call_id, tostring(from), tostring(to))
 
   -- adjust page ammount
   self.page_ammount = math.floor(length / self.page_size)
@@ -232,7 +235,7 @@ function Conn:store(format, output, opts)
   local to = opts.to or -1
   local arg = opts.extra_arg or ""
 
-  vim.fn.Dbee_store(self.id, format, output, tostring(from), tostring(to), tostring(arg))
+  vim.fn.Dbee_store(self.id, self.current_call_id, format, output, tostring(from), tostring(to), tostring(arg))
 end
 
 -- get layout for the connection

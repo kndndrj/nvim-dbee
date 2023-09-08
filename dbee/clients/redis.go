@@ -44,13 +44,13 @@ func NewRedis(url string) (*RedisClient, error) {
 	}, nil
 }
 
-func (c *RedisClient) Query(query string) (models.IterResult, error) {
+func (c *RedisClient) Query(ctx context.Context, query string) (models.IterResult, error) {
 	cmd, err := parseRedisCmd(query)
 	if err != nil {
 		return nil, err
 	}
 
-	response, err := c.redis.Do(context.Background(), cmd...).Result()
+	response, err := c.redis.Do(ctx, cmd...).Result()
 	if err != nil {
 		return nil, err
 	}

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/neovim/go-client/nvim"
 	"github.com/neovim/go-client/nvim/plugin"
 
@@ -102,13 +103,14 @@ func main() {
 				return true, nil
 			})
 
+		// execute the query and return the call id
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_execute"},
-			func(args []string) error {
+			func(args []string) (string, error) {
 				method := "Dbee_execute"
 				logger.Debug("calling " + method)
 				if len(args) < 3 {
 					logger.Errorf("not enough arguments passed to %q", method)
-					return nil
+					return "", nil
 				}
 
 				id, query, callbackId := args[0], args[1], args[2]
@@ -117,19 +119,20 @@ func main() {
 				c, ok := connections[id]
 				if !ok {
 					logger.Errorf("connection with id %q not registered", id)
-					return nil
+					return "", nil
 				}
 
+				callID := uuid.New().String()
 				// execute and open the first page
 				go func() {
 					ok := true
 					start := time.Now()
-					err := c.Execute(query)
+					err := c.Execute(callID, query)
 					if err != nil {
 						ok = false
 						logger.Error(err.Error())
 					}
-					err = callbacker.TriggerCallback(callbackId, ok, time.Since(start))
+					err = callbacker.TriggerCallback(callbackId, callID, ok, time.Since(start))
 					if err != nil {
 						logger.Error(err.Error())
 						return
@@ -138,19 +141,60 @@ func main() {
 				}()
 
 				logger.Debugf("%q returned successfully", method)
-				return nil
+				return callID, nil
 			})
 
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_history"},
-			func(args []string) error {
-				method := "Dbee_history"
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_list_calls"},
+			func(args []string) (string, error) {
+				method := "Dbee_list_calls"
 				logger.Debug("calling " + method)
-				if len(args) < 3 {
+				if len(args) < 1 {
+					logger.Errorf("not enough arguments passed to %q", method)
+					return "{}", nil
+				}
+
+				id := args[0]
+
+				// Get the right connection
+				c, ok := connections[id]
+				if !ok {
+					logger.Errorf("connection with id %q not registered", id)
+					return "{}", nil
+				}
+
+				calls := c.ListCalls()
+
+				// TODO:
+				var ps []map[string]string
+				for _, c := range calls {
+					ps = append(ps, map[string]string{
+						"id":    c.ID,
+						"query": c.Query,
+						"state": strconv.Itoa(int(c.State)),
+					})
+				}
+
+				parsed, err := json.Marshal(ps)
+				if err != nil {
+					logger.Error(err.Error())
+					return "{}", nil
+				}
+
+				logger.Debugf("%q returned successfully", method)
+				return string(parsed), nil
+			})
+
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_cancel_call"},
+			func(args []string) error {
+				method := "Dbee_cancel_call"
+				logger.Debugf("calling %q", method)
+				if len(args) < 2 {
 					logger.Errorf("not enough arguments passed to %q", method)
 					return nil
 				}
 
-				id, historyId, callbackId := args[0], args[1], args[2]
+				id := args[0]
+				callID := args[1]
 
 				// Get the right connection
 				c, ok := connections[id]
@@ -159,21 +203,13 @@ func main() {
 					return nil
 				}
 
-				go func() {
-					ok := true
-					start := time.Now()
-					err := c.History(historyId)
-					if err != nil {
-						ok = false
-						logger.Error(err.Error())
-					}
-					err = callbacker.TriggerCallback(callbackId, ok, time.Since(start))
-					if err != nil {
-						logger.Error(err.Error())
-						return
-					}
-					logger.Debugf("%q executed successfully", method)
-				}()
+				call := c.GetCall(callID)
+				if call == nil {
+					logger.Errorf("call with id %q does not exist", callID)
+					return nil
+				}
+
+				call.Cancel()
 
 				logger.Debugf("%q returned successfully", method)
 				return nil
@@ -208,22 +244,23 @@ func main() {
 			})
 
 		// pages result to buffer output, returns total number of rows
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_get_current_result"},
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_get_result"},
 			func(args []string) (int, error) {
-				method := "Dbee_page"
+				method := "Dbee_get_result"
 				logger.Debugf("calling %q", method)
-				if len(args) < 3 {
+				if len(args) < 4 {
 					logger.Errorf("not enough arguments passed to %q", method)
 					return 0, nil
 				}
 
 				id := args[0]
-				from, err := strconv.Atoi(args[1])
+				callID := args[1]
+				from, err := strconv.Atoi(args[2])
 				if err != nil {
 					logger.Error(err.Error())
 					return 0, nil
 				}
-				to, err := strconv.Atoi(args[2])
+				to, err := strconv.Atoi(args[3])
 				if err != nil {
 					logger.Error(err.Error())
 					return 0, nil
@@ -236,7 +273,7 @@ func main() {
 					return 0, nil
 				}
 
-				length, err := c.GetCurrentResult(from, to, bufferOutput)
+				length, err := c.GetResult(callID, from, to, bufferOutput)
 				if err != nil {
 					logger.Error(err.Error())
 					return 0, nil
@@ -249,17 +286,17 @@ func main() {
 			func(v *nvim.Nvim, args []string) error {
 				method := "Dbee_store"
 				logger.Debugf("calling %q", method)
-				if len(args) < 5 {
+				if len(args) < 6 {
 					logger.Errorf("not enough arguments passed to %q", method)
 					return nil
 				}
-				id, fmat, out := args[0], args[1], args[2]
+				id, callID, fmat, out := args[0], args[1], args[2], args[3]
 				// range of rows
-				from, err := strconv.Atoi(args[3])
+				from, err := strconv.Atoi(args[4])
 				if err != nil {
 					return err
 				}
-				to, err := strconv.Atoi(args[4])
+				to, err := strconv.Atoi(args[5])
 				if err != nil {
 					return err
 				}
@@ -327,7 +364,7 @@ func main() {
 					return nil
 				}
 
-				_, err = c.GetCurrentResult(from, to, outpt)
+				_, err = c.GetResult(callID, from, to, outpt)
 
 				if err != nil {
 					logger.Error(err.Error())

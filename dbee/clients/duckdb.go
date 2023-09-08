@@ -1,7 +1,9 @@
-//go:build cgo && ( (darwin && (amd64 || arm64)) || (linux && (amd64 || arm64 || riscv64)) )
+//go:build cgo && ((darwin && (amd64 || arm64)) || (linux && (amd64 || arm64 || riscv64)))
+
 package clients
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -34,8 +36,8 @@ func NewDuck(url string) (*DuckClient, error) {
 	}, nil
 }
 
-func (c *DuckClient) Query(query string) (models.IterResult, error) {
-	con, err := c.c.Conn()
+func (c *DuckClient) Query(ctx context.Context, query string) (models.IterResult, error) {
+	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +50,7 @@ func (c *DuckClient) Query(query string) (models.IterResult, error) {
 		}
 	}()
 
-	rows, err := con.Query(query)
+	rows, err := con.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +61,7 @@ func (c *DuckClient) Query(query string) (models.IterResult, error) {
 func (c *DuckClient) Layout() ([]models.Layout, error) {
 	query := `SHOW TABLES;`
 
-	rows, err := c.Query(query)
+	rows, err := c.Query(context.TODO(), query)
 	if err != nil {
 		return nil, err
 	}

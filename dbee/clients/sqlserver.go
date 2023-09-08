@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	nurl "net/url"
@@ -42,8 +43,8 @@ func NewSQLServer(url string) (*SQLServerClient, error) {
 	}, nil
 }
 
-func (c *SQLServerClient) Query(query string) (models.IterResult, error) {
-	con, err := c.c.Conn()
+func (c *SQLServerClient) Query(ctx context.Context, query string) (models.IterResult, error) {
+	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +57,7 @@ func (c *SQLServerClient) Query(query string) (models.IterResult, error) {
 		}
 	}()
 
-	rows, err := con.Query(query)
+	rows, err := con.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +73,7 @@ func (c *SQLServerClient) Query(query string) (models.IterResult, error) {
 	rows.Close()
 
 	// empty header means no result -> get affected rows
-	rows, err = con.Query("select @@ROWCOUNT as 'Rows Affected'")
+	rows, err = con.Query(ctx, "select @@ROWCOUNT as 'Rows Affected'")
 	rows.SetCallback(cb)
 	return rows, err
 }
@@ -80,7 +81,7 @@ func (c *SQLServerClient) Query(query string) (models.IterResult, error) {
 func (c *SQLServerClient) Layout() ([]models.Layout, error) {
 	query := `SELECT table_schema, table_name FROM INFORMATION_SCHEMA.TABLES`
 
-	rows, err := c.Query(query)
+	rows, err := c.Query(context.TODO(), query)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +138,7 @@ func (c *SQLServerClient) ListDatabases() (current string, available []string, e
 		WHERE name != DB_NAME();
 	`
 
-	rows, err := c.Query(query)
+	rows, err := c.Query(context.TODO(), query)
 	if err != nil {
 		return "", nil, err
 	}

@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/url"
@@ -44,8 +45,8 @@ func NewRedshift(rawURL string) (*RedshiftClient, error) {
 }
 
 // Query executes a query and returns the result as an IterResult.
-func (c *RedshiftClient) Query(query string) (models.IterResult, error) {
-	con, err := c.c.Conn()
+func (c *RedshiftClient) Query(ctx context.Context, query string) (models.IterResult, error) {
+	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +59,7 @@ func (c *RedshiftClient) Query(query string) (models.IterResult, error) {
 		}
 	}()
 
-	rows, err := con.Query(query)
+	rows, err := con.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +93,7 @@ func (c *RedshiftClient) Layout() ([]models.Layout, error) {
 					n.nspname NOT IN ('information_schema', 'pg_catalog');
 	`
 
-	rows, err := c.Query(query)
+	rows, err := c.Query(context.TODO(), query)
 	if err != nil {
 		return nil, err
 	}

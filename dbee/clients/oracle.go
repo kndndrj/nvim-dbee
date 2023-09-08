@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -34,8 +35,8 @@ func NewOracle(url string) (*OracleClient, error) {
 	}, nil
 }
 
-func (c *OracleClient) Query(query string) (models.IterResult, error) {
-	con, err := c.c.Conn()
+func (c *OracleClient) Query(ctx context.Context, query string) (models.IterResult, error) {
+	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +56,7 @@ func (c *OracleClient) Query(query string) (models.IterResult, error) {
 	action := strings.ToLower(strings.Split(query, " ")[0])
 	hasReturnValues := strings.Contains(strings.ToLower(query), " returning ")
 	if (action == "update" || action == "delete" || action == "insert") && !hasReturnValues {
-		rows, err := con.Exec(query)
+		rows, err := con.Exec(ctx, query)
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +64,7 @@ func (c *OracleClient) Query(query string) (models.IterResult, error) {
 		return rows, nil
 	}
 
-	rows, err := con.Query(query)
+	rows, err := con.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +94,7 @@ func (c *OracleClient) Layout() ([]models.Layout, error) {
 		ORDER BY T.table_name
 	`
 
-	rows, err := c.Query(query)
+	rows, err := c.Query(context.TODO(), query)
 	if err != nil {
 		return nil, err
 	}

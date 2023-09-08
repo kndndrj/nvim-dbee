@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
@@ -53,24 +52,22 @@ func NewCache(pageSize int, logger models.Logger) *cache {
 }
 
 // Set sets a new record in cache
-// returns id of the newly created records as a response
-func (c *cache) Set(iter models.IterResult, blockUntil int) (string, error) {
-	// close the iterator on error
-	var err error
-	defer func() {
-		if err != nil {
-			iter.Close()
-		}
-	}()
+func (c *cache) Set(ctx context.Context, iter models.IterResult, blockUntil int, id string) error {
+	// function to call on fail
+	fail := func() {
+		iter.Close()
+	}
 
 	header, err := iter.Header()
 	if err != nil {
-		return "", err
+		fail()
+		return err
 	}
 
 	meta, err := iter.Meta()
 	if err != nil {
-		return "", err
+		fail()
+		return err
 	}
 
 	// create a new result
@@ -78,24 +75,34 @@ func (c *cache) Set(iter models.IterResult, blockUntil int) (string, error) {
 	result.Header = header
 	result.Meta = meta
 
-	// create a new id and set it as active
-	id := uuid.New().String()
+	// set context to draining
+	_ = contextUpdateCallState(ctx, CallStateCaching)
+
 	c.log.Debug("processing result iterator start: " + id)
 
 	// drain the iterator
-	done := make(chan bool)
+	drained := make(chan bool)
 	go func() {
-		setDone := func() {
+		setDrained := func() {
 			select {
-			case done <- true:
+			case drained <- true:
 			default:
 			}
 		}
 
-		defer func() { setDone() }()
+		defer func() { setDrained() }()
 
 		i := 0
 		for {
+			// check if context is valid
+			select {
+			case <-ctx.Done():
+				iter.Close()
+				c.log.Warn("operation cancled")
+				return
+			default:
+			}
+
 			// update records in chunks
 			if i >= blockUntil {
 				c.records.store(id, cacheRecord{
@@ -103,15 +110,17 @@ func (c *cache) Set(iter models.IterResult, blockUntil int) (string, error) {
 				})
 				i = 0
 
-				setDone()
+				setDrained()
 			}
 
 			row, err := iter.Next()
 			if err != nil {
+				fail()
 				c.log.Error(err.Error())
 				return
 			}
 			if row == nil {
+				_ = contextUpdateCallState(ctx, CallStateCached)
 				c.log.Debug("successfully exhausted iterator: " + id)
 				break
 			}
@@ -128,9 +137,9 @@ func (c *cache) Set(iter models.IterResult, blockUntil int) (string, error) {
 	}()
 
 	// wait until "blockUntil" or all results drained
-	<-done
+	<-drained
 
-	return id, nil
+	return nil
 }
 
 // Get writes the selected line range to outputs
@@ -145,7 +154,7 @@ func (c *cache) Set(iter models.IterResult, blockUntil int) (string, error) {
 // outputs - where to pipe the results
 //
 // returns a number of records
-func (c *cache) Get(id string, from int, to int, outputs ...Output) (int, error) {
+func (c *cache) Get(ctx context.Context, id string, from int, to int, outputs ...Output) (int, error) {
 	// validation
 	if (from < 0 && to < 0) || (from >= 0 && to >= 0) {
 		if from > to {
@@ -159,8 +168,7 @@ func (c *cache) Get(id string, from int, to int, outputs ...Output) (int, error)
 
 	var cachedResult models.Result
 
-	// timeout context
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	timeoutContext, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	// Wait for drain, available index or timeout
@@ -175,7 +183,7 @@ func (c *cache) Get(id string, from int, to int, outputs ...Output) (int, error)
 			break
 		}
 
-		if err := ctx.Err(); err != nil {
+		if err := timeoutContext.Err(); err != nil {
 			return 0, fmt.Errorf("cache flushing timeout exceeded: %s", err)
 		}
 		time.Sleep(1 * time.Second)
@@ -214,7 +222,7 @@ func (c *cache) Get(id string, from int, to int, outputs ...Output) (int, error)
 
 	// write the page to outputs
 	for _, out := range outputs {
-		err := out.Write(result)
+		err := out.Write(ctx, result)
 		if err != nil {
 			return 0, err
 		}

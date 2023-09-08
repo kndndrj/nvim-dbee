@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"regexp"
@@ -44,8 +45,8 @@ func NewMysql(url string) (*MysqlClient, error) {
 	}, nil
 }
 
-func (c *MysqlClient) Query(query string) (models.IterResult, error) {
-	con, err := c.sql.Conn()
+func (c *MysqlClient) Query(ctx context.Context, query string) (models.IterResult, error) {
+	con, err := c.sql.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +59,7 @@ func (c *MysqlClient) Query(query string) (models.IterResult, error) {
 		}
 	}()
 
-	rows, err := con.Query(query)
+	rows, err := con.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +75,7 @@ func (c *MysqlClient) Query(query string) (models.IterResult, error) {
 	rows.Close()
 
 	// empty header means no result -> get affected rows
-	rows, err = con.Query("select ROW_COUNT() as 'Rows Affected'")
+	rows, err = con.Query(ctx, "select ROW_COUNT() as 'Rows Affected'")
 	rows.SetCallback(cb)
 	return rows, err
 }
@@ -82,7 +83,7 @@ func (c *MysqlClient) Query(query string) (models.IterResult, error) {
 func (c *MysqlClient) Layout() ([]models.Layout, error) {
 	query := `SELECT table_schema, table_name FROM information_schema.tables`
 
-	rows, err := c.Query(query)
+	rows, err := c.Query(context.TODO(), query)
 	if err != nil {
 		return nil, err
 	}

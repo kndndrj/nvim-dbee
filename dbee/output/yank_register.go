@@ -1,6 +1,8 @@
 package output
 
 import (
+	"context"
+
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"github.com/neovim/go-client/nvim"
 )
@@ -17,7 +19,7 @@ func NewYankRegister(vim *nvim.Nvim, formatter Formatter) *YankRegisterOutput {
 	}
 }
 
-func (yo *YankRegisterOutput) Write(result models.Result) error {
+func (yo *YankRegisterOutput) Write(_ context.Context, result models.Result) error {
 	reg := newRegister(yo.vim)
 	return yo.formatter.Format(result, reg)
 }

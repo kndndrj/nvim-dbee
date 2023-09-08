@@ -19,8 +19,8 @@ func NewClient(db *sql.DB) *Client {
 	}
 }
 
-func (c *Client) Conn() (*Conn, error) {
-	conn, err := c.db.Conn(context.TODO())
+func (c *Client) Conn(ctx context.Context) (*Conn, error) {
+	conn, err := c.db.Conn(ctx)
 
 	return &Conn{
 		conn: conn,
@@ -45,8 +45,8 @@ func (c *Conn) Close() error {
 	return c.conn.Close()
 }
 
-func (c *Conn) Exec(query string) (*Result, error) {
-	res, err := c.conn.ExecContext(context.TODO(), query)
+func (c *Conn) Exec(ctx context.Context, query string) (*Result, error) {
+	res, err := c.conn.ExecContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -77,8 +77,8 @@ func (c *Conn) Exec(query string) (*Result, error) {
 	return rows, nil
 }
 
-func (c *Conn) Query(query string) (*Result, error) {
-	dbRows, err := c.conn.QueryContext(context.TODO(), query)
+func (c *Conn) Query(ctx context.Context, query string) (*Result, error) {
+	dbRows, err := c.conn.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
