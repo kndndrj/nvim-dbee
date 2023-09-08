@@ -1,4 +1,5 @@
 local utils = require("dbee.utils")
+local floats = require("dbee.floats")
 local Conn = require("dbee.handler.conn")
 local MockedConn = require("dbee.handler.conn_mock")
 local Helpers = require("dbee.handler.helpers")
@@ -225,7 +226,7 @@ function Handler:layout_real()
             { name = "url" },
             { name = "page size" },
           }
-          utils.prompt.open(prompt, {
+          floats.prompt(prompt, {
             title = "Add Connection",
             callback = function(result)
               local spec = {
@@ -249,7 +250,7 @@ function Handler:layout_real()
         name = "edit source",
         type = "edit",
         action_1 = function(cb)
-          utils.prompt.edit(source:file(), {
+          floats.editor(source:file(), {
             title = "Add Connection",
             callback = function()
               self:source_reload(source_id)
@@ -282,7 +283,7 @@ function Handler:layout_real()
             { name = "url", default = original_details.url },
             { name = "page size", default = tostring(original_details.page_size or "") },
           }
-          utils.prompt.open(prompt, {
+          floats.prompt(prompt, {
             title = "Edit Connection",
             callback = function(result)
               local spec = {

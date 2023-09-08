@@ -1,4 +1,4 @@
----@alias ui_config { buffer_options: table<string, any>, window_options: table<string, any>, window_command: string|fun():integer }
+---@alias ui_config { buffer_options: table<string, any>, window_options: table<string, any>, window_command: string|fun():(integer), quit_handle: fun() }
 ---@alias keymap { action: fun(), mapping: mapping }
 
 ---@class Ui
@@ -8,6 +8,8 @@
 ---@field private buffer_options table<string, any>
 ---@field private window_command fun():integer function which opens a new window and returns a window id
 ---@field private keymap keymap[]
+---@field private configured_autocmd_buffers table<integer, boolean> which buffers have autocmds already configured
+---@field private quit_handle fun() function to call on quit signal
 local Ui = {}
 
 ---@param opts? ui_config
@@ -38,6 +40,8 @@ function Ui:new(opts)
     window_options = opts.window_options or {},
     buffer_options = opts.buffer_options or {},
     keymap = {},
+    configured_autocmd_buffers = {},
+    quit_handle = opts.quit_handle or function() end,
   }
   setmetatable(o, self)
   self.__index = self
@@ -75,7 +79,13 @@ function Ui:set_window(winid)
   end
 end
 
-function Ui:map_keys()
+-- configures keymaps and autocommands for the current buffer
+function Ui:configure_mappings()
+  if not self.bufnr then
+    return
+  end
+
+  -- keymaps
   local map_options = { noremap = true, nowait = true, buffer = self.bufnr }
 
   for _, m in ipairs(self.keymap) do
@@ -83,6 +93,26 @@ function Ui:map_keys()
       vim.keymap.set(m.mapping.mode, m.mapping.key, m.action, map_options)
     end
   end
+
+  if self.configured_autocmd_buffers[self.bufnr] then
+    -- autocommands already configured
+    return
+  end
+  -- autocommands
+  vim.api.nvim_create_autocmd({ "QuitPre" }, {
+    buffer = self.bufnr,
+    callback = function()
+      self:quit_all()
+    end,
+  })
+
+  -- set buffers which have already been mapped
+  self.configured_autocmd_buffers[self.bufnr] = true
+end
+
+-- quits the whole dbee
+function Ui:quit_all()
+  self.quit_handle()
 end
 
 ---@return integer winid
@@ -108,7 +138,7 @@ function Ui:open()
     vim.api.nvim_win_set_option(self.winid, opt, val)
   end
 
-  self:map_keys()
+  self:configure_mappings()
 
   return self.winid, self.bufnr
 end

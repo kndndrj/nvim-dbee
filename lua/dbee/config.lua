@@ -63,6 +63,8 @@ M.default = {
     disable_help = false,
     -- mappings for the buffer
     mappings = {
+      -- quit the dbee interface
+      quit = { key = "q", mode = "n" },
       -- manually refresh drawer
       refresh = { key = "r", mode = "n" },
       -- actions perform different stuff depending on the node:
@@ -202,7 +204,7 @@ M.default = {
       result = "bo 15split",
       editor = function()
         vim.cmd("new")
-        vim.cmd("only")
+        layout.make_only(0)
         m.tmp_buf = vim.api.nvim_get_current_buf()
         return vim.api.nvim_get_current_win()
       end,
