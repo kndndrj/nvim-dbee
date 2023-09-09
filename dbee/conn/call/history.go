@@ -1,4 +1,4 @@
-package conn
+package call
 
 import (
 	"context"
@@ -18,6 +18,8 @@ func init() {
 	// gob doesn't know how to encode/decode time otherwise
 	gob.Register(time.Time{})
 }
+
+var ErrHistoryAlreadyFilled = errors.New("history is already filled")
 
 type HistoryState int
 
@@ -55,7 +57,7 @@ func (ho *HistoryOutput) HasResult() bool {
 // Act as an output (create a new record every time Write gets invoked)
 func (ho *HistoryOutput) Write(_ context.Context, result models.Result) error {
 	if ho.state != HistoryStateAvailable {
-		return ErrAlreadyFilled
+		return ErrHistoryAlreadyFilled
 	}
 
 	ho.state = HistoryStateFilling

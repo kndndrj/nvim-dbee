@@ -1,4 +1,4 @@
-package conn_test
+package call_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"gotest.tools/assert"
 )
@@ -84,7 +84,7 @@ func (mo *mockOutput) Write(_ context.Context, result models.Result) error {
 
 func TestCache(t *testing.T) {
 	// prepare cache and mocks
-	cache := conn.NewCache()
+	cache := call.NewCache("")
 
 	numOfRows := 10
 	rows := newMockedIterResult(numOfRows, 0)
@@ -135,14 +135,14 @@ func TestCache(t *testing.T) {
 			from:           5,
 			to:             1,
 			expectedResult: nil,
-			expectedError:  conn.ErrInvalidRange(5, 1),
+			expectedError:  call.ErrInvalidRange(5, 1),
 		},
 		// invalid range (even if 10 can be higher than -1, its undefined and should fail)
 		{
 			from:           -5,
 			to:             10,
 			expectedResult: nil,
-			expectedError:  conn.ErrInvalidRange(-5, 10),
+			expectedError:  call.ErrInvalidRange(-5, 10),
 		},
 
 		// wait for available index

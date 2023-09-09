@@ -1,4 +1,4 @@
-package conn
+package call
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	ErrInvalidRange  = func(from int, to int) error { return fmt.Errorf("invalid selection range: %d ... %d", from, to) }
-	ErrAlreadyFilled = errors.New("cache is already filled")
+	ErrInvalidRange       = func(from int, to int) error { return fmt.Errorf("invalid selection range: %d ... %d", from, to) }
+	ErrCacheAlreadyFilled = errors.New("cache is already filled")
 )
 
 type CacheState int
@@ -25,16 +25,22 @@ const (
 
 // cache is a subcomponent of Call, which holds the result in memory
 type cache struct {
-	result models.Result
-	state  CacheState
+	result  models.Result
+	state   CacheState
+	history *HistoryOutput
+	log     models.Logger
 }
 
-func NewCache() *cache {
-	return &cache{}
+func NewCache(searchID string, logger models.Logger) *cache {
+	return &cache{
+		state:   CacheStateAvailable,
+		history: NewHistory(searchID),
+		log:     logger,
+	}
 }
 
 func (c *cache) HasResult() bool {
-	if c.state == CacheStateFilled || c.state == CacheStateFilling {
+	if c.state == CacheStateFilled || c.state == CacheStateFilling || c.history.HasResult() {
 		return true
 	}
 	return false
@@ -42,17 +48,18 @@ func (c *cache) HasResult() bool {
 
 // Set sets a record to empty cache
 func (c *cache) Set(ctx context.Context, iter models.IterResult) error {
-	if c.HasResult() {
-		return ErrAlreadyFilled
+	if c.state == CacheStateFilled || c.state == CacheStateFilling {
+		return ErrCacheAlreadyFilled
 	}
 	c.state = CacheStateFilling
 
 	// function to call on fail
 	var err error
 	defer func() {
-		iter.Close()
 		if err != nil {
+			iter.Close()
 			c.state = CacheStateFailed
+			c.log.Errorf("draining cache failed: %s", err)
 		}
 	}()
 
@@ -71,31 +78,37 @@ func (c *cache) Set(ctx context.Context, iter models.IterResult) error {
 	c.result.Meta = meta
 
 	// drain the iterator
-	drain := func() error {
+	go func() {
+		var err error
+		defer func() {
+			if err != nil {
+				iter.Close()
+				c.state = CacheStateFailed
+				c.log.Errorf("draining cache failed: %s", err)
+			}
+		}()
+
 		for {
 			row, err := iter.Next()
 			if err != nil {
-				return err
+				return
 			}
 			if row == nil {
-				return nil
+				c.state = CacheStateFilled
+				break
 			}
 
 			c.result.Rows = append(c.result.Rows, row)
 
 			// check if context is still valid
 			if err := ctx.Err(); err != nil {
-				return err
+				return
 			}
 		}
-	}
 
-	err = drain()
-	if err != nil {
-		return err
-	}
-
-	c.state = CacheStateFilled
+		// write to history
+		_, err = c.Get(ctx, 0, -1, c.history)
+	}()
 
 	return nil
 }
@@ -114,6 +127,19 @@ func (c *cache) Get(ctx context.Context, from int, to int, outputs ...Output) (i
 	if !c.HasResult() {
 		return 0, errors.New("no result")
 	}
+
+	// check history
+	if c.state != CacheStateFilled && c.state != CacheStateFilling && c.history.HasResult() {
+		rows, err := c.history.Query(ctx)
+		if err != nil {
+			return 0, err
+		}
+		err = c.Set(ctx, rows)
+		if err != nil {
+			return 0, err
+		}
+	}
+
 	// validation
 	if (from < 0 && to < 0) || (from >= 0 && to >= 0) {
 		if from > to {
@@ -130,6 +156,9 @@ func (c *cache) Get(ctx context.Context, from int, to int, outputs ...Output) (i
 
 	// Wait for drain, available index or timeout
 	for {
+		if c.state == CacheStateFailed {
+			return 0, errors.New("filling cache failed")
+		}
 		if c.state == CacheStateFilled || (c.state == CacheStateFilling && to <= len(c.result.Rows)) {
 			break
 		}
@@ -146,7 +175,6 @@ func (c *cache) Get(ctx context.Context, from int, to int, outputs ...Output) (i
 	}
 
 	// calculate range
-
 	length := len(c.result.Rows)
 	if from < 0 {
 		from += length + 1

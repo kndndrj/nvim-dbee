@@ -185,8 +185,8 @@ func main() {
 					return nil
 				}
 
-				call := c.GetCall(callID)
-				if call == nil {
+				call, ok := c.GetCall(callID)
+				if !ok {
 					logger.Errorf("call with id %q does not exist", callID)
 					return nil
 				}
@@ -255,8 +255,8 @@ func main() {
 					return 0, nil
 				}
 
-				call := c.GetCall(callID)
-				if call == nil {
+				call, ok := c.GetCall(callID)
+				if !ok {
 					logger.Error("no call")
 					return 0, nil
 				}

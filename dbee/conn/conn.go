@@ -2,11 +2,10 @@ package conn
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
@@ -36,126 +35,6 @@ type (
 	}
 )
 
-type CallState int
-
-const (
-	CallStateUninitialized CallState = iota
-	CallStateExecuting
-	CallStateCaching
-	CallStateCached
-	CallStateArchived
-	CallStateFailed
-	CallStateCanceled
-)
-
-// Call represents a single call to database
-// it contains various metadata fields, state and a context cancelation function
-type Call struct {
-	id      string
-	state   CallState
-	cancel  func()
-	cache   *cache
-	history *HistoryOutput
-	log     models.Logger
-}
-
-func makeCall(id string, connID string, logger models.Logger, exec func(context.Context) (models.IterResult, error)) *Call {
-	c := &Call{
-		id:      id,
-		state:   CallStateUninitialized,
-		cache:   NewCache(),
-		history: NewHistory(connID),
-		log:     logger,
-	}
-
-	// drain the exec function in a separate coroutine
-	go func() {
-		err := c.Do(exec)
-		if err != nil {
-			c.log.Error(err.Error())
-		}
-	}()
-
-	return c
-}
-
-func (c *Call) Do(exec func(context.Context) (models.IterResult, error)) error {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	if c.cancel != nil {
-		oldCancel := c.cancel
-		cancel = func() {
-			oldCancel()
-			cancel()
-		}
-	}
-	c.cancel = cancel
-
-	c.state = CallStateExecuting
-	rows, err := exec(ctx)
-	if err != nil {
-		c.state = CallStateFailed
-		if errors.Is(err, context.Canceled) {
-			c.state = CallStateCanceled
-		}
-		return err
-	}
-
-	// save to cache
-	c.state = CallStateCaching
-	err = c.cache.Set(ctx, rows)
-	if err != nil && !errors.Is(err, ErrAlreadyFilled) {
-		c.state = CallStateFailed
-		if errors.Is(err, context.Canceled) {
-			c.state = CallStateCanceled
-		}
-		return err
-	}
-
-	// save to history
-	c.state = CallStateCached
-	_, err = c.cache.Get(ctx, 0, -1, c.history)
-	if err != nil && !errors.Is(err, ErrAlreadyFilled) {
-		return err
-	}
-	c.state = CallStateArchived
-
-	return nil
-}
-
-// GetResult pipes the selected range of rows to the outputs
-// returns length of the result set
-func (c *Call) GetResult(from int, to int, outputs ...Output) (int, error) {
-	if !c.cache.HasResult() && c.history.HasResult() {
-		go func() {
-			err := c.Do(c.history.Query)
-			if err != nil {
-				c.log.Error(err.Error())
-			}
-		}()
-	}
-
-	ctx := context.TODO()
-
-	return c.cache.Get(ctx, from, to, outputs...)
-}
-
-func (c *Call) Cancel() {
-	if c.cancel != nil {
-		c.cancel()
-	}
-}
-
-func (s *Call) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		ID    string `json:"id"`
-		State int    `json:"state"`
-	}{
-		ID:    s.id,
-		State: int(s.state),
-	})
-}
-
 type Conn struct {
 	driver Client
 	// how many results to wait for in the main thread? -> see cache.go
@@ -163,20 +42,20 @@ type Conn struct {
 	// id of the current call
 	currentCallID string
 	// map of call stats
-	calls map[string]*Call
+	calls map[string]*call.Call
 }
 
 func New(driver Client, logger models.Logger) *Conn {
 	return &Conn{
 		driver: driver,
 		log:    logger,
-		calls:  make(map[string]*Call),
+		calls:  make(map[string]*call.Call),
 	}
 }
 
 // lists call statistics
-func (c *Conn) ListCalls() []*Call {
-	var calls []*Call
+func (c *Conn) ListCalls() []*call.Call {
+	var calls []*call.Call
 
 	for _, c := range c.calls {
 		calls = append(calls, c)
@@ -185,11 +64,13 @@ func (c *Conn) ListCalls() []*Call {
 	return calls
 }
 
-func (c *Conn) GetCall(callID string) *Call {
+func (c *Conn) GetCall(callID string) (*call.Call, bool) {
 	if callID == "" {
 		callID = c.currentCallID
 	}
-	return c.calls[callID]
+
+	ca, ok := c.calls[callID]
+	return ca, ok
 }
 
 func (c *Conn) Execute(callID string, query string) error {
@@ -199,9 +80,15 @@ func (c *Conn) Execute(callID string, query string) error {
 		callID = uuid.New().String()
 	}
 
-	c.calls[callID] = makeCall(callID, "TODO", c.log, func(ctx context.Context) (models.IterResult, error) {
+	ca := call.MakeCall(callID, "TODO", c.log)
+	err := ca.Do(func(ctx context.Context) (models.IterResult, error) {
 		return c.driver.Query(ctx, query)
 	})
+	if err != nil {
+		return err
+	}
+
+	c.calls[callID] = ca
 	c.currentCallID = callID
 
 	return nil
