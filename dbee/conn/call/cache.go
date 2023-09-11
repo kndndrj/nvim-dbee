@@ -24,20 +24,11 @@ const (
 	CacheStateFailed
 )
 
-type HistoryState int
-
-const (
-	HistoryStateEmpty HistoryState = iota
-	HistoryStateFilling
-	HistoryStateFilled
-	HistoryStateFailed
-)
-
 // cache is a subcomponent of Call, which holds the result in memory
 type cache struct {
 	result       models.Result
 	state        CacheState
-	historyState HistoryState
+	historyState CacheState
 	historyDir   string
 	log          models.Logger
 }
@@ -47,48 +38,48 @@ func NewCache(archivePath string, logger models.Logger) *cache {
 		state:        CacheStateEmpty,
 		log:          logger,
 		historyDir:   archivePath,
-		historyState: HistoryStateEmpty,
+		historyState: CacheStateEmpty,
 	}
 
 	_, err := os.Stat(c.historyDir)
 	if err == nil {
-		c.historyState = HistoryStateFilled
+		c.historyState = CacheStateFilled
 	}
 
 	return c
 }
 
-func (c *cache) HasResult() bool {
-	if c.state == CacheStateFilled || c.state == CacheStateFilling || c.historyState == HistoryStateFilled {
-		return true
-	}
-	return false
+func (c *cache) HasResultInMemory() bool {
+	return c.state == CacheStateFilled || c.state == CacheStateFilling
+}
+
+func (c *cache) HasResultInArchive() bool {
+	return c.historyState == CacheStateFilled
 }
 
 // Set sets a record to empty cache
 func (c *cache) Set(ctx context.Context, iter models.IterResult) error {
-	if c.state == CacheStateFilled || c.state == CacheStateFilling {
+	if c.HasResultInMemory() {
 		return ErrCacheAlreadyFilled
 	}
 	c.state = CacheStateFilling
 
 	// function to call on fail
-	var err error
-	defer func() {
-		if err != nil {
-			iter.Close()
-			c.state = CacheStateFailed
-			c.log.Errorf("draining cache failed: %s", err)
-		}
-	}()
+	fail := func(e error) {
+		iter.Close()
+		c.state = CacheStateFailed
+		c.log.Errorf("draining cache failed: %s", e)
+	}
 
 	header, err := iter.Header()
 	if err != nil {
+		fail(err)
 		return err
 	}
 
 	meta, err := iter.Meta()
 	if err != nil {
+		fail(err)
 		return err
 	}
 
@@ -98,18 +89,10 @@ func (c *cache) Set(ctx context.Context, iter models.IterResult) error {
 
 	// drain the iterator
 	go func() {
-		var err error
-		defer func() {
-			if err != nil {
-				iter.Close()
-				c.state = CacheStateFailed
-				c.log.Errorf("draining cache failed: %s", err)
-			}
-		}()
-
 		for {
 			row, err := iter.Next()
 			if err != nil {
+				fail(err)
 				return
 			}
 			if row == nil {
@@ -121,12 +104,17 @@ func (c *cache) Set(ctx context.Context, iter models.IterResult) error {
 
 			// check if context is still valid
 			if err := ctx.Err(); err != nil {
+				fail(err)
 				return
 			}
 		}
 
 		// write to history
 		err = c.archive(c.result)
+		if err != nil {
+			c.historyState = CacheStateFailed
+			c.log.Errorf("archiving result failed: %s", err)
+		}
 	}()
 
 	return nil
@@ -143,12 +131,12 @@ func (c *cache) Set(ctx context.Context, iter models.IterResult) error {
 //
 // returns a number of records
 func (c *cache) Get(ctx context.Context, from int, to int, outputs ...Output) (int, error) {
-	if !c.HasResult() {
+	if !c.HasResultInMemory() && !c.HasResultInArchive() {
 		return 0, errors.New("no result")
 	}
 
 	// check history
-	if c.state != CacheStateFilled && c.state != CacheStateFilling && c.historyState == HistoryStateFilled {
+	if !c.HasResultInMemory() && c.HasResultInArchive() {
 		err := c.unarchive(ctx)
 		if err != nil {
 			return 0, err

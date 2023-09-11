@@ -24,7 +24,6 @@ const (
 	CallStateCached
 	CallStateArchived
 	CallStateFailed
-	CallStateCanceled
 )
 
 func (s CallState) String() string {
@@ -41,118 +40,154 @@ func (s CallState) String() string {
 		return "archived"
 	case CallStateFailed:
 		return "failed"
-	case CallStateCanceled:
-		return "canceled"
 	default:
 		return ""
 	}
 }
 
 type CallDetails struct {
-	ID    string
-	Query string
-	State CallState
-	Took  time.Duration
+	ID          string
+	Query       string
+	State       CallState
+	Took        time.Duration
+	Timestamp   time.Time
+	ArchivePath string
 }
 
 func (cd *CallDetails) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
-		ID    string `json:"id"`
-		Query string `json:"query"`
-		State string `json:"state"`
-		Took  int64  `json:"took_ms"`
+		ID          string `json:"id"`
+		Query       string `json:"query"`
+		State       string `json:"state"`
+		Took        int64  `json:"took_ms"`
+		Timestamp   int64  `json:"timestamp"`
+		ArchivePath string `json:"archive_path"`
 	}{
-		ID:    cd.ID,
-		Query: cd.Query,
-		State: cd.State.String(),
-		Took:  cd.Took.Milliseconds(),
+		ID:          cd.ID,
+		Query:       cd.Query,
+		State:       cd.State.String(),
+		Took:        cd.Took.Microseconds(),
+		Timestamp:   cd.Timestamp.UnixMicro(),
+		ArchivePath: cd.ArchivePath,
 	})
 }
 
-type stats struct {
-	Took time.Duration
+// Caller builds the call
+type Caller struct {
+	id          string
+	log         models.Logger
+	query       string
+	exec        func(context.Context) (models.IterResult, error)
+	callback    func(*CallDetails)
+	archivePath string
 }
 
-// Call represents a single call to database
-// it contains various metadata fields, state and a context cancelation function
-type Call struct {
-	id     string
-	state  CallState
-	cancel func()
-	cache  *cache
-	log    models.Logger
-	stats  *stats
-}
-
-func newCall(archivePath string, id string, logger models.Logger) *Call {
-	return &Call{
-		id:    id,
-		state: CallStateUninitialized,
-		cache: NewCache(archivePath, logger),
-		log:   logger,
-		stats: &stats{},
+func NewCaller(logger models.Logger) *Caller {
+	id := uuid.New().String()
+	return &Caller{
+		id:          id,
+		log:         logger,
+		callback:    func(*CallDetails) {},
+		archivePath: CallHistoryPath("TODO", id),
 	}
 }
 
-func MakeCall(connID string, logger models.Logger, exec func(context.Context) (models.IterResult, error), callback func(*CallDetails)) *Call {
-	id := uuid.New().String()
+func (b *Caller) WithID(id string) *Caller {
+	b.id = id
+	return b
+}
+
+func (b *Caller) WithArchivePath(path string) *Caller {
+	b.archivePath = path
+	return b
+}
+
+func (b *Caller) WithQuery(query string) *Caller {
+	b.query = query
+	return b
+}
+
+func (b *Caller) WithExecutor(executor func(context.Context) (models.IterResult, error)) *Caller {
+	b.exec = executor
+	return b
+}
+
+func (b *Caller) WithCallback(cb func(*CallDetails)) *Caller {
+	b.callback = cb
+	return b
+}
+
+func (b *Caller) FromDetails(details *CallDetails) *Call {
+	details.State = CallStateUninitialized
+	return &Call{
+		cache:   NewCache(details.ArchivePath, b.log),
+		log:     b.log,
+		details: details,
+	}
+}
+
+func (b *Caller) Do() *Call {
 	c := &Call{
-		id:    id,
-		state: CallStateUninitialized,
-		cache: NewCache(CallHistoryPath(connID, id), logger),
-		log:   logger,
-		stats: &stats{},
+		cache: NewCache(b.archivePath, b.log),
+		log:   b.log,
+		details: &CallDetails{
+			ID:          b.id,
+			Query:       b.query,
+			State:       CallStateUninitialized,
+			ArchivePath: b.archivePath,
+		},
+	}
+
+	if b.exec == nil {
+		return c
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-
-	if c.cancel != nil {
-		oldCancel := c.cancel
-		cancel = func() {
-			oldCancel()
-			cancel()
-		}
-	}
 	c.cancel = cancel
 
-	c.state = CallStateExecuting
+	c.details.State = CallStateExecuting
 	go func() {
-		start := time.Now()
+		c.details.Timestamp = time.Now()
 
-		rows, err := exec(ctx)
+		rows, err := b.exec(ctx)
 		if err != nil {
-			c.state = CallStateFailed
-			if errors.Is(err, context.Canceled) {
-				c.state = CallStateCanceled
-			}
+			c.details.State = CallStateFailed
 			c.log.Error(err.Error())
 		}
 
 		// save to cache
-		c.state = CallStateCaching
+		c.details.State = CallStateCaching
 		err = c.cache.Set(ctx, rows)
 		if err != nil && !errors.Is(err, ErrCacheAlreadyFilled) {
-			c.state = CallStateFailed
-			if errors.Is(err, context.Canceled) {
-				c.state = CallStateCanceled
-			}
+			c.details.State = CallStateFailed
 			c.log.Error(err.Error())
 		}
 
-		c.stats.Took = time.Since(start)
-		callback(c.GetDetails())
+		c.details.Took = time.Since(c.details.Timestamp)
+		b.callback(c.GetDetails())
 	}()
 
 	return c
 }
 
+// Call represents a single call to database
+// it contains various metadata fields, state and a context cancelation function
+type Call struct {
+	cancel  func()
+	cache   *cache
+	log     models.Logger
+	details *CallDetails
+}
+
 func (c *Call) GetDetails() *CallDetails {
-	return &CallDetails{
-		ID:    c.id,
-		Query: "",
-		State: c.state,
-		Took:  c.stats.Took,
+	// update state from cache
+	if c.cache.HasResultInMemory() {
+		c.details.State = CallStateCached
+	} else if c.cache.HasResultInArchive() {
+		c.details.State = CallStateArchived
 	}
+
+	return c.details
 }
 
 // GetResult pipes the selected range of rows to the outputs

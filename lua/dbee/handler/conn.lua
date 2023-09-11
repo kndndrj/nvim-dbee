@@ -2,12 +2,17 @@ local utils = require("dbee.utils")
 local progress = require("dbee.progress")
 local callbacker = require("dbee.handler.__callbacks")
 
----@alias duration integer time in microseconds
+---@alias duration integer duration (time period) in microseconds
+---@alias timestamp integer time in microseconds
 ---@alias call_stats { success: boolean, time_taken: duration }
 
 ---@alias conn_id string
 ---@alias connection_details { name: string, type: string, url: string, id: conn_id, page_size: integer }
---
+
+---@alias call_id string
+---@alias call_state "uninitialized"|"executing"|"caching"|"cached"|"archived"|"failed"|"canceled"
+---@alias call_details { id: call_id, took: duration, query: string, state: call_state, timestamp: timestamp }
+
 ---@class _LayoutGo
 ---@field name string display name
 ---@field type ""|"table"|"history"|"database_switch"|"view" type of layout -> this infers action
@@ -145,25 +150,9 @@ function Conn:execute(query, cb)
   self.current_call_id = vim.fn.Dbee_execute(self.id, query, cb_id)
 end
 
--- TODO: remove this method
----@param history_id string history id
----@param cb? fun() callback to execute when finished
-function Conn:history(history_id, cb)
-  cb = cb or function() end
-  self.on_exec()
-
-  local cb_id = tostring(math.random())
-  callbacker.register(cb_id, function(stats)
-    if stats.success then
-      self:show_page(0)
-    end
-    cb()
-  end)
-
-  self.page_index = 0
-  self.page_ammount = 0
-
-  vim.fn.Dbee_history(self.id, history_id, cb_id)
+---@return call_details[]
+function Conn:list_calls()
+  return vim.fn.json_decode(vim.fn.Dbee_list_calls(self.id))
 end
 
 ---@param name string name of the database
@@ -287,10 +276,6 @@ function Conn:layout()
           return self.helpers:list(self.type, helper_opts)
         end
         ly.pick_title = "Select a Query"
-      elseif lgo.type == "history" then
-        ly.action_1 = function(cb)
-          self:history(lgo.name, cb)
-        end
       elseif lgo.type == "database_switch" then
         ly.action_1 = function(cb, selection)
           self:switch_database(selection)
@@ -305,7 +290,43 @@ function Conn:layout()
     return new_layouts
   end
 
-  return to_layout(vim.fn.json_decode(vim.fn.Dbee_layout(self.id)), self.id)
+  local layouts = to_layout(vim.fn.json_decode(vim.fn.Dbee_layout(self.id)), self.id)
+
+  ---@type Layout
+  local ly = {
+    id = self.id .. "__history__",
+    name = "log",
+    type = "history",
+    action_1 = function(cb)
+      local pick_items = {}
+      local calls = self:list_calls()
+      table.sort(calls, function(k1, k2)
+        return k1.timestamp > k2.timestamp
+      end)
+
+      for _, c in ipairs(self:list_calls()) do
+        table.insert(
+          pick_items,
+          string.format(
+            "%s | %d | %s | %s | %s",
+            c.id or "",
+            c.took or 0,
+            c.query or "",
+            c.state or "",
+            os.date("%c", (c.timestamp or 0) / 1000000)
+          )
+        )
+      end
+
+      require("dbee.drawer.menu").open(self.ui:window(), pick_items, function(selection)
+        print(selection)
+        cb()
+      end, "asdf")
+    end,
+  }
+  table.insert(layouts, 1, ly)
+
+  return layouts
 end
 
 return Conn

@@ -115,7 +115,7 @@ func main() {
 				}
 
 				cb := func(details *call.CallDetails) {
-					success := details.State != call.CallStateFailed && details.State != call.CallStateCanceled
+					success := details.State != call.CallStateFailed
 
 					err := callbacker.TriggerCallback(callbackId, details.ID, success, details.Took)
 					if err != nil {
@@ -150,9 +150,9 @@ func main() {
 					return "{}", nil
 				}
 
-				calls := c.Calls()
+				details := c.Calls()
 
-				parsed, err := json.Marshal(calls)
+				parsed, err := json.Marshal(details)
 				if err != nil {
 					logger.Error(err.Error())
 					return "{}", nil

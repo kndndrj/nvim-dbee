@@ -36,11 +36,11 @@ var ErrHistoryAlreadyFilled = errors.New("history is already filled")
 
 // archive stores result to disk as a set of gob files
 func (c *cache) archive(result models.Result) error {
-	if c.historyState != HistoryStateEmpty {
+	if c.historyState != CacheStateEmpty {
 		return ErrHistoryAlreadyFilled
 	}
 
-	c.historyState = HistoryStateFilling
+	c.historyState = CacheStateFilling
 
 	// create the directory for the history record
 	err := os.MkdirAll(c.historyDir, os.ModePerm)
@@ -124,7 +124,7 @@ func (c *cache) archive(result models.Result) error {
 		return err
 	}
 
-	c.historyState = HistoryStateFilled
+	c.historyState = CacheStateFilled
 
 	return nil
 }
@@ -144,41 +144,6 @@ func (c *cache) unarchive(ctx context.Context) error {
 	return nil
 }
 
-// scanOld scans the directory to find old calls
-//
-// dir is a directory of a connection's call history
-func ScanOld(dir string, logger models.Logger) []*Call {
-	// check if dir exists and is a directory
-	dirInfo, err := os.Stat(dir)
-	if os.IsNotExist(err) || !dirInfo.IsDir() {
-		return nil
-	}
-
-	contents, err := os.ReadDir(dir)
-	if err != nil {
-		return nil
-	}
-
-	calls := []*Call{}
-
-	for _, c := range contents {
-		if !c.IsDir() {
-			continue
-		}
-
-		callID := c.Name()
-
-		// directory of a call ID
-		callDir := filepath.Join(dir, c.Name())
-
-		_, err := os.Stat(filepath.Join(callDir, headerFilename))
-		if err == nil {
-			calls = append(calls, newCall(callDir, callID, logger))
-		}
-	}
-
-	return calls
-}
 
 type historyRows struct {
 	header models.Header

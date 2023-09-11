@@ -39,8 +39,6 @@ type Conn struct {
 	driver Client
 	// how many results to wait for in the main thread? -> see cache.go
 	log models.Logger
-	// id of the current call
-	currentCallID string
 	// map of call stats
 	calls map[string]*call.Call
 }
@@ -59,10 +57,17 @@ func New(id string, driver Client, logger models.Logger) *Conn {
 }
 
 func (c *Conn) scanOldCalls() {
-	calls := call.ScanOld(call.ConnHistoryPath(c.id), c.log)
+	calls := ScanOldCalls(c.id, c.log)
 
 	for _, ca := range calls {
 		c.calls[ca.GetDetails().ID] = ca
+	}
+}
+
+func (c *Conn) archiveCall(ca *call.Call) {
+	err := ArchiveCall(c.id, ca)
+	if err != nil {
+		c.log.Debugf("failed archiving call details: %s", ca.GetDetails().ID)
 	}
 }
 
@@ -79,12 +84,19 @@ func (c *Conn) Calls() []*call.CallDetails {
 func (c *Conn) Execute(query string, callback func(*call.CallDetails)) (string, error) {
 	c.log.Debugf("executing query: %q", query)
 
-	ca := call.MakeCall(c.id, c.log, func(ctx context.Context) (models.IterResult, error) {
+	exec := func(ctx context.Context) (models.IterResult, error) {
 		return c.driver.Query(ctx, query)
-	}, callback)
+	}
+
+	ca := call.NewCaller(c.log).
+		WithExecutor(exec).
+		WithCallback(callback).
+		WithQuery(query).
+		Do()
 
 	c.calls[ca.GetDetails().ID] = ca
-	c.currentCallID = ca.GetDetails().ID
+
+	go c.archiveCall(ca)
 
 	return ca.GetDetails().ID, nil
 }
