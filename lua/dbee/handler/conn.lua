@@ -1,6 +1,7 @@
 local utils = require("dbee.utils")
 local progress = require("dbee.progress")
 local callbacker = require("dbee.handler.__callbacks")
+local floats = require("dbee.floats")
 
 ---@alias duration integer duration (time period) in microseconds
 ---@alias timestamp integer time in microseconds
@@ -9,8 +10,9 @@ local callbacker = require("dbee.handler.__callbacks")
 ---@alias conn_id string
 ---@alias connection_details { name: string, type: string, url: string, id: conn_id, page_size: integer }
 
+-- call details represent a single call to database
 ---@alias call_id string
----@alias call_state "uninitialized"|"executing"|"caching"|"cached"|"archived"|"failed"|"canceled"
+---@alias call_state "uninitialized"|"executing"|"caching"|"cached"|"archived"|"failed"
 ---@alias call_details { id: call_id, took: duration, query: string, state: call_state, timestamp: timestamp }
 
 ---@class _LayoutGo
@@ -152,7 +154,17 @@ end
 
 ---@return call_details[]
 function Conn:list_calls()
-  return vim.fn.json_decode(vim.fn.Dbee_list_calls(self.id))
+  local ret = vim.fn.json_decode(vim.fn.Dbee_list_calls(self.id))
+  if not ret or ret == vim.NIL then
+    return {}
+  end
+  return ret
+end
+
+---@param call_id? call_id
+function Conn:cancel_call(call_id)
+  call_id = call_id or self.current_call_id
+  vim.fn.Dbee_cancel_call(self.id, call_id)
 end
 
 ---@param name string name of the database
@@ -227,6 +239,28 @@ function Conn:store(format, output, opts)
   vim.fn.Dbee_store(self.id, self.current_call_id, format, output, tostring(from), tostring(to), tostring(arg))
 end
 
+---@private
+---@param cb fun()
+function Conn:open_call_log(cb)
+  floats.call_log(function()
+    return self:list_calls()
+  end, {
+    on_select = function(call)
+      self.on_exec()
+      if call.state == "archived" or call.state == "cached" then
+        self.page_ammount = 0
+        self.current_call_id = call.id
+        self.page_index = self:show_page(0)
+      end
+      cb()
+    end,
+    on_cancel = function(call)
+      self:cancel_call(call.id)
+      cb()
+    end,
+  })
+end
+
 -- get layout for the connection
 ---@return Layout[]
 function Conn:layout()
@@ -292,39 +326,20 @@ function Conn:layout()
 
   local layouts = to_layout(vim.fn.json_decode(vim.fn.Dbee_layout(self.id)), self.id)
 
-  ---@type Layout
-  local ly = {
-    id = self.id .. "__history__",
-    name = "log",
-    type = "history",
-    action_1 = function(cb)
-      local pick_items = {}
-      local calls = self:list_calls()
-      table.sort(calls, function(k1, k2)
-        return k1.timestamp > k2.timestamp
-      end)
-
-      for _, c in ipairs(self:list_calls()) do
-        table.insert(
-          pick_items,
-          string.format(
-            "%s | %d | %s | %s | %s",
-            c.id or "",
-            c.took or 0,
-            c.query or "",
-            c.state or "",
-            os.date("%c", (c.timestamp or 0) / 1000000)
-          )
-        )
-      end
-
-      require("dbee.drawer.menu").open(self.ui:window(), pick_items, function(selection)
-        print(selection)
-        cb()
-      end, "asdf")
-    end,
-  }
-  table.insert(layouts, 1, ly)
+  -- call history
+  local calls = self:list_calls()
+  if #calls > 0 then
+    ---@type Layout
+    local ly = {
+      id = self.id .. "__history__",
+      name = "log",
+      type = "history",
+      action_1 = function(cb)
+        self:open_call_log(cb)
+      end,
+    }
+    table.insert(layouts, 1, ly)
+  end
 
   return layouts
 end

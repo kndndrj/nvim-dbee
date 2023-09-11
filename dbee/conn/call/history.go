@@ -22,10 +22,7 @@ const (
 
 var rowsFilename = func(i int) string { return fmt.Sprintf("row_%d.gob", i) }
 
-var (
-	ConnHistoryPath = func(connID string) string { return filepath.Join(historyBasePath, connID) }
-	CallHistoryPath = func(connID, callID string) string { return filepath.Join(historyBasePath, connID, callID) }
-)
+var callHistoryPath = func(callID string) string { return filepath.Join(historyBasePath, callID) }
 
 func init() {
 	// gob doesn't know how to encode/decode time otherwise
@@ -143,7 +140,6 @@ func (c *cache) unarchive(ctx context.Context) error {
 
 	return nil
 }
-
 
 type historyRows struct {
 	header models.Header

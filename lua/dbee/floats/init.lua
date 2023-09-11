@@ -1,6 +1,8 @@
 -- this package contains various floating window utilities such as floating editor and an input prompt
 
-local M = {}
+local M = {
+  call_log = require("dbee.floats.call_log").call_log,
+}
 
 ---@alias prompt { name: string, default: string }[] list of lines with optional defaults to display as prompt
 

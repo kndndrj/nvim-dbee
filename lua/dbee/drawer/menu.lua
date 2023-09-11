@@ -1,4 +1,4 @@
-local Menu = require("nui.menu")
+local NuiMenu = require("nui.menu")
 
 local M = {}
 
@@ -36,10 +36,10 @@ function M.open(winid, items, on_select, title)
 
   local lines = {}
   for _, item in ipairs(items) do
-    table.insert(lines, Menu.item(item))
+    table.insert(lines, NuiMenu.item(item))
   end
 
-  local menu = Menu(popup_options, {
+  local menu = NuiMenu(popup_options, {
     lines = lines,
     keymap = {
       focus_next = { "j", "<Down>", "<Tab>" },

@@ -110,11 +110,7 @@ func (c *cache) Set(ctx context.Context, iter models.IterResult) error {
 		}
 
 		// write to history
-		err = c.archive(c.result)
-		if err != nil {
-			c.historyState = CacheStateFailed
-			c.log.Errorf("archiving result failed: %s", err)
-		}
+		_ = c.archive(c.result)
 	}()
 
 	return nil
@@ -174,7 +170,9 @@ func (c *cache) Get(ctx context.Context, from int, to int, outputs ...Output) (i
 		if err := ctx.Err(); err != nil {
 			return 0, fmt.Errorf("accessing cache cancled: %w", err)
 		}
-		time.Sleep(1 * time.Second)
+
+		// arbirtary delay
+		time.Sleep(50 * time.Millisecond)
 	}
 
 	// calculate range

@@ -20,7 +20,6 @@ type CallState int
 const (
 	CallStateUninitialized CallState = iota
 	CallStateExecuting
-	CallStateCaching
 	CallStateCached
 	CallStateArchived
 	CallStateFailed
@@ -32,8 +31,6 @@ func (s CallState) String() string {
 		return "uninitialized"
 	case CallStateExecuting:
 		return "executing"
-	case CallStateCaching:
-		return "caching"
 	case CallStateCached:
 		return "cached"
 	case CallStateArchived:
@@ -88,7 +85,7 @@ func NewCaller(logger models.Logger) *Caller {
 		id:          id,
 		log:         logger,
 		callback:    func(*CallDetails) {},
-		archivePath: CallHistoryPath("TODO", id),
+		archivePath: callHistoryPath(id),
 	}
 }
 
@@ -148,23 +145,25 @@ func (b *Caller) Do() *Call {
 	c.details.State = CallStateExecuting
 	go func() {
 		c.details.Timestamp = time.Now()
+		defer func() {
+			c.details.Took = time.Since(c.details.Timestamp)
+			b.callback(c.GetDetails())
+		}()
 
 		rows, err := b.exec(ctx)
 		if err != nil {
 			c.details.State = CallStateFailed
 			c.log.Error(err.Error())
+			return
 		}
 
 		// save to cache
-		c.details.State = CallStateCaching
 		err = c.cache.Set(ctx, rows)
 		if err != nil && !errors.Is(err, ErrCacheAlreadyFilled) {
 			c.details.State = CallStateFailed
 			c.log.Error(err.Error())
+			return
 		}
-
-		c.details.Took = time.Since(c.details.Timestamp)
-		b.callback(c.GetDetails())
 	}()
 
 	return c
