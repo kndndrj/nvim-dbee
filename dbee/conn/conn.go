@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
@@ -36,6 +35,7 @@ type (
 )
 
 type Conn struct {
+	id     string
 	driver Client
 	// how many results to wait for in the main thread? -> see cache.go
 	log models.Logger
@@ -45,53 +45,66 @@ type Conn struct {
 	calls map[string]*call.Call
 }
 
-func New(driver Client, logger models.Logger) *Conn {
-	return &Conn{
+func New(id string, driver Client, logger models.Logger) *Conn {
+	c := &Conn{
+		id:     id,
 		driver: driver,
 		log:    logger,
 		calls:  make(map[string]*call.Call),
 	}
+
+	go c.scanOldCalls()
+
+	return c
 }
 
-// lists call statistics
-func (c *Conn) ListCalls() []*call.Call {
-	var calls []*call.Call
+func (c *Conn) scanOldCalls() {
+	calls := call.ScanOld(call.ConnHistoryPath(c.id), c.log)
+
+	for _, ca := range calls {
+		c.calls[ca.GetDetails().ID] = ca
+	}
+}
+
+func (c *Conn) Calls() []*call.CallDetails {
+	var calls []*call.CallDetails
 
 	for _, c := range c.calls {
-		calls = append(calls, c)
+		calls = append(calls, c.GetDetails())
 	}
 
 	return calls
 }
 
-func (c *Conn) GetCall(callID string) (*call.Call, bool) {
-	if callID == "" {
-		callID = c.currentCallID
-	}
-
-	ca, ok := c.calls[callID]
-	return ca, ok
-}
-
-func (c *Conn) Execute(callID string, query string) error {
+func (c *Conn) Execute(query string, callback func(*call.CallDetails)) (string, error) {
 	c.log.Debugf("executing query: %q", query)
 
-	if callID == "" {
-		callID = uuid.New().String()
-	}
-
-	ca := call.MakeCall(callID, "TODO", c.log)
-	err := ca.Do(func(ctx context.Context) (models.IterResult, error) {
+	ca := call.MakeCall(c.id, c.log, func(ctx context.Context) (models.IterResult, error) {
 		return c.driver.Query(ctx, query)
-	})
-	if err != nil {
-		return err
+	}, callback)
+
+	c.calls[ca.GetDetails().ID] = ca
+	c.currentCallID = ca.GetDetails().ID
+
+	return ca.GetDetails().ID, nil
+}
+
+func (c *Conn) CancelCall(callID string) {
+	ca, ok := c.calls[callID]
+	if !ok {
+		return
 	}
 
-	c.calls[callID] = ca
-	c.currentCallID = callID
+	ca.Cancel()
+}
 
-	return nil
+func (c *Conn) GetResult(callID string, from int, to int, outputs ...call.Output) (int, error) {
+	ca, ok := c.calls[callID]
+	if !ok {
+		return 0, fmt.Errorf("no call with id: %q", callID)
+	}
+
+	return ca.GetResult(from, to, outputs...)
 }
 
 // SwitchDatabase tries to switch to a given database with the used client.

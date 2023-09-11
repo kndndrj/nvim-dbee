@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
@@ -25,6 +27,52 @@ const (
 	CallStateCanceled
 )
 
+func (s CallState) String() string {
+	switch s {
+	case CallStateUninitialized:
+		return "uninitialized"
+	case CallStateExecuting:
+		return "executing"
+	case CallStateCaching:
+		return "caching"
+	case CallStateCached:
+		return "cached"
+	case CallStateArchived:
+		return "archived"
+	case CallStateFailed:
+		return "failed"
+	case CallStateCanceled:
+		return "canceled"
+	default:
+		return ""
+	}
+}
+
+type CallDetails struct {
+	ID    string
+	Query string
+	State CallState
+	Took  time.Duration
+}
+
+func (cd *CallDetails) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		ID    string `json:"id"`
+		Query string `json:"query"`
+		State string `json:"state"`
+		Took  int64  `json:"took_ms"`
+	}{
+		ID:    cd.ID,
+		Query: cd.Query,
+		State: cd.State.String(),
+		Took:  cd.Took.Milliseconds(),
+	})
+}
+
+type stats struct {
+	Took time.Duration
+}
+
 // Call represents a single call to database
 // it contains various metadata fields, state and a context cancelation function
 type Call struct {
@@ -33,19 +81,29 @@ type Call struct {
 	cancel func()
 	cache  *cache
 	log    models.Logger
+	stats  *stats
 }
 
-func MakeCall(id string, connID string, logger models.Logger) *Call {
+func newCall(archivePath string, id string, logger models.Logger) *Call {
+	return &Call{
+		id:    id,
+		state: CallStateUninitialized,
+		cache: NewCache(archivePath, logger),
+		log:   logger,
+		stats: &stats{},
+	}
+}
+
+func MakeCall(connID string, logger models.Logger, exec func(context.Context) (models.IterResult, error), callback func(*CallDetails)) *Call {
+	id := uuid.New().String()
 	c := &Call{
 		id:    id,
 		state: CallStateUninitialized,
-		cache: NewCache(id, logger),
+		cache: NewCache(CallHistoryPath(connID, id), logger),
 		log:   logger,
+		stats: &stats{},
 	}
-	return c
-}
 
-func (c *Call) Do(exec func(context.Context) (models.IterResult, error)) error {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	if c.cancel != nil {
@@ -59,6 +117,8 @@ func (c *Call) Do(exec func(context.Context) (models.IterResult, error)) error {
 
 	c.state = CallStateExecuting
 	go func() {
+		start := time.Now()
+
 		rows, err := exec(ctx)
 		if err != nil {
 			c.state = CallStateFailed
@@ -78,9 +138,21 @@ func (c *Call) Do(exec func(context.Context) (models.IterResult, error)) error {
 			}
 			c.log.Error(err.Error())
 		}
+
+		c.stats.Took = time.Since(start)
+		callback(c.GetDetails())
 	}()
 
-	return nil
+	return c
+}
+
+func (c *Call) GetDetails() *CallDetails {
+	return &CallDetails{
+		ID:    c.id,
+		Query: "",
+		State: c.state,
+		Took:  c.stats.Took,
+	}
 }
 
 // GetResult pipes the selected range of rows to the outputs
@@ -95,14 +167,4 @@ func (c *Call) Cancel() {
 	if c.cancel != nil {
 		c.cancel()
 	}
-}
-
-func (s *Call) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		ID    string `json:"id"`
-		State int    `json:"state"`
-	}{
-		ID:    s.id,
-		State: int(s.state),
-	})
 }

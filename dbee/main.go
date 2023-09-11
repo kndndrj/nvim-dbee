@@ -6,12 +6,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/neovim/go-client/nvim"
 	"github.com/neovim/go-client/nvim/plugin"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
 	"github.com/kndndrj/nvim-dbee/dbee/output"
 	"github.com/kndndrj/nvim-dbee/dbee/output/format"
 	"github.com/kndndrj/nvim-dbee/dbee/vim"
@@ -87,7 +87,7 @@ func main() {
 					return false, nil
 				}
 
-				c := conn.New(client, logger)
+				c := conn.New(id, client, logger)
 
 				connections[id] = c
 
@@ -114,23 +114,19 @@ func main() {
 					return "", nil
 				}
 
-				callID := uuid.New().String()
-				// execute and open the first page
-				go func() {
-					ok := true
-					start := time.Now()
-					err := c.Execute(callID, query)
-					if err != nil {
-						ok = false
-						logger.Error(err.Error())
-					}
-					err = callbacker.TriggerCallback(callbackId, callID, ok, time.Since(start))
+				cb := func(details *call.CallDetails) {
+					success := details.State != call.CallStateFailed && details.State != call.CallStateCanceled
+
+					err := callbacker.TriggerCallback(callbackId, details.ID, success, details.Took)
 					if err != nil {
 						logger.Error(err.Error())
-						return
 					}
-					logger.Debugf("%q executed successfully", method)
-				}()
+				}
+
+				callID, err := c.Execute(query, cb)
+				if err != nil {
+					logger.Error(err.Error())
+				}
 
 				logger.Debugf("%q returned successfully", method)
 				return callID, nil
@@ -154,7 +150,7 @@ func main() {
 					return "{}", nil
 				}
 
-				calls := c.ListCalls()
+				calls := c.Calls()
 
 				parsed, err := json.Marshal(calls)
 				if err != nil {
@@ -185,13 +181,7 @@ func main() {
 					return nil
 				}
 
-				call, ok := c.GetCall(callID)
-				if !ok {
-					logger.Errorf("call with id %q does not exist", callID)
-					return nil
-				}
-
-				call.Cancel()
+				c.CancelCall(callID)
 
 				logger.Debugf("%q returned successfully", method)
 				return nil
@@ -255,13 +245,7 @@ func main() {
 					return 0, nil
 				}
 
-				call, ok := c.GetCall(callID)
-				if !ok {
-					logger.Error("no call")
-					return 0, nil
-				}
-
-				length, err := call.GetResult(from, to, bufferOutput)
+				length, err := c.GetResult(callID, from, to, bufferOutput)
 				if err != nil {
 					logger.Error(err.Error())
 					return 0, nil
@@ -352,9 +336,7 @@ func main() {
 					return nil
 				}
 
-				// TODO:
-				_, _, _, _, _ = c, callID, from, to, outpt
-
+				_, err = c.GetResult(callID, from, to, outpt)
 				if err != nil {
 					logger.Error(err.Error())
 					return nil

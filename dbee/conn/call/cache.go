@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/models"
@@ -17,30 +18,48 @@ var (
 type CacheState int
 
 const (
-	CacheStateAvailable CacheState = iota
+	CacheStateEmpty CacheState = iota
 	CacheStateFilling
 	CacheStateFilled
 	CacheStateFailed
 )
 
+type HistoryState int
+
+const (
+	HistoryStateEmpty HistoryState = iota
+	HistoryStateFilling
+	HistoryStateFilled
+	HistoryStateFailed
+)
+
 // cache is a subcomponent of Call, which holds the result in memory
 type cache struct {
-	result  models.Result
-	state   CacheState
-	history *HistoryOutput
-	log     models.Logger
+	result       models.Result
+	state        CacheState
+	historyState HistoryState
+	historyDir   string
+	log          models.Logger
 }
 
-func NewCache(searchID string, logger models.Logger) *cache {
-	return &cache{
-		state:   CacheStateAvailable,
-		history: NewHistory(searchID),
-		log:     logger,
+func NewCache(archivePath string, logger models.Logger) *cache {
+	c := &cache{
+		state:        CacheStateEmpty,
+		log:          logger,
+		historyDir:   archivePath,
+		historyState: HistoryStateEmpty,
 	}
+
+	_, err := os.Stat(c.historyDir)
+	if err == nil {
+		c.historyState = HistoryStateFilled
+	}
+
+	return c
 }
 
 func (c *cache) HasResult() bool {
-	if c.state == CacheStateFilled || c.state == CacheStateFilling || c.history.HasResult() {
+	if c.state == CacheStateFilled || c.state == CacheStateFilling || c.historyState == HistoryStateFilled {
 		return true
 	}
 	return false
@@ -107,7 +126,7 @@ func (c *cache) Set(ctx context.Context, iter models.IterResult) error {
 		}
 
 		// write to history
-		_, err = c.Get(ctx, 0, -1, c.history)
+		err = c.archive(c.result)
 	}()
 
 	return nil
@@ -129,12 +148,8 @@ func (c *cache) Get(ctx context.Context, from int, to int, outputs ...Output) (i
 	}
 
 	// check history
-	if c.state != CacheStateFilled && c.state != CacheStateFilling && c.history.HasResult() {
-		rows, err := c.history.Query(ctx)
-		if err != nil {
-			return 0, err
-		}
-		err = c.Set(ctx, rows)
+	if c.state != CacheStateFilled && c.state != CacheStateFilling && c.historyState == HistoryStateFilled {
+		err := c.unarchive(ctx)
 		if err != nil {
 			return 0, err
 		}
@@ -217,5 +232,5 @@ func (c *cache) Get(ctx context.Context, from int, to int, outputs ...Output) (i
 
 func (c *cache) Wipe() {
 	c.result = models.Result{}
-	c.state = CacheStateAvailable
+	c.state = CacheStateEmpty
 }
