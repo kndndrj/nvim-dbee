@@ -50,24 +50,7 @@ func main() {
 			}
 		})
 
-		bufferOutput := output.NewBuffer(p.Nvim, format.NewTable(), -1)
-
-		// Control the results window
-		// This must be called before bufferOutput is used
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_set_results_buf"},
-			func(args []int) error {
-				method := "Dbee_set_results_buf"
-				logger.Debugf("calling %q", method)
-				if len(args) < 1 {
-					logger.Errorf("not enough arguments passed to %q", method)
-					return nil
-				}
-
-				bufferOutput.SetBuffer(nvim.Buffer(args[0]))
-
-				logger.Debugf("%q returned successfully", method)
-				return nil
-			})
+		bufferOutput := output.NewBuffer(p.Nvim, format.NewTable())
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_register_connection"},
 			func(args []string) (bool, error) {
@@ -220,19 +203,24 @@ func main() {
 			func(args []string) (int, error) {
 				method := "Dbee_get_result"
 				logger.Debugf("calling %q", method)
-				if len(args) < 4 {
+				if len(args) < 5 {
 					logger.Errorf("not enough arguments passed to %q", method)
 					return 0, nil
 				}
 
 				id := args[0]
 				callID := args[1]
-				from, err := strconv.Atoi(args[2])
+				bufnr, err := strconv.Atoi(args[2])
 				if err != nil {
 					logger.Error(err.Error())
 					return 0, nil
 				}
-				to, err := strconv.Atoi(args[3])
+				from, err := strconv.Atoi(args[3])
+				if err != nil {
+					logger.Error(err.Error())
+					return 0, nil
+				}
+				to, err := strconv.Atoi(args[4])
 				if err != nil {
 					logger.Error(err.Error())
 					return 0, nil
@@ -251,10 +239,14 @@ func main() {
 					return 0, nil
 				}
 
-				bufferOutput.Write(result)
+				err = bufferOutput.Write(result, nvim.Buffer(bufnr))
+				if err != nil {
+					logger.Error(err.Error())
+					return 0, nil
+				}
 
 				logger.Debugf("%q returned successfully", method)
-				return 0, nil
+				return result.Meta().TotalLength, nil
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_store"},
@@ -316,7 +308,12 @@ func main() {
 					return nil
 				}
 
-				var outpt conn.Output
+				result, err := c.GetResult(callID, from, to)
+				if err != nil {
+					logger.Error(err.Error())
+					return nil
+				}
+
 				switch out {
 				case "file":
 					file, err := getFile(param)
@@ -324,24 +321,31 @@ func main() {
 						logger.Error(err.Error())
 						return nil
 					}
-					outpt = output.NewFile(file, formatter, logger)
+					err = output.NewFile(file, formatter, logger).Write(result)
+					if err != nil {
+						logger.Error(err.Error())
+						return nil
+					}
+
 				case "buffer":
 					buf, err := getBufnr(param)
 					if err != nil {
 						logger.Error(err.Error())
 						return nil
 					}
-					outpt = output.NewBuffer(v, formatter, buf)
+					err = output.NewBuffer(v, formatter).Write(result, buf)
+					if err != nil {
+						logger.Error(err.Error())
+						return nil
+					}
 				case "yank":
-					outpt = output.NewYankRegister(v, formatter)
+					err = output.NewYankRegister(v, formatter).Write(result)
+					if err != nil {
+						logger.Error(err.Error())
+						return nil
+					}
 				default:
 					logger.Errorf("store output: %q is not supported", out)
-					return nil
-				}
-
-				_, err = c.GetResult(callID, from, to, outpt)
-				if err != nil {
-					logger.Error(err.Error())
 					return nil
 				}
 

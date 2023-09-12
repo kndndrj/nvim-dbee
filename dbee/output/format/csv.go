@@ -22,24 +22,15 @@ func (cf *CSV) Name() string {
 }
 
 func (co *CSV) parseSchemaFul(result models.IterResult) ([][]string, error) {
-	header, err := result.Header()
-	if err != nil {
-		return nil, err
-	}
-
 	data := [][]string{
-		header,
+		result.Header(),
 	}
-	for{
+	for result.HasNext() {
 
 		row, err := result.Next()
 		if err != nil {
 			return nil, err
 		}
-		if row == nil {
-			break
-		}
-
 
 		var csvRow []string
 		for _, rec := range row {

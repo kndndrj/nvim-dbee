@@ -2,6 +2,7 @@ package call
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -59,12 +60,12 @@ func newMockedIterResult(maxRows int, sleep time.Duration) *mockedIterResult {
 	}
 }
 
-func (mir *mockedIterResult) Meta() (models.Meta, error) {
-	return models.Meta{}, nil
+func (mir *mockedIterResult) Meta() *models.Meta {
+	return &models.Meta{}
 }
 
-func (mir *mockedIterResult) Header() (models.Header, error) {
-	return models.Header{"header1", "header2"}, nil
+func (mir *mockedIterResult) Header() models.Header {
+	return models.Header{"header1", "header2"}
 }
 
 func (mir *mockedIterResult) Next() (models.Row, error) {
@@ -78,11 +79,14 @@ func (mir *mockedIterResult) Next() (models.Row, error) {
 		return models.Row{num, strconv.Itoa(num)}, nil
 	}
 
-	return nil, nil
+	return nil, errors.New("no next row")
 }
 
-func (mir *mockedIterResult) Close() {
+func (mir *mockedIterResult) HasNext() bool {
+	return mir.current < mir.max
 }
+
+func (mir *mockedIterResult) Close() {}
 
 func (mir *mockedIterResult) Range(from int, to int) []models.Row {
 	var rows []models.Row
@@ -200,12 +204,10 @@ func TestCache(t *testing.T) {
 			// drain the iterator and compare results
 			var resultRows []models.Row
 
-			for {
+			for result.HasNext() {
 				row, err := result.Next()
 				assert.NilError(t, err)
-				if row == nil {
-					break
-				}
+
 				resultRows = append(resultRows, row)
 			}
 			fmt.Println(resultRows)

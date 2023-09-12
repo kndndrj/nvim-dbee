@@ -24,18 +24,12 @@ func (jf *JSON) Name() string {
 func (jf *JSON) parseSchemaFul(result models.IterResult) ([]map[string]any, error) {
 	var data []map[string]any
 
-	header, err := result.Header()
-	if err != nil {
-		return nil, err
-	}
+	header := result.Header()
 
-	for {
+	for result.HasNext() {
 		row, err := result.Next()
 		if err != nil {
 			return nil, err
-		}
-		if row == nil {
-			break
 		}
 
 		record := make(map[string]any, len(row))
@@ -56,13 +50,10 @@ func (jf *JSON) parseSchemaFul(result models.IterResult) ([]map[string]any, erro
 func (jf *JSON) parseSchemaLess(result models.IterResult) ([]any, error) {
 	var data []any
 
-	for {
+	for result.HasNext() {
 		row, err := result.Next()
 		if err != nil {
 			return nil, err
-		}
-		if row == nil {
-			break
 		}
 
 		if len(row) == 1 {
@@ -75,13 +66,9 @@ func (jf *JSON) parseSchemaLess(result models.IterResult) ([]any, error) {
 }
 
 func (jf *JSON) Format(result models.IterResult, writer io.Writer) error {
-	meta, err := result.Meta()
-	if err != nil {
-		return err
-	}
-
 	var data any
-	switch meta.SchemaType {
+	var err error
+	switch result.Meta().SchemaType {
 	case models.SchemaLess:
 		data, err = jf.parseSchemaLess(result)
 	case models.SchemaFul:
@@ -89,7 +76,6 @@ func (jf *JSON) Format(result models.IterResult, writer io.Writer) error {
 	default:
 		data, err = jf.parseSchemaFul(result)
 	}
-
 	if err != nil {
 		return err
 	}

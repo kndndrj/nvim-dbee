@@ -55,11 +55,7 @@ func (c *SqliteClient) Query(ctx context.Context, query string) (models.IterResu
 		return nil, err
 	}
 
-	h, err := rows.Header()
-	if err != nil {
-		return nil, err
-	}
-	if len(h) > 0 {
+	if len(rows.Header()) > 0 {
 		rows.SetCallback(cb)
 		return rows, nil
 	}
@@ -80,11 +76,8 @@ func (c *SqliteClient) Layout() ([]models.Layout, error) {
 	}
 
 	var schema []models.Layout
-	for {
+	for rows.HasNext() {
 		row, err := rows.Next()
-		if row == nil {
-			break
-		}
 		if err != nil {
 			return nil, err
 		}

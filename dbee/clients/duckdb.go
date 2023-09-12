@@ -67,11 +67,8 @@ func (c *DuckClient) Layout() ([]models.Layout, error) {
 	}
 
 	var schema []models.Layout
-	for {
+	for rows.HasNext() {
 		row, err := rows.Next()
-		if row == nil {
-			break
-		}
 		if err != nil {
 			return nil, err
 		}

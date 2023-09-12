@@ -32,7 +32,7 @@ func init() {
 var ErrHistoryAlreadyFilled = errors.New("history is already filled")
 
 // archive stores result to disk as a set of gob files
-func (c *cache) archive(result cachedResult) error {
+func (c *cache) archive(result *cachedResult) error {
 	if c.historyState != CacheStateEmpty {
 		return ErrHistoryAlreadyFilled
 	}
@@ -75,7 +75,7 @@ func (c *cache) archive(result cachedResult) error {
 	defer file.Close()
 
 	encoder = gob.NewEncoder(file)
-	err = encoder.Encode(result.Meta)
+	err = encoder.Encode(*result.Meta)
 	if err != nil {
 		return err
 	}
@@ -142,9 +142,10 @@ func (c *cache) unarchive(ctx context.Context) error {
 }
 
 type historyRows struct {
-	header models.Header
-	meta   models.Meta
-	iter   func() (models.Row, error)
+	header  models.Header
+	meta    *models.Meta
+	iter    func() (models.Row, error)
+	hasNext func() bool
 }
 
 func newHistoryRows(dir string) (*historyRows, error) {
@@ -154,22 +155,23 @@ func newHistoryRows(dir string) (*historyRows, error) {
 		return nil, err
 	}
 
+	r := &historyRows{
+		header: header,
+		meta:   meta,
+	}
+
 	// open the first file if it exists,
 	// loop through its contents and try the next file
+	fileExists := func(rowIndex int) bool {
+		fileName := filepath.Join(dir, rowsFilename(rowIndex))
+		_, err = os.Stat(fileName)
+		return err == nil
+	}
 
 	// nextFile returns the contents of the next rows file
 	index := 0
-	nextFile := func() ([]models.Row, error, bool) {
-		fileName := filepath.Join(dir, rowsFilename(index))
-		_, err := os.Stat(fileName)
-		if os.IsNotExist(err) {
-			return nil, nil, true
-		}
-		if err != nil {
-			return nil, err, false
-		}
-
-		file, err := os.Open(fileName)
+	nextFile := func() (resultRows []models.Row, err error, isLast bool) {
+		file, err := os.Open(filepath.Join(dir, rowsFilename(index)))
 		if err != nil {
 			return nil, err, false
 		}
@@ -184,23 +186,28 @@ func newHistoryRows(dir string) (*historyRows, error) {
 		}
 
 		index++
-		return rows, nil, false
+		return rows, nil, !fileExists(index + 1)
 	}
 
 	// holds rows from current file in memory
 	currentRows := []models.Row{}
 	maxIndex := -1
+	isLastFile := false
+	hasNext := true
 	i := 0
-	iter := func() (models.Row, error) {
+	r.iter = func() (models.Row, error) {
+		if i == maxIndex && isLastFile {
+			hasNext = false
+		}
 		if i > maxIndex {
-			var last bool
+			if isLastFile {
+				return nil, errors.New("no next row")
+			}
+
 			var err error
-			currentRows, err, last = nextFile()
+			currentRows, err, isLastFile = nextFile()
 			if err != nil {
 				return nil, err
-			}
-			if last {
-				return nil, nil
 			}
 			maxIndex = len(currentRows) - 1
 			i = 0
@@ -210,27 +217,27 @@ func newHistoryRows(dir string) (*historyRows, error) {
 		return val, nil
 	}
 
-	return &historyRows{
-		header: header,
-		meta:   meta,
-		iter:   iter,
-	}, nil
+	r.hasNext = func() bool {
+		return hasNext
+	}
+
+	return r, nil
 }
 
-func readHeaderAndMeta(dir string) (models.Header, models.Meta, error) {
+func readHeaderAndMeta(dir string) (models.Header, *models.Meta, error) {
 	// header
 	var header models.Header
 	fileName := filepath.Join(dir, headerFilename)
 	file, err := os.Open(fileName)
 	if err != nil {
-		return nil, models.Meta{}, err
+		return nil, nil, err
 	}
 	defer file.Close()
 
 	decoder := gob.NewDecoder(file)
 	err = decoder.Decode(&header)
 	if err != nil {
-		return nil, models.Meta{}, err
+		return nil, nil, err
 	}
 
 	// meta
@@ -238,29 +245,33 @@ func readHeaderAndMeta(dir string) (models.Header, models.Meta, error) {
 	fileName = filepath.Join(dir, metaFilename)
 	file, err = os.Open(fileName)
 	if err != nil {
-		return nil, models.Meta{}, err
+		return nil, nil, err
 	}
 	defer file.Close()
 
 	decoder = gob.NewDecoder(file)
 	err = decoder.Decode(&meta)
 	if err != nil {
-		return nil, models.Meta{}, err
+		return nil, nil, err
 	}
 
-	return header, meta, nil
+	return header, &meta, nil
 }
 
-func (r *historyRows) Meta() (models.Meta, error) {
-	return r.meta, nil
+func (r *historyRows) Meta() *models.Meta {
+	return r.meta
 }
 
-func (r *historyRows) Header() (models.Header, error) {
-	return r.header, nil
+func (r *historyRows) Header() models.Header {
+	return r.header
 }
 
 func (r *historyRows) Next() (models.Row, error) {
 	return r.iter()
+}
+
+func (r *historyRows) HasNext() bool {
+	return r.hasNext()
 }
 
 func (r *historyRows) Close() {

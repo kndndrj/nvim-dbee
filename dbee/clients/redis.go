@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
@@ -55,14 +54,15 @@ func (c *RedisClient) Query(ctx context.Context, query string) (models.IterResul
 		return nil, err
 	}
 
+	hasNext := true
+
 	// iterator functions
 	nextOnce := func(value any) func() (models.Row, error) {
-		once := false
 		return func() (models.Row, error) {
-			if once {
-				return nil, nil
+			if !hasNext {
+				return nil, errors.New("no next row")
 			}
-			once = true
+			hasNext = false
 			return models.Row{newRedisResponse(value)}, nil
 		}
 	}
@@ -70,7 +70,7 @@ func (c *RedisClient) Query(ctx context.Context, query string) (models.IterResul
 		return func() (models.Row, error) {
 			val, ok := <-ch
 			if !ok {
-				return nil, nil
+				return nil, errors.New("no next row")
 			}
 			return models.Row{newRedisResponse(val)}, nil
 		}
@@ -83,7 +83,7 @@ func (c *RedisClient) Query(ctx context.Context, query string) (models.IterResul
 	case string, int64, map[any]any:
 		nextFunc = nextOnce(resp)
 	case []any:
-		ch := make(chan any)
+		ch := make(chan any, 1)
 		go func() {
 			defer close(ch)
 			for _, item := range resp {
@@ -97,13 +97,15 @@ func (c *RedisClient) Query(ctx context.Context, query string) (models.IterResul
 		return nil, fmt.Errorf("unknown type reponse from redis: %T", resp)
 	}
 
+	hasNextFunc := func() bool {
+		return hasNext
+	}
+
 	// build result
 	result := common.NewResultBuilder().
-		WithNextFunc(nextFunc).
+		WithNextFunc(nextFunc, hasNextFunc).
 		WithHeader(models.Header{"Reply"}).
-		WithMeta(models.Meta{
-			Query:      query,
-			Timestamp:  time.Now(),
+		WithMeta(&models.Meta{
 			SchemaType: models.SchemaLess,
 		}).
 		Build()

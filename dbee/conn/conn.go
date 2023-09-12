@@ -9,17 +9,11 @@ import (
 )
 
 type (
-	// Input requires implementaions to provide iterator from a
-	// given string input, which can be a query or some sort of id
-	Input interface {
-		Query(context.Context, string) (models.IterResult, error)
-	}
-
-	// Client is a special kind of input with extra stuff
+	// Client is an interface for a specific database driver
 	Client interface {
-		Input
-		Close()
+		Query(context.Context, string) (models.IterResult, error)
 		Layout() ([]models.Layout, error)
+		Close()
 	}
 
 	// DatabaseSwitcher is an optional interface for clients that have database switching capabilities

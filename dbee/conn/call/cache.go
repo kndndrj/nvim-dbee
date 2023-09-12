@@ -35,7 +35,7 @@ func (r *token) Check(id int) bool {
 type cachedResult struct {
 	Header models.Header
 	Rows   []models.Row
-	Meta   models.Meta
+	Meta   *models.Meta
 }
 
 type CacheState int
@@ -49,7 +49,7 @@ const (
 
 // cache is a subcomponent of Call, which holds the result in memory
 type cache struct {
-	result       cachedResult
+	result       *cachedResult
 	state        CacheState
 	historyState CacheState
 	historyDir   string
@@ -59,10 +59,11 @@ type cache struct {
 
 func NewCache(archivePath string, logger models.Logger) *cache {
 	c := &cache{
+		result:       &cachedResult{},
 		state:        CacheStateEmpty,
-		log:          logger,
-		historyDir:   archivePath,
 		historyState: CacheStateEmpty,
+		historyDir:   archivePath,
+		log:          logger,
 		token:        &token{},
 	}
 
@@ -99,38 +100,20 @@ func (c *cache) Set(ctx context.Context, iter models.IterResult) error {
 		c.log.Errorf("draining cache failed: %s", e)
 	}
 
-	header, err := iter.Header()
-	if err != nil {
-		fail(err)
-		return err
-	}
-
-	meta, err := iter.Meta()
-	if err != nil {
-		fail(err)
-		return err
-	}
-
 	// create a new result
-	c.result.Header = header
-	c.result.Meta = meta
+	c.result.Header = iter.Header()
+	c.result.Meta = iter.Meta()
 
 	// drain the iterator
 	go func() {
-		for {
-
+		for iter.HasNext() {
 			row, err := iter.Next()
 			if err != nil {
 				fail(err)
 				return
 			}
-			if row == nil {
-				c.state = CacheStateFilled
-				break
-			}
 
 			if !c.token.Check(tokenID) {
-				fmt.Println("quiting")
 				iter.Close()
 				return
 			}
@@ -142,6 +125,7 @@ func (c *cache) Set(ctx context.Context, iter models.IterResult) error {
 				return
 			}
 		}
+		c.state = CacheStateFilled
 
 		// write to history
 		_ = c.archive(c.result)
@@ -193,8 +177,7 @@ func (c *cache) Get(ctx context.Context, from int, to int) (*cacheRows, error) {
 		if c.state == CacheStateFailed {
 			return nil, errors.New("filling cache failed")
 		}
-		l := len(c.result.Rows)
-		if c.state == CacheStateFilled || (c.state == CacheStateFilling && to <= l && to >= 0) {
+		if c.state == CacheStateFilled || (c.state == CacheStateFilling && to <= len(c.result.Rows) && to >= 0) {
 			break
 		}
 
@@ -234,13 +217,15 @@ func (c *cache) Get(ctx context.Context, from int, to int) (*cacheRows, error) {
 	}
 
 	// create a new page
-	var result cachedResult
-	result.Header = c.result.Header
-	result.Meta = c.result.Meta
-
-	result.Rows = c.result.Rows[from:to]
-	result.Meta.ChunkStart = from
-	result.Meta.TotalLength = length
+	result := &cachedResult{
+		Header: c.result.Header,
+		Rows:   c.result.Rows[from:to],
+		Meta: &models.Meta{
+			SchemaType:  c.result.Meta.SchemaType,
+			ChunkStart:  from,
+			TotalLength: length,
+		},
+	}
 
 	return newCacheRows(result), nil
 }
@@ -248,38 +233,42 @@ func (c *cache) Get(ctx context.Context, from int, to int) (*cacheRows, error) {
 func (c *cache) Wipe() {
 	_ = c.token.Steal()
 
-	c.result = cachedResult{}
+	c.result = &cachedResult{}
 	c.state = CacheStateEmpty
 }
 
 type cacheRows struct {
-	result cachedResult
+	result *cachedResult
 	index  int
 }
 
-func newCacheRows(result cachedResult) *cacheRows {
+func newCacheRows(result *cachedResult) *cacheRows {
 	return &cacheRows{
 		result: result,
 	}
 }
 
-func (r *cacheRows) Meta() (models.Meta, error) {
-	return r.result.Meta, nil
+func (r *cacheRows) Meta() *models.Meta {
+	return r.result.Meta
 }
 
-func (r *cacheRows) Header() (models.Header, error) {
-	return r.result.Header, nil
+func (r *cacheRows) Header() models.Header {
+	return r.result.Header
 }
 
 func (r *cacheRows) Next() (models.Row, error) {
 	if r.index >= len(r.result.Rows) {
-		return nil, nil
+		return nil, errors.New("no next row")
 	}
 
 	row := r.result.Rows[r.index]
 	r.index++
 
 	return row, nil
+}
+
+func (r *cacheRows) HasNext() bool {
+	return r.index < len(r.result.Rows)
 }
 
 func (r *cacheRows) Close() {}

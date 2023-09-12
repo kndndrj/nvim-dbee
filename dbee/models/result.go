@@ -26,9 +26,10 @@ type (
 
 	// IterResult is an iterator which provides rows and headers from the Input
 	IterResult interface {
-		Meta() (Meta, error)
-		Header() (Header, error)
+		Meta() *Meta
+		Header() Header
 		Next() (Row, error)
+		HasNext() bool
 		Close()
 	}
 )

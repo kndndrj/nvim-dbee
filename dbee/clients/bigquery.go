@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
-	"time"
 
 	"cloud.google.com/go/bigquery"
 	"google.golang.org/api/iterator"
@@ -131,31 +130,33 @@ func (c *BigQueryClient) Query(ctx context.Context, queryStr string) (models.Ite
 
 	header := c.buildHeader("", iter.Schema)
 
+	hasNext := true
+	nextFn := func() (models.Row, error) {
+		if firstRowLoader.row != nil {
+			row := firstRowLoader.row
+			firstRowLoader.row = nil
+			return row, nil
+		}
+
+		var loader bigqueryRowLoader
+		if err := iter.Next(&loader); err != nil {
+			if errors.Is(err, iterator.Done) {
+				hasNext = false
+			}
+
+			return nil, err
+		}
+
+		return loader.row, nil
+	}
+
+	hasNextFn := func() bool {
+		return hasNext
+	}
+
 	result := common.NewResultBuilder().
-		WithNextFunc(func() (models.Row, error) {
-			if firstRowLoader.row != nil {
-				row := firstRowLoader.row
-				firstRowLoader.row = nil
-				return row, nil
-			}
-
-			var loader bigqueryRowLoader
-			if err := iter.Next(&loader); err != nil {
-				if errors.Is(err, iterator.Done) {
-					return nil, nil
-				}
-
-				return nil, err
-			}
-
-			return loader.row, nil
-		}).
+		WithNextFunc(nextFn, hasNextFn).
 		WithHeader(header).
-		WithCloseFunc(func() { /* noop */ }).
-		WithMeta(models.Meta{
-			Query:     queryStr,
-			Timestamp: time.Now(),
-		}).
 		Build()
 	return result, nil
 }

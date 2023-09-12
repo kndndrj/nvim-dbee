@@ -3,7 +3,7 @@ package common
 import (
 	"context"
 	"database/sql"
-	"time"
+	"errors"
 
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
@@ -54,24 +54,26 @@ func (c *Conn) Exec(ctx context.Context, query string) (*Result, error) {
 	// create new rows
 	first := true
 
-	rows := NewResultBuilder().
-		WithNextFunc(func() (models.Row, error) {
-			if !first {
-				return nil, nil
-			}
-			first = false
+	nextFn := func() (models.Row, error) {
+		if !first {
+			return nil, errors.New("no next row")
+		}
+		first = false
 
-			affected, err := res.RowsAffected()
-			if err != nil {
-				return nil, err
-			}
-			return models.Row{affected}, nil
-		}).
+		affected, err := res.RowsAffected()
+		if err != nil {
+			return nil, err
+		}
+		return models.Row{affected}, nil
+	}
+
+	hasNextFn := func() bool {
+		return !first
+	}
+
+	rows := NewResultBuilder().
+		WithNextFunc(nextFn, hasNextFn).
 		WithHeader(models.Header{"Rows Affected"}).
-		WithMeta(models.Meta{
-			Query:     query,
-			Timestamp: time.Now(),
-		}).
 		Build()
 
 	return rows, nil
@@ -89,60 +91,55 @@ func (c *Conn) Query(ctx context.Context, query string) (*Result, error) {
 		return nil, err
 	}
 
+	hasNextFn := func() bool {
+		// TODO: do we even support multiple result sets?
+		// if not next result, check for any new sets
+		if !dbRows.Next() {
+			if !dbRows.NextResultSet() {
+				return false
+			}
+			return dbRows.Next()
+		}
+		return true
+	}
+
+	nextFn := func() (models.Row, error) {
+		dbCols, err := dbRows.Columns()
+		if err != nil {
+			return nil, err
+		}
+
+		columns := make([]any, len(dbCols))
+		columnPointers := make([]any, len(dbCols))
+		for i := range columns {
+			columnPointers[i] = &columns[i]
+		}
+
+		if err := dbRows.Scan(columnPointers...); err != nil {
+			return nil, err
+		}
+
+		row := make(models.Row, len(dbCols))
+		for i := range dbCols {
+			val := *columnPointers[i].(*any)
+			// TODO: this breaks some types with some drivers (namely sqlserver newid()):
+			// add a generic way of doing this with ResultBuilder
+			// fix for some strings being interpreted as bytes
+			valb, ok := val.([]byte)
+			if ok {
+				val = string(valb)
+			}
+			row[i] = val
+		}
+
+		return row, nil
+	}
+
 	rows := NewResultBuilder().
-		WithNextFunc(func() (models.Row, error) {
-			dbCols, err := dbRows.Columns()
-			if err != nil {
-				return nil, err
-			}
-
-			// TODO: do we even support multiple result sets?
-			// if not next result, check for any new sets
-			if !dbRows.Next() {
-				if !dbRows.NextResultSet() {
-					return nil, nil
-				}
-				dbCols, err = dbRows.Columns()
-				if err != nil {
-					return nil, err
-				}
-				if !dbRows.Next() {
-					return nil, nil
-				}
-			}
-
-			columns := make([]any, len(dbCols))
-			columnPointers := make([]any, len(dbCols))
-			for i := range columns {
-				columnPointers[i] = &columns[i]
-			}
-
-			if err := dbRows.Scan(columnPointers...); err != nil {
-				return nil, err
-			}
-
-			row := make(models.Row, len(dbCols))
-			for i := range dbCols {
-				val := *columnPointers[i].(*any)
-				// TODO: this breaks some types with some drivers (namely sqlserver newid()):
-				// add a generic way of doing this with ResultBuilder
-				// fix for some strings being interpreted as bytes
-				valb, ok := val.([]byte)
-				if ok {
-					val = string(valb)
-				}
-				row[i] = val
-			}
-
-			return row, nil
-		}).
+		WithNextFunc(nextFn, hasNextFn).
 		WithHeader(header).
 		WithCloseFunc(func() {
 			dbRows.Close()
-		}).
-		WithMeta(models.Meta{
-			Query:     query,
-			Timestamp: time.Now(),
 		}).
 		Build()
 

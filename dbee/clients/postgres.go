@@ -74,11 +74,7 @@ func (c *PostgresClient) Query(ctx context.Context, query string) (models.IterRe
 	if err != nil {
 		return nil, err
 	}
-	h, err := rows.Header()
-	if err != nil {
-		return nil, err
-	}
-	if len(h) == 0 {
+	if len(rows.Header()) == 0 {
 		rows.SetCustomHeader(models.Header{"No Results"})
 	}
 	rows.SetCallback(cb)
@@ -150,12 +146,8 @@ func (c *PostgresClient) SelectDatabase(name string) error {
 func getPGLayouts(rows models.IterResult) ([]models.Layout, error) {
 	children := make(map[string][]models.Layout)
 
-	for {
+	for rows.HasNext() {
 		row, err := rows.Next()
-		// break here to close the while loop. All layout nodes found.
-		if row == nil {
-			break
-		}
 		if err != nil {
 			return nil, err
 		}

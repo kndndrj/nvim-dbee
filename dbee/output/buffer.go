@@ -10,29 +10,23 @@ import (
 
 type BufferOutput struct {
 	vim       *nvim.Nvim
-	buffer    nvim.Buffer
 	formatter Formatter
 }
 
-func NewBuffer(vim *nvim.Nvim, formatter Formatter, buffer nvim.Buffer) *BufferOutput {
+func NewBuffer(vim *nvim.Nvim, formatter Formatter) *BufferOutput {
 	return &BufferOutput{
 		vim:       vim,
-		buffer:    buffer,
 		formatter: formatter,
 	}
 }
 
-func (bo *BufferOutput) SetBuffer(buffer nvim.Buffer) {
-	bo.buffer = buffer
-}
-
-func (bo *BufferOutput) Write(result models.IterResult) error {
-	_, err := bo.vim.IsBufferValid(bo.buffer)
+func (bo *BufferOutput) Write(result models.IterResult, buffer nvim.Buffer) error {
+	_, err := bo.vim.IsBufferValid(buffer)
 	if err != nil {
 		return err
 	}
 
-	buf := newBuf(bo.vim, bo.buffer)
+	buf := newBuf(bo.vim, buffer)
 
 	return bo.formatter.Format(result, buf)
 }

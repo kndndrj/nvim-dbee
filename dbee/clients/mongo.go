@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
@@ -108,6 +107,7 @@ func (c *MongoClient) Query(ctx context.Context, query string) (models.IterResul
 
 	// check if "cursor" field exists and create an appropriate func
 	var nextFunc func() (models.Row, error)
+	hasNext := true
 
 	cur, ok := resp["cursor"]
 	if ok {
@@ -116,7 +116,7 @@ func (c *MongoClient) Query(ctx context.Context, query string) (models.IterResul
 			return nil, errors.New("type assertion for cursor object failed")
 		}
 
-		ch := make(chan any)
+		ch := make(chan any, 1)
 		go func() {
 			defer close(ch)
 			for _, b := range cursor {
@@ -128,34 +128,35 @@ func (c *MongoClient) Query(ctx context.Context, query string) (models.IterResul
 					ch <- item
 				}
 			}
+			hasNext = false
 		}()
 
 		nextFunc = func() (models.Row, error) {
 			val, ok := <-ch
 			if !ok {
-				return nil, nil
+				return nil, errors.New("no next row")
 			}
 			return models.Row{newMongoResponse(val)}, nil
 		}
 	} else {
-		once := false
 		nextFunc = func() (models.Row, error) {
-			if !once {
-				once = true
-				return models.Row{newMongoResponse(resp)}, nil
+			if !hasNext {
+				return nil, errors.New("no next row")
 			}
-			return nil, nil
+			hasNext = false
+			return models.Row{newMongoResponse(resp)}, nil
 		}
+	}
 
+	hasNextFunc := func() bool {
+		return hasNext
 	}
 
 	// build result
 	result := common.NewResultBuilder().
-		WithNextFunc(nextFunc).
+		WithNextFunc(nextFunc, hasNextFunc).
 		WithHeader(models.Header{"Reply"}).
-		WithMeta(models.Meta{
-			Query:      query,
-			Timestamp:  time.Now(),
+		WithMeta(&models.Meta{
 			SchemaType: models.SchemaLess,
 		}).
 		Build()

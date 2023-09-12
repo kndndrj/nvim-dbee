@@ -201,10 +201,9 @@ function Conn:show_page(page)
 
   -- open ui window and register it's buffer in go
   local winid, bufnr = self.ui:open()
-  vim.fn.Dbee_set_results_buf(bufnr)
 
   -- call go function
-  local length = vim.fn.Dbee_get_result(self.id, self.current_call_id, tostring(from), tostring(to))
+  local length = vim.fn.Dbee_get_result(self.id, self.current_call_id, tostring(bufnr), tostring(from), tostring(to))
 
   -- adjust page ammount
   self.page_ammount = math.floor(length / self.page_size)
