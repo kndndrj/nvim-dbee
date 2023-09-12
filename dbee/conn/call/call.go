@@ -10,11 +10,6 @@ import (
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
-// TODO:
-type Output interface {
-	Write(context.Context, models.Result) error
-}
-
 type CallState int
 
 const (
@@ -191,10 +186,18 @@ func (c *Call) GetDetails() *CallDetails {
 
 // GetResult pipes the selected range of rows to the outputs
 // returns length of the result set
-func (c *Call) GetResult(from int, to int, outputs ...Output) (int, error) {
-	ctx := context.TODO()
+func (c *Call) GetResult(from int, to int) (models.IterResult, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	oldCancel := c.cancel
+	c.cancel = func() {
+		if oldCancel != nil {
+			oldCancel()
+		}
+		cancel()
+		c.cancel = nil
+	}
 
-	return c.cache.Get(ctx, from, to, outputs...)
+	return c.cache.Get(ctx, from, to)
 }
 
 func (c *Call) Cancel() {

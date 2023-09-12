@@ -15,11 +15,6 @@ type (
 		Query(context.Context, string) (models.IterResult, error)
 	}
 
-	// Output recieves a result and does whatever it wants with it
-	Output interface {
-		Write(context.Context, models.Result) error
-	}
-
 	// Client is a special kind of input with extra stuff
 	Client interface {
 		Input
@@ -110,13 +105,13 @@ func (c *Conn) CancelCall(callID string) {
 	ca.Cancel()
 }
 
-func (c *Conn) GetResult(callID string, from int, to int, outputs ...call.Output) (int, error) {
+func (c *Conn) GetResult(callID string, from int, to int) (models.IterResult, error) {
 	ca, ok := c.calls[callID]
 	if !ok {
-		return 0, fmt.Errorf("no call with id: %q", callID)
+		return nil, fmt.Errorf("no call with id: %q", callID)
 	}
 
-	return ca.GetResult(from, to, outputs...)
+	return ca.GetResult(from, to)
 }
 
 // SwitchDatabase tries to switch to a given database with the used client.

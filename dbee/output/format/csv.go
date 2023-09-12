@@ -21,11 +21,26 @@ func (cf *CSV) Name() string {
 	return "csv"
 }
 
-func (co *CSV) parseSchemaFul(result models.Result) [][]string {
-	data := [][]string{
-		result.Header,
+func (co *CSV) parseSchemaFul(result models.IterResult) ([][]string, error) {
+	header, err := result.Header()
+	if err != nil {
+		return nil, err
 	}
-	for _, row := range result.Rows {
+
+	data := [][]string{
+		header,
+	}
+	for{
+
+		row, err := result.Next()
+		if err != nil {
+			return nil, err
+		}
+		if row == nil {
+			break
+		}
+
+
 		var csvRow []string
 		for _, rec := range row {
 			csvRow = append(csvRow, fmt.Sprint(rec))
@@ -33,15 +48,18 @@ func (co *CSV) parseSchemaFul(result models.Result) [][]string {
 		data = append(data, csvRow)
 	}
 
-	return data
+	return data, nil
 }
 
-func (cf *CSV) Format(result models.Result, writer io.Writer) error {
+func (cf *CSV) Format(result models.IterResult, writer io.Writer) error {
 	// parse as if schema is defined regardles of schema presence in the result
-	data := cf.parseSchemaFul(result)
+	data, err := cf.parseSchemaFul(result)
+	if err != nil {
+		return err
+	}
 
 	w := csv.NewWriter(writer)
-	err := w.WriteAll(data)
+	err = w.WriteAll(data)
 	if err != nil {
 		return err
 	}

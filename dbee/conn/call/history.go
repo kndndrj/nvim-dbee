@@ -32,7 +32,7 @@ func init() {
 var ErrHistoryAlreadyFilled = errors.New("history is already filled")
 
 // archive stores result to disk as a set of gob files
-func (c *cache) archive(result models.Result) error {
+func (c *cache) archive(result cachedResult) error {
 	if c.historyState != CacheStateEmpty {
 		return ErrHistoryAlreadyFilled
 	}

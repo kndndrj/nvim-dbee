@@ -1,15 +1,50 @@
-package call_test
+package call
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"gotest.tools/assert"
 )
+
+type mockLogger struct{}
+
+func (ml *mockLogger) Debug(msg string) {
+	log.Default().Print(msg)
+}
+
+func (ml *mockLogger) Debugf(format string, args ...any) {
+	log.Default().Printf(format, args...)
+}
+
+func (ml *mockLogger) Info(msg string) {
+	log.Default().Print(msg)
+}
+
+func (ml *mockLogger) Infof(format string, args ...any) {
+	log.Default().Printf(format, args...)
+}
+
+func (ml *mockLogger) Warn(msg string) {
+	log.Default().Print(msg)
+}
+
+func (ml *mockLogger) Warnf(format string, args ...any) {
+	log.Default().Printf(format, args...)
+}
+
+func (ml *mockLogger) Error(msg string) {
+	log.Default().Print(msg)
+}
+
+func (ml *mockLogger) Errorf(format string, args ...any) {
+	log.Default().Printf(format, args...)
+}
 
 type mockedIterResult struct {
 	max     int
@@ -58,33 +93,9 @@ func (mir *mockedIterResult) Range(from int, to int) []models.Row {
 	return rows
 }
 
-type mockOutput struct {
-	t        *testing.T
-	expected []models.Row
-}
-
-func newMockOutput(t *testing.T) *mockOutput {
-	return &mockOutput{
-		t: t,
-	}
-}
-
-// expect this result on next write
-func (mo *mockOutput) expect(result []models.Row) {
-	mo.expected = result
-}
-
-func (mo *mockOutput) Write(_ context.Context, result models.Result) error {
-	if mo.expected != nil {
-		assert.DeepEqual(mo.t, mo.expected, result.Rows)
-	}
-
-	return nil
-}
-
 func TestCache(t *testing.T) {
 	// prepare cache and mocks
-	cache := call.NewCache("")
+	cache := NewCache("", &mockLogger{})
 
 	numOfRows := 10
 	rows := newMockedIterResult(numOfRows, 0)
@@ -93,6 +104,7 @@ func TestCache(t *testing.T) {
 	assert.NilError(t, err)
 
 	type testCase struct {
+		name           string
 		from           int
 		to             int
 		before         func()
@@ -101,52 +113,52 @@ func TestCache(t *testing.T) {
 	}
 
 	testCases := []testCase{
-		// get all
 		{
+			name:           "get all",
 			from:           0,
 			to:             -1,
 			expectedResult: rows.Range(0, numOfRows),
 			expectedError:  nil,
 		},
-		// get basic range
 		{
+			name:           "get basic range",
 			from:           0,
 			to:             3,
 			expectedResult: rows.Range(0, 3),
 			expectedError:  nil,
 		},
-		// get last 2
 		{
+			name:           "get last 2",
 			from:           -3,
 			to:             -1,
 			expectedResult: rows.Range(numOfRows-2, numOfRows),
 			expectedError:  nil,
 		},
-		// get only one
 		{
+			name:           "get only one",
 			from:           0,
 			to:             1,
 			expectedResult: rows.Range(0, 1),
 			expectedError:  nil,
 		},
 
-		// invalid range
 		{
+			name:           "invalid range",
 			from:           5,
 			to:             1,
 			expectedResult: nil,
-			expectedError:  call.ErrInvalidRange(5, 1),
+			expectedError:  ErrInvalidRange(5, 1),
 		},
-		// invalid range (even if 10 can be higher than -1, its undefined and should fail)
 		{
+			name:           "invalid range (even if 10 can be higher than -1, its undefined and should fail)",
 			from:           -5,
 			to:             10,
 			expectedResult: nil,
-			expectedError:  call.ErrInvalidRange(-5, 10),
+			expectedError:  ErrInvalidRange(-5, 10),
 		},
 
-		// wait for available index
 		{
+			name:           "wait for available index",
 			from:           0,
 			to:             3,
 			expectedResult: rows.Range(0, 3),
@@ -158,8 +170,8 @@ func TestCache(t *testing.T) {
 				assert.NilError(t, err)
 			},
 		},
-		// wait for all to be drained
 		{
+			name:           "wait for all to be drained",
 			from:           0,
 			to:             -1,
 			expectedResult: rows.Range(0, numOfRows),
@@ -173,18 +185,33 @@ func TestCache(t *testing.T) {
 		},
 	}
 
-	output := newMockOutput(t)
-
 	for _, tc := range testCases {
-		if tc.before != nil {
-			tc.before()
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.before != nil {
+				tc.before()
+			}
 
-		output.expect(tc.expectedResult)
+			result, err := cache.Get(context.Background(), tc.from, tc.to)
+			if err != nil && tc.expectedError != nil {
+				assert.Equal(t, err.Error(), tc.expectedError.Error())
+				return
+			}
 
-		_, err := cache.Get(context.Background(), tc.from, tc.to, output)
-		if err != nil && tc.expectedError != nil {
-			assert.Equal(t, err.Error(), tc.expectedError.Error())
-		}
+			// drain the iterator and compare results
+			var resultRows []models.Row
+
+			for {
+				row, err := result.Next()
+				assert.NilError(t, err)
+				if row == nil {
+					break
+				}
+				resultRows = append(resultRows, row)
+			}
+			fmt.Println(resultRows)
+			fmt.Println(tc.expectedResult)
+
+			assert.DeepEqual(t, tc.expectedResult, resultRows)
+		})
 	}
 }

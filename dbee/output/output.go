@@ -7,6 +7,6 @@ import (
 )
 
 type Formatter interface {
-	Format(result models.Result, writer io.Writer) error
+	Format(result models.IterResult, writer io.Writer) error
 	Name() string
 }

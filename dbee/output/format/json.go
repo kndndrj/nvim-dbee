@@ -21,16 +21,28 @@ func (jf *JSON) Name() string {
 	return "json"
 }
 
-func (jf *JSON) parseSchemaFul(result models.Result) []map[string]any {
+func (jf *JSON) parseSchemaFul(result models.IterResult) ([]map[string]any, error) {
 	var data []map[string]any
 
-	for _, row := range result.Rows {
+	header, err := result.Header()
+	if err != nil {
+		return nil, err
+	}
+
+	for {
+		row, err := result.Next()
+		if err != nil {
+			return nil, err
+		}
+		if row == nil {
+			break
+		}
 
 		record := make(map[string]any, len(row))
 		for i, val := range row {
 			var h string
-			if i < len(result.Header) {
-				h = result.Header[i]
+			if i < len(header) {
+				h = header[i]
 			} else {
 				h = fmt.Sprintf("<unknown-field-%d>", i)
 			}
@@ -38,33 +50,52 @@ func (jf *JSON) parseSchemaFul(result models.Result) []map[string]any {
 		}
 		data = append(data, record)
 	}
-	return data
+	return data, nil
 }
 
-func (jf *JSON) parseSchemaLess(result models.Result) []any {
+func (jf *JSON) parseSchemaLess(result models.IterResult) ([]any, error) {
 	var data []any
 
-	for _, row := range result.Rows {
+	for {
+		row, err := result.Next()
+		if err != nil {
+			return nil, err
+		}
+		if row == nil {
+			break
+		}
+
 		if len(row) == 1 {
 			data = append(data, row[0])
 		} else if len(row) > 1 {
 			data = append(data, row)
 		}
 	}
-	return data
+	return data, nil
 }
 
-func (jf *JSON) Format(result models.Result, writer io.Writer) error {
+func (jf *JSON) Format(result models.IterResult, writer io.Writer) error {
+	meta, err := result.Meta()
+	if err != nil {
+		return err
+	}
+
 	var data any
-	switch result.Meta.SchemaType {
-	case models.SchemaFul:
-		data = jf.parseSchemaFul(result)
+	switch meta.SchemaType {
 	case models.SchemaLess:
-		data = jf.parseSchemaLess(result)
+		data, err = jf.parseSchemaLess(result)
+	case models.SchemaFul:
+		fallthrough
+	default:
+		data, err = jf.parseSchemaFul(result)
+	}
+
+	if err != nil {
+		return err
 	}
 
 	encoder := json.NewEncoder(writer)
-	err := encoder.Encode(data)
+	err = encoder.Encode(data)
 	if err != nil {
 		return err
 	}

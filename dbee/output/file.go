@@ -1,7 +1,6 @@
 package output
 
 import (
-	"context"
 	"fmt"
 	"os"
 
@@ -22,7 +21,7 @@ func NewFile(fileName string, formatter Formatter, logger models.Logger) *File {
 	}
 }
 
-func (co *File) Write(_ context.Context, result models.Result) error {
+func (co *File) Write(result models.IterResult) error {
 	file, err := os.Create(co.fileName)
 	if err != nil {
 		return err

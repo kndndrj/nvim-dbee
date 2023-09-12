@@ -21,16 +21,32 @@ func (cf *Table) Name() string {
 	return "table"
 }
 
-func (cf *Table) Format(result models.Result, writer io.Writer) error {
+func (cf *Table) Format(result models.IterResult, writer io.Writer) error {
 	tableHeaders := []any{""}
-	for _, k := range result.Header {
+	header, err := result.Header()
+	if err != nil {
+		return err
+	}
+	for _, k := range header {
 		tableHeaders = append(tableHeaders, k)
 	}
+	meta, err := result.Meta()
+	if err != nil {
+		return err
+	}
 
-	index := result.Meta.ChunkStart
+	index := meta.ChunkStart
 
 	var tableRows []table.Row
-	for _, row := range result.Rows {
+	for {
+		row, err := result.Next()
+		if err != nil {
+			return err
+		}
+		if row == nil {
+			break
+		}
+
 		indexedRow := append([]any{index + 1}, row...)
 		tableRows = append(tableRows, table.Row(indexedRow))
 		index += 1
@@ -49,7 +65,7 @@ func (cf *Table) Format(result models.Result, writer io.Writer) error {
 	t.Style().Options.DrawBorder = false
 	render := t.Render()
 
-	_, err := writer.Write([]byte(render))
+	_, err = writer.Write([]byte(render))
 	if err != nil {
 		return err
 	}

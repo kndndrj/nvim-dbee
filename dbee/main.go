@@ -245,13 +245,16 @@ func main() {
 					return 0, nil
 				}
 
-				length, err := c.GetResult(callID, from, to, bufferOutput)
+				result, err := c.GetResult(callID, from, to)
 				if err != nil {
 					logger.Error(err.Error())
 					return 0, nil
 				}
+
+				bufferOutput.Write(result)
+
 				logger.Debugf("%q returned successfully", method)
-				return length, nil
+				return 0, nil
 			})
 
 		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_store"},
