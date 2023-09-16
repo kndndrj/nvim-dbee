@@ -2,12 +2,12 @@ package call
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/neovim/go-client/msgpack"
 )
 
 type CallState int
@@ -46,14 +46,14 @@ type CallDetails struct {
 	ArchivePath string
 }
 
-func (cd *CallDetails) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		ID          string `json:"id"`
-		Query       string `json:"query"`
-		State       string `json:"state"`
-		Took        int64  `json:"took_ms"`
-		Timestamp   int64  `json:"timestamp"`
-		ArchivePath string `json:"archive_path"`
+func (cd *CallDetails) MarshalMsgPack(enc *msgpack.Encoder) error {
+	return enc.Encode(&struct {
+		ID          string `msgpack:"id"`
+		Query       string `msgpack:"query"`
+		State       string `msgpack:"state"`
+		Took        int64  `msgpack:"took_ms"`
+		Timestamp   int64  `msgpack:"timestamp"`
+		ArchivePath string `msgpack:"archive_path"`
 	}{
 		ID:          cd.ID,
 		Query:       cd.Query,

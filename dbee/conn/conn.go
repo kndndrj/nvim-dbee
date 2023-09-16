@@ -45,6 +45,10 @@ func New(id string, driver Client, logger models.Logger) *Conn {
 	return c
 }
 
+func (c *Conn) GetID() string {
+	return c.id
+}
+
 func (c *Conn) scanOldCalls() {
 	calls := ScanOldCalls(c.id, c.log)
 

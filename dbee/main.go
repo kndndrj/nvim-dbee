@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/neovim/go-client/nvim"
@@ -17,286 +15,172 @@ import (
 	"github.com/kndndrj/nvim-dbee/dbee/vim"
 )
 
-var deferFns []func()
-
-// use deferer to defer in main
-func deferer(fn func()) {
-	deferFns = append(deferFns, fn)
-}
-
 func main() {
+	var entry *vim.Entrypoint
 	defer func() {
-		for _, fn := range deferFns {
-			fn()
-		}
+		entry.Close()
 		// TODO: I'm sure this can be done prettier
 		time.Sleep(10 * time.Second)
 	}()
 
 	plugin.Main(func(p *plugin.Plugin) error {
-		logger := vim.NewLogger(p.Nvim)
-		callbacker := vim.NewCallbacker(p.Nvim)
+		entry = vim.NewEntrypoint(p)
 
-		deferer(func() {
-			logger.Close()
-		})
-
-		// Call clients from lua via id (string)
-		connections := make(map[string]*conn.Conn)
-
-		deferer(func() {
-			for _, c := range connections {
-				c.Close()
-			}
-		})
-
-		bufferOutput := output.NewBuffer(p.Nvim, format.NewTable())
-
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_register_connection"},
-			func(args []string) (bool, error) {
-				method := "Dbee_register_connection"
-				logger.Debugf("calling %q", method)
-				if len(args) < 3 {
-					logger.Errorf("not enough arguments passed to %q", method)
-					return false, nil
-				}
-
-				id, url, typ := args[0], args[1], args[2]
-
+		entry.Register(
+			"Dbee_register_connection",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID   string `arg:"id"`
+				URL  string `arg:"url"`
+				Type string `arg:"type"`
+			},
+			) (any, error) {
 				// Get the right client
-				client, err := clients.NewFromType(url, typ)
+				client, err := clients.NewFromType(args.URL, args.Type)
 				if err != nil {
-					logger.Error(err.Error())
-					return false, nil
+					return false, err
 				}
 
-				c := conn.New(id, client, logger)
+				r.ConnectionStorage.Register(conn.New(args.ID, client, r.Logger))
 
-				connections[id] = c
-
-				logger.Debugf("%q returned successfully", method)
 				return true, nil
-			})
+			}))
 
-		// execute the query and return the call id
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_execute"},
-			func(args []string) (string, error) {
-				method := "Dbee_execute"
-				logger.Debug("calling " + method)
-				if len(args) < 3 {
-					logger.Errorf("not enough arguments passed to %q", method)
-					return "", nil
-				}
-
-				id, query, callbackId := args[0], args[1], args[2]
-
+		entry.Register(
+			"Dbee_execute",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID         string `arg:"id"`
+				Query      string `arg:"query"`
+				CallbackID string `arg:"callback_id"`
+			},
+			) (any, error) {
 				// Get the right connection
-				c, ok := connections[id]
-				if !ok {
-					logger.Errorf("connection with id %q not registered", id)
-					return "", nil
+				c, err := r.ConnectionStorage.Get(args.ID)
+				if err != nil {
+					return "", err
 				}
 
 				cb := func(details *call.CallDetails) {
 					success := details.State != call.CallStateFailed
 
-					err := callbacker.TriggerCallback(callbackId, details.ID, success, details.Took)
+					err := r.Callbacker.TriggerCallback(args.CallbackID, details.ID, success, details.Took)
 					if err != nil {
-						logger.Error(err.Error())
+						r.Logger.Error(err.Error())
 					}
 				}
 
-				callID, err := c.Execute(query, cb)
+				callID, err := c.Execute(args.Query, cb)
 				if err != nil {
-					logger.Error(err.Error())
+					return "", err
 				}
 
-				logger.Debugf("%q returned successfully", method)
 				return callID, nil
-			})
+			}))
 
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_list_calls"},
-			func(args []string) (string, error) {
-				method := "Dbee_list_calls"
-				logger.Debug("calling " + method)
-				if len(args) < 1 {
-					logger.Errorf("not enough arguments passed to %q", method)
-					return "{}", nil
-				}
-
-				id := args[0]
-
+		entry.Register(
+			"Dbee_list_calls",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID string `arg:"id"`
+			},
+			) (any, error) {
 				// Get the right connection
-				c, ok := connections[id]
-				if !ok {
-					logger.Errorf("connection with id %q not registered", id)
-					return "{}", nil
-				}
-
-				details := c.Calls()
-
-				parsed, err := json.Marshal(details)
+				c, err := r.ConnectionStorage.Get(args.ID)
 				if err != nil {
-					logger.Error(err.Error())
-					return "{}", nil
+					return "{}", err
 				}
 
-				logger.Debugf("%q returned successfully", method)
-				return string(parsed), nil
-			})
+				return c.Calls(), nil
+			}))
 
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_cancel_call"},
-			func(args []string) error {
-				method := "Dbee_cancel_call"
-				logger.Debugf("calling %q", method)
-				if len(args) < 2 {
-					logger.Errorf("not enough arguments passed to %q", method)
-					return nil
-				}
-
-				id := args[0]
-				callID := args[1]
-
+		entry.Register(
+			"Dbee_cancel_call",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID     string `arg:"id"`
+				CallID string `arg:"call_id"`
+			},
+			) (any, error) {
 				// Get the right connection
-				c, ok := connections[id]
-				if !ok {
-					logger.Errorf("connection with id %q not registered", id)
-					return nil
+				c, err := r.ConnectionStorage.Get(args.ID)
+				if err != nil {
+					return nil, err
 				}
 
-				c.CancelCall(callID)
+				c.CancelCall(args.CallID)
 
-				logger.Debugf("%q returned successfully", method)
-				return nil
-			})
+				return nil, nil
+			}))
 
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_switch_database"},
-			func(args []string) error {
-				method := "Dbee_switch_database"
-				logger.Debug("calling " + method)
-				if len(args) < 2 {
-					logger.Error("not enough arguments passed to " + method)
-					return nil
-				}
-
-				id := args[0]
-				name := args[1]
-
+		entry.Register(
+			"Dbee_switch_database",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID   string `arg:"id"`
+				Name string `arg:"name"`
+			},
+			) (any, error) {
 				// Get the right connection
-				c, ok := connections[id]
-				if !ok {
-					logger.Error("connection with id " + id + " not registered")
-					return nil
-				}
-
-				if err := c.SwitchDatabase(name); err != nil {
-					logger.Error(err.Error())
-					return nil
-				}
-
-				logger.Debug(method + " returned successfully")
-				return nil
-			})
-
-		// pages result to buffer output, returns total number of rows
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_get_result"},
-			func(args []string) (int, error) {
-				method := "Dbee_get_result"
-				logger.Debugf("calling %q", method)
-				if len(args) < 5 {
-					logger.Errorf("not enough arguments passed to %q", method)
-					return 0, nil
-				}
-
-				id := args[0]
-				callID := args[1]
-				bufnr, err := strconv.Atoi(args[2])
+				c, err := r.ConnectionStorage.Get(args.ID)
 				if err != nil {
-					logger.Error(err.Error())
-					return 0, nil
-				}
-				from, err := strconv.Atoi(args[3])
-				if err != nil {
-					logger.Error(err.Error())
-					return 0, nil
-				}
-				to, err := strconv.Atoi(args[4])
-				if err != nil {
-					logger.Error(err.Error())
-					return 0, nil
+					return nil, err
 				}
 
+				err = c.SwitchDatabase(args.Name)
+				if err != nil {
+					return nil, err
+				}
+
+				return nil, nil
+			}))
+
+		entry.Register(
+			"Dbee_get_result",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID     string `arg:"id"`
+				CallID string `arg:"call_id"`
+				Buffer int    `arg:"buffer"`
+				From   int    `arg:"from"`
+				To     int    `arg:"to"`
+			},
+			) (any, error) {
 				// Get the right connection
-				c, ok := connections[id]
-				if !ok {
-					logger.Errorf("connection with id %q not registered", id)
-					return 0, nil
-				}
-
-				result, err := c.GetResult(callID, from, to)
+				c, err := r.ConnectionStorage.Get(args.ID)
 				if err != nil {
-					logger.Error(err.Error())
-					return 0, nil
+					return 0, err
 				}
 
-				err = bufferOutput.Write(result, nvim.Buffer(bufnr))
+				result, err := c.GetResult(args.CallID, args.From, args.To)
 				if err != nil {
-					logger.Error(err.Error())
-					return 0, nil
+					return 0, err
 				}
 
-				logger.Debugf("%q returned successfully", method)
+				err = r.BufferOutput.Write(result, nvim.Buffer(args.Buffer))
+				if err != nil {
+					return 0, err
+				}
+
 				return result.Meta().TotalLength, nil
-			})
+			}))
 
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_store"},
-			func(v *nvim.Nvim, args []string) error {
-				method := "Dbee_store"
-				logger.Debugf("calling %q", method)
-				if len(args) < 6 {
-					logger.Errorf("not enough arguments passed to %q", method)
-					return nil
-				}
-				id, callID, fmat, out := args[0], args[1], args[2], args[3]
-				// range of rows
-				from, err := strconv.Atoi(args[4])
-				if err != nil {
-					return err
-				}
-				to, err := strconv.Atoi(args[5])
-				if err != nil {
-					return err
-				}
-				// param is an extra parameter for some outputs/formatters
-				param := ""
-				if len(args) >= 6 {
-					param = args[5]
-				}
-
-				getBufnr := func(p string) (nvim.Buffer, error) {
-					b, err := strconv.Atoi(p)
-					if err != nil {
-						return -1, err
-					}
-					return nvim.Buffer(b), nil
-				}
-
-				getFile := func(p string) (string, error) {
-					if p == "" {
-						return "", fmt.Errorf("invalid file name: \"\"")
-					}
-					return p, nil
-				}
-
+		entry.Register(
+			"Dbee_store",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID     string `arg:"id"`
+				CallID string `arg:"call_id"`
+				Format string `arg:"format"`
+				Output string `arg:"output"`
+				From   int    `arg:"from"`
+				To     int    `arg:"to"`
+				// these two are optional (depending on the output used)
+				Buffer int    `arg:"buffer,optional"`
+				Path   string `arg:"path,optional"`
+			},
+			) (any, error) {
 				// Get the right connection
-				c, ok := connections[id]
-				if !ok {
-					logger.Errorf("connection with id %q not registered", id)
-					return nil
+				c, err := r.ConnectionStorage.Get(args.ID)
+				if err != nil {
+					return nil, err
 				}
 
 				var formatter output.Formatter
-				switch fmat {
+				switch args.Format {
 				case "json":
 					formatter = format.NewJSON()
 				case "csv":
@@ -304,90 +188,54 @@ func main() {
 				case "table":
 					formatter = format.NewTable()
 				default:
-					logger.Errorf("store output: %q is not supported", fmat)
-					return nil
+					return nil, fmt.Errorf("store output: %q is not supported", args.Format)
 				}
 
-				result, err := c.GetResult(callID, from, to)
+				result, err := c.GetResult(args.CallID, args.From, args.To)
 				if err != nil {
-					logger.Error(err.Error())
-					return nil
+					return nil, err
 				}
 
-				switch out {
+				switch args.Output {
 				case "file":
-					file, err := getFile(param)
-					if err != nil {
-						logger.Error(err.Error())
-						return nil
+					if args.Path == "" {
+						return nil, fmt.Errorf("invalid output path")
 					}
-					err = output.NewFile(file, formatter, logger).Write(result)
+					err = output.NewFile(args.Path, formatter, r.Logger).Write(result)
 					if err != nil {
-						logger.Error(err.Error())
-						return nil
+						return nil, err
 					}
-
 				case "buffer":
-					buf, err := getBufnr(param)
+					err = output.NewBuffer(r.Vim, formatter).Write(result, nvim.Buffer(args.Buffer))
 					if err != nil {
-						logger.Error(err.Error())
-						return nil
-					}
-					err = output.NewBuffer(v, formatter).Write(result, buf)
-					if err != nil {
-						logger.Error(err.Error())
-						return nil
+						return nil, err
 					}
 				case "yank":
-					err = output.NewYankRegister(v, formatter).Write(result)
+					err = output.NewYankRegister(r.Vim, formatter).Write(result)
 					if err != nil {
-						logger.Error(err.Error())
-						return nil
+						return nil, err
 					}
 				default:
-					logger.Errorf("store output: %q is not supported", out)
-					return nil
+					return nil, fmt.Errorf("store output: %q is not supported", args.Output)
 				}
 
-				logger.Debugf("%q returned successfully", method)
-				return nil
-			})
+				return nil, nil
+			}))
 
-		// returns json string (must parse on caller side)
-		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_layout"},
-			func(args []string) (string, error) {
-				method := "Dbee_layout"
-				layoutErrString := "{}"
-
-				logger.Debugf("calling %q", method)
-				if len(args) < 1 {
-					logger.Errorf("not enough arguments passed to %q", method)
-					return layoutErrString, nil
-				}
-
-				id := args[0]
-
+		entry.Register(
+			"Dbee_layout",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID string `arg:"id"`
+			},
+			) (any, error) {
 				// Get the right connection
-				c, ok := connections[id]
-				if !ok {
-					logger.Errorf("connection with id %q not registered", id)
-					return layoutErrString, nil
+				c, err := r.ConnectionStorage.Get(args.ID)
+				if err != nil {
+					return nil, err
 				}
 
-				layout, err := c.Layout()
-				if err != nil {
-					logger.Error(err.Error())
-					return layoutErrString, nil
-				}
-				parsed, err := json.Marshal(layout)
-				if err != nil {
-					logger.Error(err.Error())
-					return layoutErrString, nil
-				}
-
-				logger.Debugf("%q returned successfully", method)
-				return string(parsed), nil
-			})
+				return c.Layout()
+			}))
 
 		return nil
 	})

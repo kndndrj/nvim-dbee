@@ -4,6 +4,7 @@ import (
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"github.com/kndndrj/nvim-dbee/dbee/output"
 	"github.com/kndndrj/nvim-dbee/dbee/output/format"
+	"github.com/neovim/go-client/nvim"
 	"github.com/neovim/go-client/nvim/plugin"
 )
 
@@ -12,6 +13,7 @@ type SharedResource struct {
 	Logger            models.Logger
 	Callbacker        *Callbacker
 	BufferOutput      *output.BufferOutput
+	Vim               *nvim.Nvim
 }
 
 type Entrypoint struct {
@@ -23,6 +25,7 @@ func NewEntrypoint(p *plugin.Plugin) *Entrypoint {
 	return &Entrypoint{
 		plugin: p,
 		shared: &SharedResource{
+			Vim:               p.Nvim,
 			ConnectionStorage: NewConnectionStorage(),
 			Logger:            NewLogger(p.Nvim),
 			Callbacker:        NewCallbacker(p.Nvim),
@@ -31,11 +34,17 @@ func NewEntrypoint(p *plugin.Plugin) *Entrypoint {
 	}
 }
 
-func Wrap[A any](fn func(r *SharedResource, args *FuncArgs[A]) (any, error)) func(*SharedResource, map[string]any) (any, error) {
+func Wrap[A any](fn func(r *SharedResource, args *A) (any, error)) func(*SharedResource, map[string]any) (any, error) {
 	return func(r *SharedResource, rawArgs map[string]any) (any, error) {
 		functionArgs := &FuncArgs[A]{}
 		functionArgs.Set(rawArgs)
-		return fn(r, functionArgs)
+
+		parsed, err := functionArgs.Parse()
+		if err != nil {
+			return nil, err
+		}
+
+		return fn(r, parsed)
 	}
 }
 
@@ -61,4 +70,8 @@ func (e *Entrypoint) Register(name string, fn func(r *SharedResource, args map[s
 	}
 
 	e.plugin.HandleFunction(&plugin.FunctionOptions{Name: name}, f)
+}
+
+func (e *Entrypoint) Close() {
+	e.shared.ConnectionStorage.Close()
 }

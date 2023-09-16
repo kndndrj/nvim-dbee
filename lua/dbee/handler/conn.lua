@@ -76,7 +76,7 @@ function Conn:new(ui, helpers, params, opts)
   local page_size = params.page_size or opts.fallback_page_size or 100
 
   -- register in go
-  local ok = vim.fn.Dbee_register_connection(id, expanded.url, type, tostring(page_size))
+  local ok = vim.fn.Dbee_register_connection { id = id, url = expanded.url, type = type }
   if not ok then
     error("problem adding connection")
   end
@@ -149,12 +149,12 @@ function Conn:execute(query, cb)
   self.page_index = 0
   self.page_ammount = 0
 
-  self.current_call_id = vim.fn.Dbee_execute(self.id, query, cb_id)
+  self.current_call_id = vim.fn.Dbee_execute { id = self.id, query = query, callback_id = cb_id }
 end
 
 ---@return call_details[]
 function Conn:list_calls()
-  local ret = vim.fn.json_decode(vim.fn.Dbee_list_calls(self.id))
+  local ret = vim.fn.Dbee_list_calls { id = self.id }
   if not ret or ret == vim.NIL then
     return {}
   end
@@ -164,12 +164,12 @@ end
 ---@param call_id? call_id
 function Conn:cancel_call(call_id)
   call_id = call_id or self.current_call_id
-  vim.fn.Dbee_cancel_call(self.id, call_id)
+  vim.fn.Dbee_cancel_call { id = self.id, call_id = call_id }
 end
 
 ---@param name string name of the database
 function Conn:switch_database(name)
-  vim.fn.Dbee_switch_database(self.id, name)
+  vim.fn.Dbee_switch_database { id = self.id, name = name }
 end
 
 function Conn:page_next()
@@ -203,7 +203,8 @@ function Conn:show_page(page)
   local winid, bufnr = self.ui:open()
 
   -- call go function
-  local length = vim.fn.Dbee_get_result(self.id, self.current_call_id, tostring(bufnr), tostring(from), tostring(to))
+  local length =
+    vim.fn.Dbee_get_result { id = self.id, call_id = self.current_call_id, buffer = bufnr, from = from, to = to }
 
   -- adjust page ammount
   self.page_ammount = math.floor(length / self.page_size)
@@ -235,7 +236,22 @@ function Conn:store(format, output, opts)
   local to = opts.to or -1
   local arg = opts.extra_arg or ""
 
-  vim.fn.Dbee_store(self.id, self.current_call_id, format, output, tostring(from), tostring(to), tostring(arg))
+  local args = {
+    id = self.id,
+    call_id = self.current_call_id,
+    format = format,
+    output = output,
+    from = from,
+    to = to,
+  }
+
+  if type(arg) == "number" then
+    args.buffer = arg
+  elseif type(arg) == "string" then
+    args.path = arg
+  end
+
+  vim.fn.Dbee_store(args)
 end
 
 ---@private
@@ -323,7 +339,7 @@ function Conn:layout()
     return new_layouts
   end
 
-  local layouts = to_layout(vim.fn.json_decode(vim.fn.Dbee_layout(self.id)), self.id)
+  local layouts = to_layout(vim.fn.Dbee_layout { id = self.id }, self.id)
 
   -- call history
   local calls = self:list_calls()

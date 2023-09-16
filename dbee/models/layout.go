@@ -1,6 +1,8 @@
 package models
 
-import "encoding/json"
+import (
+	"github.com/neovim/go-client/msgpack"
+)
 
 type LayoutType int
 
@@ -64,22 +66,22 @@ type Layout struct {
 	PickItems []string
 }
 
-func (s *Layout) MarshalJSON() ([]byte, error) {
-	return json.Marshal(&struct {
-		Name              string   `json:"name"`
-		Schema            string   `json:"schema"`
-		Database          string   `json:"database"`
-		Type              string   `json:"type"`
-		ChildrenSortOrder string   `json:"children_sort_order"`
-		Children          []Layout `json:"children"`
-		PickItems         []string `json:"pick_items"`
+func (l *Layout) MarshalMsgPack(enc *msgpack.Encoder) error {
+	return enc.Encode(&struct {
+		Name              string   `msgpack:"name"`
+		Schema            string   `msgpack:"schema"`
+		Database          string   `msgpack:"database"`
+		Type              string   `msgpack:"type"`
+		ChildrenSortOrder string   `msgpack:"children_sort_order"`
+		Children          []Layout `msgpack:"children"`
+		PickItems         []string `msgpack:"pick_items"`
 	}{
-		Name:              s.Name,
-		Schema:            s.Schema,
-		Database:          s.Database,
-		Type:              s.Type.String(),
-		ChildrenSortOrder: s.ChildrenSortOrder.String(),
-		Children:          s.Children,
-		PickItems:         s.PickItems,
+		Name:              l.Name,
+		Schema:            l.Schema,
+		Database:          l.Database,
+		Type:              l.Type.String(),
+		ChildrenSortOrder: l.ChildrenSortOrder.String(),
+		Children:          l.Children,
+		PickItems:         l.PickItems,
 	})
 }

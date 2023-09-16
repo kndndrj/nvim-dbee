@@ -3,7 +3,6 @@ package call
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log"
 	"strconv"
 	"testing"
@@ -210,8 +209,6 @@ func TestCache(t *testing.T) {
 
 				resultRows = append(resultRows, row)
 			}
-			fmt.Println(resultRows)
-			fmt.Println(tc.expectedResult)
 
 			assert.DeepEqual(t, tc.expectedResult, resultRows)
 		})
