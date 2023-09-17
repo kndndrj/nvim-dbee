@@ -13,21 +13,21 @@ import (
 )
 
 func main() {
-	var entry *vim.Entrypoint
+	var handler *hnd.Handler
 	defer func() {
-		entry.Close()
+		handler.Close()
 		// TODO: I'm sure this can be done prettier
 		time.Sleep(10 * time.Second)
 	}()
 
 	plugin.Main(func(p *plugin.Plugin) error {
-		entry = vim.NewEntrypoint(p)
-		handler := hnd.NewHandler(p.Nvim, vim.NewLogger(p.Nvim))
+		entry := vim.NewEntrypoint(p)
+		handler = hnd.NewHandler(p.Nvim, vim.NewLogger(p.Nvim))
 
 		entry.Register(
 			"DbeeCreateConnection",
 			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID   string `arg:"id"`
+				ID   string `arg:"id,optional"`
 				URL  string `arg:"url"`
 				Type string `arg:"type"`
 				Name string `arg:"name"`
@@ -53,12 +53,28 @@ func main() {
 
 		entry.Register(
 			"DbeeGetConnections",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				IDs []conn.ID `arg:"ids"`
-			},
-			) (any, error) {
-				return handler.GetConnections(args.IDs), nil
-			}))
+			func(r *vim.SharedResource, args map[string]any) (any, error) {
+				raw, ok := args["ids"]
+				if !ok {
+					return nil, nil
+				}
+
+				ids, ok := raw.([]any)
+				if !ok {
+					return nil, nil
+				}
+
+				is := make([]conn.ID, len(ids))
+				for i := range ids {
+					str, ok := ids[i].(string)
+					if !ok {
+						continue
+					}
+					is[i] = conn.ID(str)
+				}
+
+				return handler.GetConnections(is), nil
+			})
 
 		entry.Register(
 			"DbeeSetCurrentConnection",
@@ -96,6 +112,15 @@ func main() {
 			}))
 
 		entry.Register(
+			"DbeeConnGetParams",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID string `arg:"id"`
+			},
+			) (any, error) {
+				return handler.ConnGetParams(conn.ID(args.ID))
+			}))
+
+		entry.Register(
 			"DbeeConnGetStructure",
 			vim.Wrap(func(r *vim.SharedResource, args *struct {
 				ID string `arg:"id"`
@@ -126,20 +151,6 @@ func main() {
 			) (any, error) {
 				return nil, handler.ConnSelectDatabase(conn.ID(args.ID), args.Database)
 			}))
-
-		// func (*Handler).CreateConnection(spec *conn.Params) (conn.ID, error)
-		// func (*Handler).DeleteConnection(connID conn.ID)
-		// func (*Handler).GetConnections(ids []conn.ID) []*conn.Conn
-		// func (*Handler).SetCurrentConnection(connID conn.ID) error
-		// func (*Handler).GetCurrentConnection() (*conn.Conn, bool)
-		// func (*Handler).ConnExecute(connID conn.ID, query string) (*call.Stat, error)
-		// func (*Handler).ConnGetCalls(connID conn.ID) ([]*call.Stat, error)
-		// func (*Handler).ConnGetStructure(connID conn.ID) ([]models.Layout, error)
-		// func (*Handler).ConnListDatabases(connID conn.ID) (current string, available []string, err error)
-		// func (*Handler).ConnSelectDatabase(connID conn.ID, database string) error
-		// func (*Handler).CallCancel(callID call.StatID) error
-		// func (*Handler).CallDisplayResult(callID call.StatID, buffer nvim.Buffer, from int, to int) (int, error)
-		// func (*Handler).CallStoreResult(callID call.StatID, fmat string, out string, from int, to int, arg ...any) error
 
 		entry.Register(
 			"DbeeCallCancel",

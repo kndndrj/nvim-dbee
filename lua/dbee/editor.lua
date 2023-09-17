@@ -9,15 +9,17 @@ local SCRATCHES_DIR = vim.fn.stdpath("cache") .. "/dbee/scratches"
 ---@class Editor
 ---@field private ui Ui
 ---@field private handler Handler
+---@field private result Result
 ---@field private scratches table<scratch_id, scratch_details> id - scratch mapping
 ---@field private active_scratch scratch_id id of the current scratch
 local Editor = {}
 
 ---@param ui Ui
 ---@param handler Handler
+---@param result Result
 ---@param opts? editor_config
 ---@return Editor
-function Editor:new(ui, handler, opts)
+function Editor:new(ui, handler, result, opts)
   opts = opts or {}
 
   if not ui then
@@ -25,6 +27,9 @@ function Editor:new(ui, handler, opts)
   end
   if not handler then
     error("no Handler provided to Editor")
+  end
+  if not result then
+    error("no Result provided to Editor")
   end
 
   -- check for any existing scratches
@@ -51,6 +56,7 @@ function Editor:new(ui, handler, opts)
   local o = {
     ui = ui,
     handler = handler,
+    result = result,
     scratches = scratches,
     active_scratch = active or "",
   }
@@ -221,7 +227,12 @@ function Editor:generate_keymap(mappings)
         local lines = vim.api.nvim_buf_get_lines(bnr, 0, -1, false)
         local query = table.concat(lines, "\n")
 
-        self.handler:current_connection():execute(query)
+        local conn = self.handler:get_current_connection()
+        if not conn then
+          return
+        end
+        local call = self.handler:connection_execute(conn.id, query)
+        self.result:set_call(call)
       end,
       mapping = mappings["run_file"],
     },
@@ -232,7 +243,12 @@ function Editor:generate_keymap(mappings)
         local selection = vim.api.nvim_buf_get_text(0, srow, scol, erow, ecol, {})
         local query = table.concat(selection, "\n")
 
-        self.handler:current_connection():execute(query)
+        local conn = self.handler:get_current_connection()
+        if not conn then
+          return
+        end
+        local call = self.handler:connection_execute(conn.id, query)
+        self.result:set_call(call)
       end,
       mapping = mappings["run_selection"],
     },

@@ -10,7 +10,6 @@ local utils = require("dbee.utils")
 ---@field private page_size integer
 ---@field private page_index integer index of the current page
 ---@field private page_ammount integer number of pages in the current result set
----@field private old_calls table<call_id, boolean> lookup of past displayed calls
 local Result = {}
 
 ---@param ui Ui
@@ -35,7 +34,6 @@ function Result:new(ui, handler, opts)
     page_size = opts.page_size or 100,
     page_index = 0,
     page_ammount = 0,
-    old_calls = {},
   }
   setmetatable(o, self)
   self.__index = self
@@ -56,18 +54,18 @@ end
 function Result:on_call_state_changed(data)
   local call = data.call
 
-  -- check if it's an old call
-  if self.old_calls[call.id] then
+  -- we only care about the current call
+  if call.id ~= self.current_call.id then
     return
   end
 
-  -- update the current call
-  self.old_calls[self.current_call] = true
+  -- update the current call with up to date details
   self.current_call = call
 
-  -- action accordingly
+  -- perform action based on the state
   if call.state == "executing" then
     -- TODO: display progress
+    print("executing")
   elseif call.state == "retrieving" then
     self:page_current()
   else
@@ -140,6 +138,8 @@ function Result:set_call(call)
   self.page_index = 0
   self.page_ammount = 0
   self.current_call = call
+
+  -- TODO: stop progress
 end
 
 function Result:page_current()
@@ -300,7 +300,7 @@ function Result:current_row_range()
   -- get the selected line and extract the line number
   line = vim.api.nvim_buf_get_lines(self.ui:buffer(), row - 1, row, true)[1] or ""
 
-  local index_end = line:match("%d+")
+  local index_end = tonumber(line:match("%d+"))
   if not index_end then
     error("couldn't retrieve end row number")
   end

@@ -17,7 +17,7 @@ func init() {
 	c := func(url string) (conn.Client, error) {
 		return NewMysql(url)
 	}
-	_ = Store.Register("mysql", c)
+	_ = Store.Register(c, "mysql")
 }
 
 type MysqlClient struct {

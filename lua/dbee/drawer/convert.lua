@@ -5,13 +5,14 @@ local M = {}
 
 ---@param handler Handler
 ---@param conn connection_details
+---@param result Result
 ---@return Layout[]
-local function connection_layout(handler, conn)
+local function connection_layout(handler, conn, result)
   ---@param structs DBStructure[]
   ---@param parent_id string
   ---@return Layout[]
   local function to_layout(structs, parent_id)
-    if not structs then
+    if not structs or structs == vim.NIL then
       return {}
     end
 
@@ -36,11 +37,14 @@ local function connection_layout(handler, conn)
         local helper_opts = { table = struct.name, schema = struct.schema, materialization = struct.type }
         layout.action_1 = function(cb, selection)
           local helpers = handler:helpers_get(conn.type, helper_opts)
-          handler:connection_execute(conn.id, helpers[selection])
+          local call = handler:connection_execute(conn.id, helpers[selection])
+          result:set_call(call)
           cb()
         end
         layout.pick_items = function()
-          return handler:helpers_get(conn.type, helper_opts)
+          local items = vim.tbl_keys(handler:helpers_get(conn.type, helper_opts))
+          table.sort(items)
+          return items
         end
         layout.pick_title = "Select a Query"
       end
@@ -68,7 +72,8 @@ local function connection_layout(handler, conn)
         end, {
           on_select = function(call)
             if call.state == "archived" or call.state == "retrieving" then
-              -- TODO: display to result
+              result:set_call(call)
+              result:page_current()
             end
             cb()
           end,
@@ -102,8 +107,9 @@ local function connection_layout(handler, conn)
 end
 
 ---@param handler Handler
+---@param result Result
 ---@return Layout[]
-local function handler_layout_real(handler)
+local function handler_layout_real(handler, result)
   ---@type Layout[]
   local layout = {}
 
@@ -127,13 +133,13 @@ local function handler_layout_real(handler)
           }
           floats.prompt(prompt, {
             title = "Add Connection",
-            callback = function(result)
+            callback = function(res)
               local spec = {
-                id = result.id,
-                name = result.name,
-                url = result.url,
-                type = result.type,
-                page_size = tonumber(result["page size"]),
+                id = res.id,
+                name = res.name,
+                url = res.url,
+                type = res.type,
+                page_size = tonumber(res["page size"]),
               }
               pcall(handler.source_add_connections, handler, source_id, { spec })
               cb()
@@ -174,7 +180,10 @@ local function handler_layout_real(handler)
         end,
         -- edit connection
         action_2 = function(cb)
-          local original_details = conn:original_details()
+          local original_details = handler:connection_get_params(conn.id)
+          if not original_details then
+            return
+          end
           local prompt = {
             { name = "name", default = original_details.name },
             { name = "type", default = original_details.type },
@@ -183,14 +192,14 @@ local function handler_layout_real(handler)
           }
           floats.prompt(prompt, {
             title = "Edit Connection",
-            callback = function(result)
+            callback = function(res)
               local spec = {
                 -- keep the old id
                 id = original_details.id,
-                name = result.name,
-                url = result.url,
-                type = result.type,
-                page_size = tonumber(result["page size"]),
+                name = res.name,
+                url = res.url,
+                type = res.type,
+                page_size = tonumber(res["page size"]),
               }
               pcall(handler.source_add_connections, handler, source_id, { spec })
               cb()
@@ -207,7 +216,7 @@ local function handler_layout_real(handler)
           cb()
         end,
         children = function()
-          return connection_layout(handler, conn)
+          return connection_layout(handler, conn, result)
         end,
       }
 
@@ -252,13 +261,15 @@ local function handler_layout_help()
   }
 end
 
+---@param handler Handler
+---@param result Result
 ---@return Layout[]
-function M.handler_layout(handler)
+function M.handler_layout(handler, result)
   -- in case there are no sources defined, return a helper layout
   if #handler:get_sources() < 1 then
     return handler_layout_help()
   end
-  return handler_layout_real(handler)
+  return handler_layout_real(handler, result)
 end
 
 return M

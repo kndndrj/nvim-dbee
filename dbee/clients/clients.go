@@ -1,6 +1,7 @@
 package clients
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
@@ -17,13 +18,27 @@ type storage struct {
 // Store is an instance of the storage, available for public use
 var Store = storage{creators: make(map[string]creator)}
 
+var ErrNoValidTypeAliases = errors.New("no valid type aliases provided")
+
 // registers a new client by submitting a creator ("new") function
-func (s *storage) Register(alias string, creator creator) error {
-	if alias == "" {
-		return fmt.Errorf("registering a client requires a valid type alias")
+func (s *storage) Register(creator creator, aliases ...string) error {
+	if len(aliases) < 1 {
+		return ErrNoValidTypeAliases
 	}
 
-	s.creators[alias] = creator
+	invalidCount := 0
+	for _, al := range aliases {
+		if al == "" {
+			invalidCount++
+			continue
+		}
+		s.creators[al] = creator
+	}
+
+	if invalidCount == len(aliases) {
+		return ErrNoValidTypeAliases
+	}
+
 	return nil
 }
 

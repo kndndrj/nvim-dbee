@@ -34,6 +34,7 @@ local convert = require("dbee.drawer.convert")
 ---@field private tree table NuiTree
 ---@field private handler Handler
 ---@field private editor Editor
+---@field private result Result
 ---@field private mappings table<string, mapping>
 ---@field private candies table<string, Candy> map of eye-candy stuff (icons, highlight)
 ---@field private disable_help boolean show help or not
@@ -42,9 +43,10 @@ local Drawer = {}
 ---@param ui Ui
 ---@param handler Handler
 ---@param editor Editor
+---@param result Result
 ---@param opts? drawer_config
 ---@return Drawer
-function Drawer:new(ui, handler, editor, opts)
+function Drawer:new(ui, handler, editor, result, opts)
   opts = opts or {}
 
   if not ui then
@@ -55,6 +57,9 @@ function Drawer:new(ui, handler, editor, opts)
   end
   if not editor then
     error("no Editor provided to Drawer")
+  end
+  if not result then
+    error("no Result provided to Drawer")
   end
 
   local candies = {}
@@ -68,6 +73,7 @@ function Drawer:new(ui, handler, editor, opts)
     tree = nil,
     handler = handler,
     editor = editor,
+    result = result,
     mappings = opts.mappings or {},
     candies = candies,
     disable_help = opts.disable_help or false,
@@ -131,11 +137,11 @@ function Drawer:create_tree(bufnr)
       end
 
       -- apply a special highlight for active connection and active scratchpad
-      if self.handler:get_current_connection().id == node.id or self.editor:get_active_scratch() == node.id then
-        line:append(node.name, candy.icon_highlight)
-      else
-        line:append(node.name, candy.text_highlight)
-      end
+      -- if self.handler:get_current_connection().id == node.id or self.editor:get_active_scratch() == node.id then
+      --   line:append(node.name, candy.icon_highlight)
+      -- else
+      line:append(node.name, candy.text_highlight)
+      -- end
 
       return line
     end,
@@ -398,7 +404,7 @@ function Drawer:refresh()
     table.insert(layouts, ly)
   end
   table.insert(layouts, separator())
-  for _, ly in ipairs(convert.handler_layout(self.handler)) do
+  for _, ly in ipairs(convert.handler_layout(self.handler, self.result)) do
     table.insert(layouts, ly)
   end
 

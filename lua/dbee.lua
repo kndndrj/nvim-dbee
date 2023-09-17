@@ -66,8 +66,8 @@ local function lazy_setup()
     progress = m.config.progress_bar,
   })
   m.result = Result:new(result_ui, m.handler, m.config.result)
-  m.editor = Editor:new(editor_ui, m.handler, m.config.editor)
-  m.drawer = Drawer:new(drawer_ui, m.handler, m.editor, m.config.drawer)
+  m.editor = Editor:new(editor_ui, m.handler, m.result, m.config.editor)
+  m.drawer = Drawer:new(drawer_ui, m.handler, m.editor, m.result, m.config.drawer)
 
   m.handler:helpers_add(m.config.extra_helpers)
 end
@@ -204,14 +204,14 @@ function M.next()
   if not pcall_lazy_setup() then
     return
   end
-  m.handler:current_connection():page_next()
+  m.result:page_next()
 end
 
 function M.prev()
   if not pcall_lazy_setup() then
     return
   end
-  m.handler:current_connection():page_prev()
+  m.result:page_prev()
 end
 
 ---@param query string query to execute on currently selected connection
@@ -219,24 +219,27 @@ function M.execute(query)
   if not pcall_lazy_setup() then
     return
   end
-  m.handler:current_connection():execute(query)
-end
 
----@param format "csv"|"json" format of the output
----@param file string where to save the results
-function M.save(format, file)
-  utils.log("warn", "dbee.save() function has been deprecated, use dbee.store() instead.", "deprecated")
-  M.store(format, "file", { extra_arg = file })
+  local conn = m.handler:get_current_connection()
+  if not conn then
+    error("no current connection")
+  end
+
+  local call = m.handler:connection_execute(conn.id, query)
+  m.result:set_call(call)
 end
 
 ---@param format "csv"|"json"|"table" format of the output
 ---@param output "file"|"yank"|"buffer" where to pipe the results
----@param opts { from: number, to: number, extra_arg: any } argument for specific format/output combination - example file path or buffer number
+---@param opts { from: integer, to: integer, extra_arg: any } argument for specific format/output combination - example file path or buffer number
 function M.store(format, output, opts)
   if not pcall_lazy_setup() then
     return
   end
-  m.handler:current_connection():store(format, output, opts)
+  --- TODO: fix this on refactor
+  ---@diagnostic disable-next-line
+  local current_call = m.result.current_call
+  m.handler:call_store_result(current_call.id, format, output, opts)
 end
 
 ---@param command? install_command preffered command

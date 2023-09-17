@@ -12,7 +12,8 @@ func TestFuncArgs_Parse(t *testing.T) {
 		IntField     int    `arg:",optional"`
 		BoolField    bool   `arg:"some_bool,optional"`
 		Int64Field   int64
-		Float64Field float64 `arg:"some_float,optional"`
+		Float64Field float64  `arg:"some_float,optional"`
+		SliceField   []string `arg:"slice,optional"`
 	}
 
 	type testCase struct {

@@ -18,7 +18,7 @@ func init() {
 	c := func(url string) (conn.Client, error) {
 		return NewSQLServer(url)
 	}
-	_ = Store.Register("sqlserver", c)
+	_ = Store.Register(c, "sqlserver", "mssql")
 }
 
 type SQLServerClient struct {

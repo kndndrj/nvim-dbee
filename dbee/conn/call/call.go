@@ -191,7 +191,7 @@ func (c *Stat) setState(state State) {
 
 	// trigger event callback
 	if c.onEventFunc != nil {
-		c.onEventFunc(state)
+		go c.onEventFunc(state)
 	}
 }
 

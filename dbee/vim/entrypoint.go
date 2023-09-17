@@ -3,17 +3,14 @@ package vim
 import (
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"github.com/kndndrj/nvim-dbee/dbee/output"
-	"github.com/kndndrj/nvim-dbee/dbee/output/format"
 	"github.com/neovim/go-client/nvim"
 	"github.com/neovim/go-client/nvim/plugin"
 )
 
 type SharedResource struct {
-	ConnectionStorage *ConnectionStorage
-	Logger            models.Logger
-	Callbacker        *Callbacker
-	BufferOutput      *output.Buffer
-	Vim               *nvim.Nvim
+	Logger       models.Logger
+	BufferOutput *output.Buffer
+	Vim          *nvim.Nvim
 }
 
 type Entrypoint struct {
@@ -25,11 +22,8 @@ func NewEntrypoint(p *plugin.Plugin) *Entrypoint {
 	return &Entrypoint{
 		plugin: p,
 		shared: &SharedResource{
-			Vim:               p.Nvim,
-			ConnectionStorage: NewConnectionStorage(),
-			Logger:            NewLogger(p.Nvim),
-			Callbacker:        NewCallbacker(p.Nvim),
-			BufferOutput:      output.NewBuffer(p.Nvim, format.NewTable()),
+			Vim:    p.Nvim,
+			Logger: NewLogger(p.Nvim),
 		},
 	}
 }
@@ -70,8 +64,4 @@ func (e *Entrypoint) Register(name string, fn func(r *SharedResource, args map[s
 	}
 
 	e.plugin.HandleFunction(&plugin.FunctionOptions{Name: name}, f)
-}
-
-func (e *Entrypoint) Close() {
-	e.shared.ConnectionStorage.Close()
 }

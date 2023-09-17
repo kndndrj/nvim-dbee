@@ -14,7 +14,7 @@ local event_bus = require("dbee.handler.__callbacks")
 -- Handler is an aggregator of connections
 ---@class Handler
 ---@field private ui Ui ui for results
----@field private sources Source[]
+---@field private sources table<source_id, Source>
 ---@field private source_conn_lookup table<string, conn_id[]>
 ---@field private helpers Helpers query helpers
 ---@field private opts handler_config
@@ -68,7 +68,11 @@ end
 
 ---@return Source[]
 function Handler:get_sources()
-  return self.sources
+  local sources = vim.tbl_values(self.sources)
+  table.sort(sources, function(k1, k2)
+    return k1:name() < k2:name()
+  end)
+  return sources
 end
 
 ---@param id source_id
@@ -79,12 +83,11 @@ function Handler:source_reload(id)
   end
 
   -- add new connections
+  self.source_conn_lookup[id] = {}
   for _, spec in ipairs(source:load()) do
-    -- TODO call go
-    vim.print(spec)
+    local conn_id = vim.fn.DbeeCreateConnection(spec)
+    table.insert(self.source_conn_lookup[id], conn_id)
   end
-
-  -- TODO add to source_conn_lookup
 end
 
 ---@param id source_id
@@ -129,11 +132,20 @@ end
 ---@return connection_details[]
 function Handler:source_get_connections(id)
   local conn_ids = self.source_conn_lookup[id] or {}
+  if #conn_ids < 1 then
+    return {}
+  end
 
-  local ret = vim.fn.DbeeGetConnections(conn_ids)
+  ---@type connection_details[]?
+  local ret = vim.fn.DbeeGetConnections { ids = conn_ids }
   if not ret or ret == vim.NIL then
     return {}
   end
+
+  table.sort(ret, function(k1, k2)
+    return k1.name < k2.name
+  end)
+
   return ret
 end
 
@@ -160,22 +172,32 @@ end
 
 ---@param id conn_id
 function Handler:set_current_connection(id)
-  vim.fn.DbeeSetCurrentConnection(id)
+  vim.fn.DbeeSetCurrentConnection { id = id }
 end
 
 ---@param id conn_id
 ---@param query string
 ---@return call_details
 function Handler:connection_execute(id, query)
-  return vim.fn.DbeeConnExecute(id, query)
+  return vim.fn.DbeeConnExecute { id = id, query = query }
 end
 
 ---@param id conn_id
 ---@return Layout[]
 function Handler:connection_get_structure(id)
-  local ret = vim.fn.DbeeConnGetStructure(id)
+  local ret = vim.fn.DbeeConnGetStructure { id = id }
   if not ret or ret == vim.NIL then
     return {}
+  end
+  return ret
+end
+
+---@param id conn_id
+---@return connection_details?
+function Handler:connection_get_params(id)
+  local ret = vim.fn.DbeeConnGetParams { id = id }
+  if not ret or ret == vim.NIL then
+    return
   end
   return ret
 end
@@ -184,19 +206,19 @@ end
 ---@return string current_db
 ---@return string[] available_dbs
 function Handler:connection_list_databases(id)
-  return vim.fn.DbeeConnListDatabases(id)
+  return unpack(vim.fn.DbeeConnListDatabases { id = id })
 end
 
 ---@param id conn_id
 ---@param database string
 function Handler:connection_select_database(id, database)
-  vim.fn.DbeeConnSelectDatabase(id, database)
+  vim.fn.DbeeConnSelectDatabase { id = id, database = database }
 end
 
 ---@param id conn_id
 ---@return call_details[]
 function Handler:connection_get_calls(id)
-  local ret = vim.fn.DbeeConnGetCalls(id)
+  local ret = vim.fn.DbeeConnGetCalls { id = id }
   if not ret or ret == vim.NIL then
     return {}
   end
@@ -205,7 +227,7 @@ end
 
 ---@param id call_id
 function Handler:call_cancel(id)
-  vim.fn.DbeeCallCancel(id)
+  vim.fn.DbeeCallCancel { id = id }
 end
 
 ---@param id call_id
@@ -214,20 +236,37 @@ end
 ---@param to integer
 ---@return integer # total number of rows
 function Handler:call_display_result(id, bufnr, from, to)
-  return vim.fn.DbeeDisplayResult(id, bufnr, from, to)
+  return vim.fn.DbeeCallDisplayResult { id = id, buffer = bufnr, from = from, to = to }
 end
 
 ---@param id call_id
 ---@param format "csv"|"json"|"table" format of the output
 ---@param output "file"|"yank"|"buffer" where to pipe the results
----@param opts { from: number, to: number, extra_arg: any }
+---@param opts { from: integer, to: integer, extra_arg: any }
 function Handler:call_store_result(id, format, output, opts)
   opts = opts or {}
 
-  opts.from = opts.from or 0
-  opts.to = opts.to or -1
+  local from = opts.from or 0
+  local to = opts.to or -1
 
-  vim.fn.DbeeStoreResult(id, format, output, opts.from, opts.to, opts.extra_arg)
+  local path
+  if output == "file" then
+    path = opts.extra_arg
+  end
+  local bufnr
+  if output == "buffer" then
+    bufnr = opts.extra_arg
+  end
+
+  vim.fn.DbeeCallStoreResult {
+    id = id,
+    format = format,
+    output = output,
+    from = from,
+    to = to,
+    path = path,
+    bufnr = bufnr,
+  }
 end
 
 return Handler

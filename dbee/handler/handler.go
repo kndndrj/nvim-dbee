@@ -18,18 +18,17 @@ import (
 
 type eventBus struct {
 	vim *nvim.Nvim
+	log models.Logger
 }
 
-func (eb *eventBus) callLua(event string, data string) error {
+func (eb *eventBus) callLua(event string, data string) {
 	err := eb.vim.ExecLua(fmt.Sprintf(`require("dbee.handler.__callbacks").trigger(%q, %s)`, event, data), nil)
 	if err != nil {
-		return fmt.Errorf("eb.vim.ExecLua: %w", err)
+		eb.log.Debugf("eb.vim.ExecLua: %s", err)
 	}
-
-	return nil
 }
 
-func (eb *eventBus) CallStateChanged(call *call.Stat) error {
+func (eb *eventBus) CallStateChanged(call *call.Stat) {
 	data := fmt.Sprintf(`{
 		call = {
 			id = %q,
@@ -44,17 +43,15 @@ func (eb *eventBus) CallStateChanged(call *call.Stat) error {
 		call.Took.Microseconds(),
 		call.Timestamp.UnixMicro())
 
-	// trigger callback
-	return eb.callLua("call_state_changed", data)
+	eb.callLua("call_state_changed", data)
 }
 
-func (eb *eventBus) CurrentConnectionChanged(id conn.ID) error {
+func (eb *eventBus) CurrentConnectionChanged(id conn.ID) {
 	data := fmt.Sprintf(`{
 		conn_id = %q,
 	}`, id)
 
-	// trigger callback
-	return eb.callLua("current_connection_changed", data)
+	eb.callLua("current_connection_changed", data)
 }
 
 type Handler struct {
@@ -74,10 +71,20 @@ func NewHandler(vim *nvim.Nvim, logger models.Logger) *Handler {
 	return &Handler{
 		vim: vim,
 		log: logger,
+		events: &eventBus{
+			vim: vim,
+			log: logger,
+		},
 
 		lookupConn:     make(map[conn.ID]*conn.Conn),
 		lookupStat:     make(map[call.StatID]*call.Stat),
 		lookupConnStat: make(map[conn.ID][]call.StatID),
+	}
+}
+
+func (h *Handler) Close() {
+	for _, c := range h.lookupConn {
+		c.Close()
 	}
 }
 
@@ -89,17 +96,22 @@ func (h *Handler) CreateConnection(spec *conn.Params) (conn.ID, error) {
 
 	driver, err := clients.NewFromType(spec.URL, spec.Type)
 	if err != nil {
-		return "", fmt.Errorf("clients.NewFromType: %w")
+		return "", fmt.Errorf("clients.NewFromType: %w", err)
 	}
 
-	c := conn.New(spec, driver, h.log)
+	c := conn.New(spec, driver)
 
-	h.lookupConn[c.ID] = c
+	h.lookupConn[c.GetID()] = c
 
-	return c.ID, nil
+	return c.GetID(), nil
 }
 
 func (h *Handler) DeleteConnection(connID conn.ID) {
+	c, ok := h.lookupConn[connID]
+	if !ok {
+		return
+	}
+	c.Close()
 	delete(h.lookupConn, connID)
 }
 
@@ -107,7 +119,7 @@ func (h *Handler) GetConnections(ids []conn.ID) []*conn.Conn {
 	var conns []*conn.Conn
 
 	for _, c := range h.lookupConn {
-		if len(ids) > 0 && !slices.Contains(ids, c.ID) {
+		if len(ids) > 0 && !slices.Contains(ids, c.GetID()) {
 			continue
 		}
 		conns = append(conns, c)
@@ -162,7 +174,7 @@ func (h *Handler) ConnExecute(connID conn.ID, query string) (*call.Stat, error) 
 
 	// update current call and conn
 	h.currentStatID = id
-	h.SetCurrentConnection(connID)
+	_ = h.SetCurrentConnection(connID)
 
 	return stat, nil
 }
@@ -189,13 +201,22 @@ func (h *Handler) ConnGetCalls(connID conn.ID) ([]*call.Stat, error) {
 	return calls, nil
 }
 
+func (h *Handler) ConnGetParams(connID conn.ID) (*conn.Params, error) {
+	c, ok := h.lookupConn[connID]
+	if !ok {
+		return nil, fmt.Errorf("unknown connection with id: %q", connID)
+	}
+
+	return c.GetParams(), nil
+}
+
 func (h *Handler) ConnGetStructure(connID conn.ID) ([]models.Layout, error) {
 	c, ok := h.lookupConn[connID]
 	if !ok {
 		return nil, fmt.Errorf("unknown connection with id: %q", connID)
 	}
 
-	layout, err := c.Structure()
+	layout, err := c.GetStructure()
 	if err != nil {
 		return nil, fmt.Errorf("conn.Layout: %w", err)
 	}

@@ -35,12 +35,18 @@ call remote#host#Register('nvim_dbee', 'x', function('s:Start_dbee'))
 " name you use in the above call to remote#host#Register. e.g. in this case
 " the 'host' name is 'nvim_go_client_example'.
 call remote#host#RegisterPlugin('nvim_dbee', '0', [
-\ {'type': 'function', 'name': 'Dbee_cancel_call', 'sync': 1, 'opts': {}},
-\ {'type': 'function', 'name': 'Dbee_execute', 'sync': 1, 'opts': {}},
-\ {'type': 'function', 'name': 'Dbee_get_result', 'sync': 1, 'opts': {}},
-\ {'type': 'function', 'name': 'Dbee_layout', 'sync': 1, 'opts': {}},
-\ {'type': 'function', 'name': 'Dbee_list_calls', 'sync': 1, 'opts': {}},
-\ {'type': 'function', 'name': 'Dbee_register_connection', 'sync': 1, 'opts': {}},
-\ {'type': 'function', 'name': 'Dbee_store', 'sync': 1, 'opts': {}},
-\ {'type': 'function', 'name': 'Dbee_switch_database', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'DbeeCallCancel', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'DbeeCallDisplayResult', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'DbeeCallStoreResult', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'DbeeConnExecute', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'DbeeConnGetCalls', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'DbeeConnGetParams', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'DbeeConnGetStructure', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'DbeeConnListDatabases', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'DbeeConnSelectDatabase', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'DbeeCreateConnection', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'DbeeDeleteConnection', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'DbeeGetConnections', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'DbeeGetCurrentConnection', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'DbeeSetCurrentConnection', 'sync': 1, 'opts': {}},
 \ ])

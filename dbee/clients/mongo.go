@@ -22,7 +22,7 @@ func init() {
 	c := func(url string) (conn.Client, error) {
 		return NewMongo(url)
 	}
-	_ = Store.Register("mongo", c)
+	_ = Store.Register(c, "mongo", "mongodb")
 
 	// register known types with gob
 	// full list available in go.mongodb.org/.../bson godoc

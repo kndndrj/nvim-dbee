@@ -2,12 +2,14 @@ package conn
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/neovim/go-client/msgpack"
 )
 
 var ErrDatabaseSwitchingNotSupported = errors.New("database switching not supported")
@@ -29,16 +31,6 @@ type (
 
 type ID string
 
-type Conn struct {
-	ID   ID
-	Name string
-	Type string
-	URL  string
-
-	driver Client
-	log    models.Logger
-}
-
 type Params struct {
 	ID   ID
 	Name string
@@ -46,28 +38,94 @@ type Params struct {
 	URL  string
 }
 
-func New(params *Params, driver Client, logger models.Logger) *Conn {
-	id := params.ID
-	if id == "" {
-		id = ID(uuid.New().String())
+// Expand returns a copy of the original parameters with expanded fields
+func (p *Params) Expand() *Params {
+	return &Params{
+		ID:   ID(expand(string(p.ID))),
+		Name: expand(p.Name),
+		Type: expand(p.Type),
+		URL:  expand(p.URL),
+	}
+}
+
+type paramsPersistent struct {
+	ID   string `msgpack:"id" json:"id"`
+	Name string `msgpack:"name" json:"name"`
+	Type string `msgpack:"type" json:"type"`
+	URL  string `msgpack:"url" json:"url"`
+}
+
+func (s *Params) toPersistent() *paramsPersistent {
+	return &paramsPersistent{
+		ID:   string(s.ID),
+		Name: s.Name,
+		Type: s.Type,
+		URL:  s.URL,
+	}
+}
+
+func (p *Params) MarshalMsgPack(enc *msgpack.Encoder) error {
+	return enc.Encode(p.toPersistent())
+}
+
+func (p *Params) MarshalJSON() ([]byte, error) {
+	return json.Marshal(p.toPersistent())
+}
+
+type Conn struct {
+	params           *Params
+	unexpandedParams *Params
+
+	driver Client
+}
+
+func (s *Conn) MarshalMsgPack(enc *msgpack.Encoder) error {
+	return enc.Encode(s.params)
+}
+
+func (s *Conn) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.params)
+}
+
+func New(params *Params, driver Client) *Conn {
+	expanded := params.Expand()
+
+	if expanded.ID == "" {
+		expanded.ID = ID(uuid.New().String())
 	}
 
 	c := &Conn{
-		ID:   id,
-		Name: params.Name,
-		Type: params.Type,
-		URL:  params.URL,
+		params:           expanded,
+		unexpandedParams: params,
 
 		driver: driver,
-		log:    logger,
 	}
 
 	return c
 }
 
-func (c *Conn) Execute(query string, onEvent func(state call.State)) *call.Stat {
-	c.log.Debugf("executing query: %q", query)
+func (c *Conn) GetID() ID {
+	return c.params.ID
+}
 
+func (c *Conn) GetName() string {
+	return c.params.Name
+}
+
+func (c *Conn) GetType() string {
+	return c.params.Type
+}
+
+func (c *Conn) GetURL() string {
+	return c.params.URL
+}
+
+// GetParams returns the original source for this connection
+func (c *Conn) GetParams() *Params {
+	return c.unexpandedParams
+}
+
+func (c *Conn) Execute(query string, onEvent func(state call.State)) *call.Stat {
 	exec := func(ctx context.Context) (models.IterResult, error) {
 		return c.driver.Query(ctx, query)
 	}
@@ -105,7 +163,7 @@ func (c *Conn) ListDatabases() (current string, available []string, err error) {
 	return currentDB, availableDBs, nil
 }
 
-func (c *Conn) Structure() ([]models.Layout, error) {
+func (c *Conn) GetStructure() ([]models.Layout, error) {
 	// structure
 	structure, err := c.driver.Layout()
 	if err != nil {

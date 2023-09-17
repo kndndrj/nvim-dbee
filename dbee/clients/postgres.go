@@ -19,7 +19,7 @@ func init() {
 	c := func(url string) (conn.Client, error) {
 		return NewPostgres(url)
 	}
-	_ = Store.Register("postgres", c)
+	_ = Store.Register(c, "postgres", "postgresql", "pg")
 }
 
 type PostgresClient struct {
