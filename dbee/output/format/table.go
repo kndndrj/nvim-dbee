@@ -1,15 +1,14 @@
 package format
 
 import (
-	"io"
-
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
+
+	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
-	"github.com/kndndrj/nvim-dbee/dbee/output"
 )
 
-var _ output.Formatter = (*Table)(nil)
+var _ call.Formatter = (*Table)(nil)
 
 type Table struct{}
 
@@ -17,24 +16,15 @@ func NewTable() *Table {
 	return &Table{}
 }
 
-func (cf *Table) Name() string {
-	return "table"
-}
-
-func (cf *Table) Format(result models.IterResult, writer io.Writer) error {
+func (tf *Table) Format(header models.Header, rows []models.Row, meta *models.Meta) ([]byte, error) {
 	tableHeaders := []any{""}
-	for _, k := range result.Header() {
+	for _, k := range header {
 		tableHeaders = append(tableHeaders, k)
 	}
-	index := result.Meta().ChunkStart
+	index := meta.ChunkStart
 
 	var tableRows []table.Row
-	for result.HasNext() {
-		row, err := result.Next()
-		if err != nil {
-			return err
-		}
-
+	for _, row := range rows {
 		indexedRow := append([]any{index + 1}, row...)
 		tableRows = append(tableRows, table.Row(indexedRow))
 		index += 1
@@ -53,9 +43,5 @@ func (cf *Table) Format(result models.IterResult, writer io.Writer) error {
 	t.Style().Options.DrawBorder = false
 	render := t.Render()
 
-	_, err := writer.Write([]byte(render))
-	if err != nil {
-		return err
-	}
-	return nil
+	return []byte(render), nil
 }

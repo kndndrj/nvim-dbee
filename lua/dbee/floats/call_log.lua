@@ -52,7 +52,7 @@ local function create_tree(bufnr)
         line:append(" | ", "NonText")
         line:append(make_length(call.query, 40))
         line:append(" | ", "NonText")
-        line:append(os.date("%c", (call.timestamp or 0) / 1000000))
+        line:append(os.date("%c", (call.timestamp_us or 0) / 1000000))
         return line
       end,
       get_node_id = function(node)
@@ -108,7 +108,7 @@ function M.call_log(call_getter, opts)
     local nodes = {}
     local calls = call_getter()
     table.sort(calls, function(k1, k2)
-      return k1.timestamp > k2.timestamp
+      return k1.timestamp_us > k2.timestamp_us
     end)
     for _, c in ipairs(calls) do
       table.insert(nodes, NuiTree.Node { id = tostring(math.random()), call = c })

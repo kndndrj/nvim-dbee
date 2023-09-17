@@ -12,17 +12,8 @@ local floats = require("dbee.floats")
 
 -- call details represent a single call to database
 ---@alias call_id string
----@alias call_state "uninitialized"|"executing"|"caching"|"cached"|"archived"|"failed"
----@alias call_details { id: call_id, took: duration, query: string, state: call_state, timestamp: timestamp }
-
----@class _LayoutGo
----@field name string display name
----@field type ""|"table"|"history"|"database_switch"|"view" type of layout -> this infers action
----@field schema? string parent schema
----@field database? string parent database
----@field children_sort_order "asc"|"desc"
----@field children? _LayoutGo[] child layout nodes
----@field pick_items?  string[] pick items
+---@alias call_state "uninitialized"|"executing"|"retrieving"|"archived"|"failed"|"canceled"
+---@alias call_details { id: call_id, took_us: duration, query: string, state: call_state, timestamp_us: timestamp }
 
 -- Conn is a 1:1 mapping to go's connections
 ---@class Conn
@@ -279,7 +270,7 @@ end
 -- get layout for the connection
 ---@return Layout[]
 function Conn:layout()
-  ---@param layout_go _LayoutGo[] layout from go
+  ---@param layout_go DBStructure[] layout from go
   ---@param parent_id string
   ---@param sort_order? "asc"|"desc"
   ---@return Layout[] layout with actions

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
@@ -21,7 +22,7 @@ func NewFile(fileName string, formatter Formatter, logger models.Logger) *File {
 	}
 }
 
-func (co *File) Write(result models.IterResult) error {
+func (co *File) Write(result *call.CacheResult) error {
 	file, err := os.Create(co.fileName)
 	if err != nil {
 		return err

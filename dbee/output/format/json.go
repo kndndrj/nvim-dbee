@@ -3,13 +3,12 @@ package format
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 
+	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
-	"github.com/kndndrj/nvim-dbee/dbee/output"
 )
 
-var _ output.Formatter = (*JSON)(nil)
+var _ call.Formatter = (*JSON)(nil)
 
 type JSON struct{}
 
@@ -21,17 +20,10 @@ func (jf *JSON) Name() string {
 	return "json"
 }
 
-func (jf *JSON) parseSchemaFul(result models.IterResult) ([]map[string]any, error) {
+func (jf *JSON) parseSchemaFul(header models.Header, rows []models.Row, meta *models.Meta) []map[string]any {
 	var data []map[string]any
 
-	header := result.Header()
-
-	for result.HasNext() {
-		row, err := result.Next()
-		if err != nil {
-			return nil, err
-		}
-
+	for _, row := range rows {
 		record := make(map[string]any, len(row))
 		for i, val := range row {
 			var h string
@@ -44,46 +36,38 @@ func (jf *JSON) parseSchemaFul(result models.IterResult) ([]map[string]any, erro
 		}
 		data = append(data, record)
 	}
-	return data, nil
+
+	return data
 }
 
-func (jf *JSON) parseSchemaLess(result models.IterResult) ([]any, error) {
+func (jf *JSON) parseSchemaLess(header models.Header, rows []models.Row, meta *models.Meta) []any {
 	var data []any
 
-	for result.HasNext() {
-		row, err := result.Next()
-		if err != nil {
-			return nil, err
-		}
-
+	for _, row := range rows {
 		if len(row) == 1 {
 			data = append(data, row[0])
 		} else if len(row) > 1 {
 			data = append(data, row)
 		}
 	}
-	return data, nil
+	return data
 }
 
-func (jf *JSON) Format(result models.IterResult, writer io.Writer) error {
+func (jf *JSON) Format(header models.Header, rows []models.Row, meta *models.Meta) ([]byte, error) {
 	var data any
-	var err error
-	switch result.Meta().SchemaType {
+	switch meta.SchemaType {
 	case models.SchemaLess:
-		data, err = jf.parseSchemaLess(result)
+		data = jf.parseSchemaLess(header, rows, meta)
 	case models.SchemaFul:
 		fallthrough
 	default:
-		data, err = jf.parseSchemaFul(result)
-	}
-	if err != nil {
-		return err
+		data = jf.parseSchemaFul(header, rows, meta)
 	}
 
-	encoder := json.NewEncoder(writer)
-	err = encoder.Encode(data)
+	out, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("json.MarshalIndent: %w", err)
 	}
-	return nil
+
+	return out, nil
 }

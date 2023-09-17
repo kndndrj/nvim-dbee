@@ -1,4 +1,4 @@
-package call
+package cache
 
 import (
 	"encoding/gob"
@@ -8,8 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
+	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
 func init() {
@@ -21,56 +23,34 @@ const archiveBasePath = "/tmp/dbee-history/"
 
 // these variables create a file name for a specified type
 var (
-	archiveDir = func(callID StatID) string {
-		return filepath.Join(archiveBasePath, string(callID))
+	archiveDir = func(callID string) string {
+		return filepath.Join(archiveBasePath, callID)
 	}
 
-	metaFile = func(callID StatID) string {
+	callFile = func(callID string) string {
+		return filepath.Join(archiveDir(callID), "call.gob")
+	}
+	metaFile = func(callID string) string {
 		return filepath.Join(archiveDir(callID), "meta.gob")
 	}
-	headerFile = func(callID StatID) string {
+	headerFile = func(callID string) string {
 		return filepath.Join(archiveDir(callID), "header.gob")
 	}
-	rowFile = func(callID StatID, i int) string {
+	rowFile = func(callID string, i int) string {
 		return filepath.Join(archiveDir(callID), fmt.Sprintf("row_%d.gob", i))
 	}
 )
 
-type archive struct {
-	id       StatID
-	isFilled bool
-}
-
-func newArchive(id StatID) *archive {
-	isFilled := true
-	_, err := os.Stat(archiveDir(id))
-	if os.IsNotExist(err) {
-		isFilled = false
-	}
-	return &archive{
-		id:       id,
-		isFilled: isFilled,
-	}
-}
-
-func (a *archive) getPath() string {
-	return archiveDir(a.id)
-}
-
-func (a *archive) isEmpty() bool {
-	return !a.isFilled
-}
-
 // archive stores the cache record to disk as a set of gob files
-func (a *archive) setResult(result *CacheResult) error {
-	if a.isFilled {
-		return nil
-	}
+func (c *cache) archive(record *cacheRecord) error {
+	call := record.call
+	result := record.result
+	id := call.GetDetails().ID
 
 	// create the directory for the history record
-	err := os.MkdirAll(archiveDir(a.id), os.ModePerm)
+	err := os.MkdirAll(archiveDir(id), os.ModePerm)
 	if err != nil {
-		return fmt.Errorf("os.MkdirAll: %w", err)
+		return err
 	}
 
 	// serialize the data
@@ -81,27 +61,27 @@ func (a *archive) setResult(result *CacheResult) error {
 	// row_n.gob - n-th row
 
 	// header
-	file, err := os.Create(headerFile(a.id))
+	file, err := os.Create(headerFile(id))
 	if err != nil {
-		return fmt.Errorf("os.Create: %w", err)
+		return err
 	}
 	defer file.Close()
 
 	encoder := gob.NewEncoder(file)
-	err = encoder.Encode(result.Header())
+	err = encoder.Encode(result.header)
 	if err != nil {
-		return fmt.Errorf("encoder.Encode: %w", err)
+		return err
 	}
 
 	// meta
-	file, err = os.Create(metaFile(a.id))
+	file, err = os.Create(metaFile(id))
 	if err != nil {
 		return err
 	}
 	defer file.Close()
 
 	encoder = gob.NewEncoder(file)
-	err = encoder.Encode(*result.Meta())
+	err = encoder.Encode(*result.meta)
 	if err != nil {
 		return err
 	}
@@ -122,24 +102,21 @@ func (a *archive) setResult(result *CacheResult) error {
 			if chunkEnd > length {
 				chunkEnd = length
 			}
-			chunk, err := result.Rows(chunkStart, chunkEnd)
-			if err != nil {
-				return err
-			}
+			chunk := result.rows[chunkStart:chunkEnd]
 			if len(chunk) == 0 {
 				return nil
 			}
 
-			file, err := os.Create(rowFile(a.id, i))
+			file, err := os.Create(rowFile(id, i))
 			if err != nil {
-				return fmt.Errorf("os.Create: %w", err)
+				return err
 			}
 			defer file.Close()
 
 			encoder := gob.NewEncoder(file)
 			err = encoder.Encode(chunk)
 			if err != nil {
-				return fmt.Errorf("encoder.Encode: %w", err)
+				return err
 			}
 
 			return nil
@@ -149,98 +126,70 @@ func (a *archive) setResult(result *CacheResult) error {
 		return err
 	}
 
-	a.isFilled = true
+	return nil
+}
+
+func (c *cache) archiveCall(call *call.Call) error {
+	file, err := os.Create(callFile(call.GetDetails().ID))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	encoder := gob.NewEncoder(file)
+	err = encoder.Encode(*call.GetDetails())
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
 
-// unarchive loads result from archive in form of an iterator
-func (a *archive) getResult() (*archiveRows, error) {
-	if !a.isFilled {
-		return nil, errors.New("archive does not contain a result")
+// unarchive loads data from archive and starts filling cache
+func (c *cache) unarchive(id string) error {
+	rows, err := newArchiveRows(c.historyDir)
+	if err != nil {
+		return err
 	}
-	return newArchiveRows(a.id)
+
+	err = c.setResult(id, rows)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type archiveRows struct {
-	id      StatID
 	header  models.Header
 	meta    *models.Meta
 	iter    func() (models.Row, error)
 	hasNext func() bool
 }
 
-func newArchiveRows(id StatID) (*archiveRows, error) {
+func newArchiveRows(callID string) (*archiveRows, error) {
+	// read header and metadata
+	header, meta, err := readHeaderAndMeta(dir)
+	if err != nil {
+		return nil, err
+	}
+
 	r := &archiveRows{
-		id: id,
+		header: header,
+		meta:   meta,
 	}
 
-	err := r.readHeader()
-	if err != nil {
-		return nil, err
-	}
-	err = r.readMeta()
-	if err != nil {
-		return nil, err
-	}
-
-	r.readIter()
-
-	return r, nil
-}
-
-func (r *archiveRows) readHeader() error {
-	// header
-	var header models.Header
-	file, err := os.Open(headerFile(r.id))
-	if err != nil {
-		return fmt.Errorf("os.Open: %w", err)
-	}
-	defer file.Close()
-
-	decoder := gob.NewDecoder(file)
-	err = decoder.Decode(&header)
-	if err != nil {
-		return fmt.Errorf("decoder.Decode: %w", err)
-	}
-
-	r.header = header
-
-	return nil
-}
-
-func (r *archiveRows) readMeta() error {
-	// meta
-	var meta models.Meta
-	file, err := os.Open(metaFile(r.id))
-	if err != nil {
-		return fmt.Errorf("os.Open: %w", err)
-	}
-	defer file.Close()
-
-	decoder := gob.NewDecoder(file)
-	err = decoder.Decode(&meta)
-	if err != nil {
-		return fmt.Errorf("decoder.Decode: %w", err)
-	}
-
-	r.meta = &meta
-
-	return nil
-}
-
-func (r *archiveRows) readIter() {
 	// open the first file if it exists,
 	// loop through its contents and try the next file
 	fileExists := func(rowIndex int) bool {
-		_, err := os.Stat(rowFile(r.id, rowIndex))
+		fileName := filepath.Join(dir, rowFile(rowIndex))
+		_, err = os.Stat(fileName)
 		return err == nil
 	}
 
 	// nextFile returns the contents of the next rows file
 	index := 0
 	nextFile := func() (resultRows []models.Row, err error, isLast bool) {
-		file, err := os.Open(rowFile(r.id, index))
+		file, err := os.Open(filepath.Join(dir, rowFile(index)))
 		if err != nil {
 			return nil, err, false
 		}
@@ -289,6 +238,42 @@ func (r *archiveRows) readIter() {
 	r.hasNext = func() bool {
 		return hasNext
 	}
+
+	return r, nil
+}
+
+func (r *archiveRows) readHeaderAndMeta(dir string) (models.Header, *models.Meta, error) {
+	// header
+	var header models.Header
+	fileName := filepath.Join(dir, headerFilename)
+	file, err := os.Open(fileName)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer file.Close()
+
+	decoder := gob.NewDecoder(file)
+	err = decoder.Decode(&header)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// meta
+	var meta models.Meta
+	fileName = filepath.Join(dir, metaFilename)
+	file, err = os.Open(fileName)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer file.Close()
+
+	decoder = gob.NewDecoder(file)
+	err = decoder.Decode(&meta)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return header, &meta, nil
 }
 
 func (r *archiveRows) Meta() *models.Meta {

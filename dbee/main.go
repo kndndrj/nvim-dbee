@@ -1,17 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/neovim/go-client/nvim"
 	"github.com/neovim/go-client/nvim/plugin"
 
-	"github.com/kndndrj/nvim-dbee/dbee/clients"
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
 	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
-	"github.com/kndndrj/nvim-dbee/dbee/output"
-	"github.com/kndndrj/nvim-dbee/dbee/output/format"
+	hnd "github.com/kndndrj/nvim-dbee/dbee/handler"
 	"github.com/kndndrj/nvim-dbee/dbee/vim"
 )
 
@@ -25,145 +22,150 @@ func main() {
 
 	plugin.Main(func(p *plugin.Plugin) error {
 		entry = vim.NewEntrypoint(p)
+		handler := hnd.NewHandler(p.Nvim, vim.NewLogger(p.Nvim))
 
 		entry.Register(
-			"Dbee_register_connection",
+			"DbeeCreateConnection",
 			vim.Wrap(func(r *vim.SharedResource, args *struct {
 				ID   string `arg:"id"`
 				URL  string `arg:"url"`
 				Type string `arg:"type"`
+				Name string `arg:"name"`
 			},
 			) (any, error) {
-				// Get the right client
-				client, err := clients.NewFromType(args.URL, args.Type)
-				if err != nil {
-					return false, err
-				}
-
-				r.ConnectionStorage.Register(conn.New(args.ID, client, r.Logger))
-
-				return true, nil
+				return handler.CreateConnection(&conn.Params{
+					ID:   conn.ID(args.ID),
+					Name: args.Name,
+					Type: args.Type,
+					URL:  args.URL,
+				})
 			}))
 
 		entry.Register(
-			"Dbee_execute",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID         string `arg:"id"`
-				Query      string `arg:"query"`
-				CallbackID string `arg:"callback_id"`
-			},
-			) (any, error) {
-				// Get the right connection
-				c, err := r.ConnectionStorage.Get(args.ID)
-				if err != nil {
-					return "", err
-				}
-
-				cb := func(details *call.CallDetails) {
-					success := details.State != call.CallStateFailed
-
-					err := r.Callbacker.TriggerCallback(args.CallbackID, details.ID, success, details.Took)
-					if err != nil {
-						r.Logger.Error(err.Error())
-					}
-				}
-
-				callID, err := c.Execute(args.Query, cb)
-				if err != nil {
-					return "", err
-				}
-
-				return callID, nil
-			}))
-
-		entry.Register(
-			"Dbee_list_calls",
+			"DbeeDeleteConnection",
 			vim.Wrap(func(r *vim.SharedResource, args *struct {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				// Get the right connection
-				c, err := r.ConnectionStorage.Get(args.ID)
-				if err != nil {
-					return "{}", err
-				}
-
-				return c.Calls(), nil
-			}))
-
-		entry.Register(
-			"Dbee_cancel_call",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID     string `arg:"id"`
-				CallID string `arg:"call_id"`
-			},
-			) (any, error) {
-				// Get the right connection
-				c, err := r.ConnectionStorage.Get(args.ID)
-				if err != nil {
-					return nil, err
-				}
-
-				c.CancelCall(args.CallID)
-
+				handler.DeleteConnection(conn.ID(args.ID))
 				return nil, nil
 			}))
 
 		entry.Register(
-			"Dbee_switch_database",
+			"DbeeGetConnections",
 			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID   string `arg:"id"`
-				Name string `arg:"name"`
+				IDs []conn.ID `arg:"ids"`
 			},
 			) (any, error) {
-				// Get the right connection
-				c, err := r.ConnectionStorage.Get(args.ID)
-				if err != nil {
-					return nil, err
-				}
-
-				err = c.SwitchDatabase(args.Name)
-				if err != nil {
-					return nil, err
-				}
-
-				return nil, nil
+				return handler.GetConnections(args.IDs), nil
 			}))
 
 		entry.Register(
-			"Dbee_get_result",
+			"DbeeSetCurrentConnection",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID string `arg:"id"`
+			},
+			) (any, error) {
+				return handler.SetCurrentConnection(conn.ID(args.ID)), nil
+			}))
+
+		entry.Register(
+			"DbeeGetCurrentConnection",
+			vim.Wrap(func(r *vim.SharedResource, args *struct{},
+			) (any, error) {
+				return handler.GetCurrentConnection()
+			}))
+
+		entry.Register(
+			"DbeeConnExecute",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID    string `arg:"id"`
+				Query string `arg:"query"`
+			},
+			) (any, error) {
+				return handler.ConnExecute(conn.ID(args.ID), args.Query)
+			}))
+
+		entry.Register(
+			"DbeeConnGetCalls",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID string `arg:"id"`
+			},
+			) (any, error) {
+				return handler.ConnGetCalls(conn.ID(args.ID))
+			}))
+
+		entry.Register(
+			"DbeeConnGetStructure",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID string `arg:"id"`
+			},
+			) (any, error) {
+				return handler.ConnGetStructure(conn.ID(args.ID))
+			}))
+
+		entry.Register(
+			"DbeeConnListDatabases",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID string `arg:"id"`
+			},
+			) (any, error) {
+				current, available, err := handler.ConnListDatabases(conn.ID(args.ID))
+				if err != nil {
+					return nil, err
+				}
+				return []any{current, available}, nil
+			}))
+
+		entry.Register(
+			"DbeeConnSelectDatabase",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID       string `arg:"id"`
+				Database string `arg:"database"`
+			},
+			) (any, error) {
+				return nil, handler.ConnSelectDatabase(conn.ID(args.ID), args.Database)
+			}))
+
+		// func (*Handler).CreateConnection(spec *conn.Params) (conn.ID, error)
+		// func (*Handler).DeleteConnection(connID conn.ID)
+		// func (*Handler).GetConnections(ids []conn.ID) []*conn.Conn
+		// func (*Handler).SetCurrentConnection(connID conn.ID) error
+		// func (*Handler).GetCurrentConnection() (*conn.Conn, bool)
+		// func (*Handler).ConnExecute(connID conn.ID, query string) (*call.Stat, error)
+		// func (*Handler).ConnGetCalls(connID conn.ID) ([]*call.Stat, error)
+		// func (*Handler).ConnGetStructure(connID conn.ID) ([]models.Layout, error)
+		// func (*Handler).ConnListDatabases(connID conn.ID) (current string, available []string, err error)
+		// func (*Handler).ConnSelectDatabase(connID conn.ID, database string) error
+		// func (*Handler).CallCancel(callID call.StatID) error
+		// func (*Handler).CallDisplayResult(callID call.StatID, buffer nvim.Buffer, from int, to int) (int, error)
+		// func (*Handler).CallStoreResult(callID call.StatID, fmat string, out string, from int, to int, arg ...any) error
+
+		entry.Register(
+			"DbeeCallCancel",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID string `arg:"id"`
+			},
+			) (any, error) {
+				return nil, handler.CallCancel(call.StatID(args.ID))
+			}))
+
+		entry.Register(
+			"DbeeCallDisplayResult",
 			vim.Wrap(func(r *vim.SharedResource, args *struct {
 				ID     string `arg:"id"`
-				CallID string `arg:"call_id"`
 				Buffer int    `arg:"buffer"`
 				From   int    `arg:"from"`
 				To     int    `arg:"to"`
 			},
 			) (any, error) {
-				// Get the right connection
-				c, err := r.ConnectionStorage.Get(args.ID)
-				if err != nil {
-					return 0, err
-				}
-
-				result, err := c.GetResult(args.CallID, args.From, args.To)
-				if err != nil {
-					return 0, err
-				}
-
-				err = r.BufferOutput.Write(result, nvim.Buffer(args.Buffer))
-				if err != nil {
-					return 0, err
-				}
-
-				return result.Meta().TotalLength, nil
+				return handler.CallDisplayResult(call.StatID(args.ID), nvim.Buffer(args.Buffer), args.From, args.To)
 			}))
 
 		entry.Register(
-			"Dbee_store",
+			"DbeeCallStoreResult",
 			vim.Wrap(func(r *vim.SharedResource, args *struct {
 				ID     string `arg:"id"`
-				CallID string `arg:"call_id"`
 				Format string `arg:"format"`
 				Output string `arg:"output"`
 				From   int    `arg:"from"`
@@ -173,68 +175,14 @@ func main() {
 				Path   string `arg:"path,optional"`
 			},
 			) (any, error) {
-				// Get the right connection
-				c, err := r.ConnectionStorage.Get(args.ID)
-				if err != nil {
-					return nil, err
+				var extraArg any
+				if args.Output == "file" {
+					extraArg = args.Path
+				} else if args.Output == "buffer" {
+					extraArg = args.Buffer
 				}
 
-				var formatter output.Formatter
-				switch args.Format {
-				case "json":
-					formatter = format.NewJSON()
-				case "csv":
-					formatter = format.NewCSV()
-				case "table":
-					formatter = format.NewTable()
-				default:
-					return nil, fmt.Errorf("store output: %q is not supported", args.Format)
-				}
-
-				result, err := c.GetResult(args.CallID, args.From, args.To)
-				if err != nil {
-					return nil, err
-				}
-
-				switch args.Output {
-				case "file":
-					if args.Path == "" {
-						return nil, fmt.Errorf("invalid output path")
-					}
-					err = output.NewFile(args.Path, formatter, r.Logger).Write(result)
-					if err != nil {
-						return nil, err
-					}
-				case "buffer":
-					err = output.NewBuffer(r.Vim, formatter).Write(result, nvim.Buffer(args.Buffer))
-					if err != nil {
-						return nil, err
-					}
-				case "yank":
-					err = output.NewYankRegister(r.Vim, formatter).Write(result)
-					if err != nil {
-						return nil, err
-					}
-				default:
-					return nil, fmt.Errorf("store output: %q is not supported", args.Output)
-				}
-
-				return nil, nil
-			}))
-
-		entry.Register(
-			"Dbee_layout",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID string `arg:"id"`
-			},
-			) (any, error) {
-				// Get the right connection
-				c, err := r.ConnectionStorage.Get(args.ID)
-				if err != nil {
-					return nil, err
-				}
-
-				return c.Layout()
+				return nil, handler.CallStoreResult(call.StatID(args.ID), args.Format, args.Output, args.From, args.To, extraArg)
 			}))
 
 		return nil

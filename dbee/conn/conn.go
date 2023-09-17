@@ -2,11 +2,15 @@ package conn
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
+
+var ErrDatabaseSwitchingNotSupported = errors.New("database switching not supported")
 
 type (
 	// Client is an interface for a specific database driver
@@ -23,149 +27,101 @@ type (
 	}
 )
 
+type ID string
+
 type Conn struct {
-	id     string
+	ID   ID
+	Name string
+	Type string
+	URL  string
+
 	driver Client
-	// how many results to wait for in the main thread? -> see cache.go
-	log models.Logger
-	// map of call stats
-	calls map[string]*call.Call
+	log    models.Logger
 }
 
-func New(id string, driver Client, logger models.Logger) *Conn {
-	c := &Conn{
-		id:     id,
-		driver: driver,
-		log:    logger,
-		calls:  make(map[string]*call.Call),
+type Params struct {
+	ID   ID
+	Name string
+	Type string
+	URL  string
+}
+
+func New(params *Params, driver Client, logger models.Logger) *Conn {
+	id := params.ID
+	if id == "" {
+		id = ID(uuid.New().String())
 	}
 
-	go c.scanOldCalls()
+	c := &Conn{
+		ID:   id,
+		Name: params.Name,
+		Type: params.Type,
+		URL:  params.URL,
+
+		driver: driver,
+		log:    logger,
+	}
 
 	return c
 }
 
-func (c *Conn) GetID() string {
-	return c.id
-}
-
-func (c *Conn) scanOldCalls() {
-	calls := ScanOldCalls(c.id, c.log)
-
-	for _, ca := range calls {
-		c.calls[ca.GetDetails().ID] = ca
-	}
-}
-
-func (c *Conn) archiveCall(ca *call.Call) {
-	err := ArchiveCall(c.id, ca)
-	if err != nil {
-		c.log.Debugf("failed archiving call details: %s", ca.GetDetails().ID)
-	}
-}
-
-func (c *Conn) Calls() []*call.CallDetails {
-	var calls []*call.CallDetails
-
-	for _, c := range c.calls {
-		calls = append(calls, c.GetDetails())
-	}
-
-	return calls
-}
-
-func (c *Conn) Execute(query string, callback func(*call.CallDetails)) (string, error) {
+func (c *Conn) Execute(query string, onEvent func(state call.State)) *call.Stat {
 	c.log.Debugf("executing query: %q", query)
 
 	exec := func(ctx context.Context) (models.IterResult, error) {
 		return c.driver.Query(ctx, query)
 	}
 
-	ca := call.NewCaller(c.log).
-		WithExecutor(exec).
-		WithCallback(callback).
-		WithQuery(query).
-		Do()
-
-	c.calls[ca.GetDetails().ID] = ca
-
-	go c.archiveCall(ca)
-
-	return ca.GetDetails().ID, nil
+	return call.NewStatFromExecutor(exec, query, onEvent)
 }
 
-func (c *Conn) CancelCall(callID string) {
-	ca, ok := c.calls[callID]
-	if !ok {
-		return
-	}
-
-	ca.Cancel()
-}
-
-func (c *Conn) GetResult(callID string, from int, to int) (models.IterResult, error) {
-	ca, ok := c.calls[callID]
-	if !ok {
-		return nil, fmt.Errorf("no call with id: %q", callID)
-	}
-
-	return ca.GetResult(from, to)
-}
-
-// SwitchDatabase tries to switch to a given database with the used client.
+// SelectDatabase tries to switch to a given database with the used client.
 // on error, the switch doesn't happen and the previous connection remains active.
-func (c *Conn) SwitchDatabase(name string) error {
+func (c *Conn) SelectDatabase(name string) error {
 	switcher, ok := c.driver.(DatabaseSwitcher)
 	if !ok {
-		return fmt.Errorf("connection does not support database switching")
+		return ErrDatabaseSwitchingNotSupported
 	}
 
 	err := switcher.SelectDatabase(name)
 	if err != nil {
-		return fmt.Errorf("failed to switch to different database: %w", err)
+		return fmt.Errorf("switcher.SelectDatabase: %w", err)
 	}
 
 	return nil
 }
 
-func (c *Conn) Layout() ([]models.Layout, error) {
-	var layout []models.Layout
+func (c *Conn) ListDatabases() (current string, available []string, err error) {
+	switcher, ok := c.driver.(DatabaseSwitcher)
+	if !ok {
+		return "", nil, ErrDatabaseSwitchingNotSupported
+	}
 
+	currentDB, availableDBs, err := switcher.ListDatabases()
+	if err != nil {
+		return "", nil, fmt.Errorf("switcher.ListDatabases: %w", err)
+	}
+
+	return currentDB, availableDBs, nil
+}
+
+func (c *Conn) Structure() ([]models.Layout, error) {
 	// structure
 	structure, err := c.driver.Layout()
 	if err != nil {
 		return nil, err
 	}
-	if len(structure) > 0 {
-		layout = append(layout, models.Layout{
-			Name:     "structure",
-			Type:     models.LayoutTypeNone,
-			Children: structure,
-		})
-	}
-
-	// databases
-	if switcher, ok := c.driver.(DatabaseSwitcher); ok {
-		currentDB, availableDBs, err := switcher.ListDatabases()
-		if err != nil {
-			return nil, err
-		}
-
-		layout = append(layout, models.Layout{
-			Name:      currentDB,
-			Type:      models.LayoutTypeDatabaseSwitch,
-			PickItems: availableDBs,
-		})
-	}
 
 	// fallback to not confuse users
-	if len(layout) < 1 {
-		layout = append(layout, models.Layout{
-			Name: "no schema to show",
-			Type: models.LayoutTypeNone,
-		})
+	if len(structure) < 1 {
+		structure = []models.Layout{
+			{
+				Name: "no schema to show",
+				Type: models.LayoutTypeNone,
+			},
+		}
 	}
-	return layout, nil
+	return structure, nil
 }
 
 func (c *Conn) Close() {

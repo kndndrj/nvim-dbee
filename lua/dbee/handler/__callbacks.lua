@@ -1,28 +1,28 @@
 -- This package is used for triggering lua callbacks from go.
 -- It uses unique ids to register the callbacks and trigger them.
 
----@alias __callback fun(stats: call_stats)
+---@alias event_name "call_state_changed"|"current_conn_changed"
+---@alias event_listener fun(data: any)
 
 local M = {
-  ---@type table<string, __callback>
+  ---@type table<string, event_listener[]>
   callbacks = {},
 }
 
----@param id string id to register callback with
----@param cb __callback callback function
-function M.register(id, cb)
-  M.callbacks[id] = cb
+---@param event event_name event name to register the callback for
+---@param cb event_listener callback function - "data" argument type depends on the event
+function M.register(event, cb)
+  M.callbacks[event] = M.callbacks[event] or {}
+  table.insert(M.callbacks[event], cb)
 end
 
----@param id string
----@param stats call_stats
-function M.trigger(id, stats)
-  stats = stats or {
-    success = false,
-    time_taken = 0,
-  }
-  local cb = M.callbacks[id] or function(_) end
-  cb(stats)
+---@param event event_name
+---@param data any
+function M.trigger(event, data)
+  local callbacks = M.callbacks[event] or {}
+  for _, cb in ipairs(callbacks) do
+    cb(data)
+  end
 end
 
 return M

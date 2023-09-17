@@ -2,6 +2,7 @@ local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
 local utils = require("dbee.utils")
 local menu = require("dbee.drawer.menu")
+local convert = require("dbee.drawer.convert")
 
 ---@class Candy
 ---@field icon string
@@ -77,7 +78,18 @@ function Drawer:new(ui, handler, editor, opts)
   -- set keymaps
   o.ui:set_keymap(o:generate_keymap(opts.mappings))
 
+  handler:register_event_listener("current_conn_changed", function(data)
+    o:on_call_state_changed(data)
+  end)
+
   return o
+end
+
+-- event listener for new calls
+---@private
+---@param _ { conn_id: conn_id }
+function Drawer:on_current_conn_changed(_)
+  self:refresh()
 end
 
 ---@private
@@ -119,7 +131,7 @@ function Drawer:create_tree(bufnr)
       end
 
       -- apply a special highlight for active connection and active scratchpad
-      if self.handler:current_connection():details().id == node.id or self.editor:get_active_scratch() == node.id then
+      if self.handler:get_current_connection().id == node.id or self.editor:get_active_scratch() == node.id then
         line:append(node.name, candy.icon_highlight)
       else
         line:append(node.name, candy.text_highlight)
@@ -131,7 +143,7 @@ function Drawer:create_tree(bufnr)
       if node.id then
         return node.id
       end
-      return math.random()
+      return tostring(math.random())
     end,
   }
 end
@@ -386,7 +398,7 @@ function Drawer:refresh()
     table.insert(layouts, ly)
   end
   table.insert(layouts, separator())
-  for _, ly in ipairs(self.handler:layout()) do
+  for _, ly in ipairs(convert.handler_layout(self.handler)) do
     table.insert(layouts, ly)
   end
 

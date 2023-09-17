@@ -58,8 +58,6 @@ type Layout struct {
 	Database string
 	// Type of layout
 	Type LayoutType
-	// Sort order of children layouts
-	ChildrenSortOrder LayoutSortOrder
 	// Children layout nodes
 	Children []Layout
 	// PickItems represents a list of selections (example: database names)
@@ -72,16 +70,14 @@ func (l *Layout) MarshalMsgPack(enc *msgpack.Encoder) error {
 		Schema            string   `msgpack:"schema"`
 		Database          string   `msgpack:"database"`
 		Type              string   `msgpack:"type"`
-		ChildrenSortOrder string   `msgpack:"children_sort_order"`
 		Children          []Layout `msgpack:"children"`
 		PickItems         []string `msgpack:"pick_items"`
 	}{
-		Name:              l.Name,
-		Schema:            l.Schema,
-		Database:          l.Database,
-		Type:              l.Type.String(),
-		ChildrenSortOrder: l.ChildrenSortOrder.String(),
-		Children:          l.Children,
-		PickItems:         l.PickItems,
+		Name:      l.Name,
+		Schema:    l.Schema,
+		Database:  l.Database,
+		Type:      l.Type.String(),
+		Children:  l.Children,
+		PickItems: l.PickItems,
 	})
 }

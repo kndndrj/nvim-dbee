@@ -1,38 +1,18 @@
 package output
 
-import (
-	"github.com/kndndrj/nvim-dbee/dbee/models"
-	"github.com/neovim/go-client/nvim"
-)
+import "github.com/neovim/go-client/nvim"
 
-type YankRegisterOutput struct {
-	vim       *nvim.Nvim
-	formatter Formatter
-}
-
-func NewYankRegister(vim *nvim.Nvim, formatter Formatter) *YankRegisterOutput {
-	return &YankRegisterOutput{
-		vim:       vim,
-		formatter: formatter,
-	}
-}
-
-func (yo *YankRegisterOutput) Write(result models.IterResult) error {
-	reg := newRegister(yo.vim)
-	return yo.formatter.Format(result, reg)
-}
-
-type register struct {
+type YankRegister struct {
 	vim *nvim.Nvim
 }
 
-func newRegister(vim *nvim.Nvim) *register {
-	return &register{
+func NewYankRegister(vim *nvim.Nvim) *YankRegister {
+	return &YankRegister{
 		vim: vim,
 	}
 }
 
-func (r *register) Write(p []byte) (int, error) {
+func (r *YankRegister) Write(p []byte) (int, error) {
 	err := r.vim.Call("setreg", nil, "", string(p))
 	return len(p), err
 }

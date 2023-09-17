@@ -2,7 +2,8 @@ package call
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,198 +11,211 @@ import (
 	"github.com/neovim/go-client/msgpack"
 )
 
-type CallState int
+type State int
 
 const (
-	CallStateUninitialized CallState = iota
+	CallStateUninitialized State = iota
 	CallStateExecuting
-	CallStateCached
+	CallStateRetrieving
 	CallStateArchived
 	CallStateFailed
+	CallStateCanceled
 )
 
-func (s CallState) String() string {
+func StateFromString(s string) State {
+	switch s {
+	case "uninitialized":
+		return CallStateUninitialized
+	case "executing":
+		return CallStateExecuting
+	case "retrieving":
+		return CallStateRetrieving
+	case "archived":
+		return CallStateArchived
+	case "failed":
+		return CallStateFailed
+	case "canceled":
+		return CallStateCanceled
+	default:
+		return CallStateUninitialized
+	}
+}
+
+func (s State) String() string {
 	switch s {
 	case CallStateUninitialized:
 		return "uninitialized"
 	case CallStateExecuting:
 		return "executing"
-	case CallStateCached:
-		return "cached"
+	case CallStateRetrieving:
+		return "retrieving"
 	case CallStateArchived:
 		return "archived"
 	case CallStateFailed:
 		return "failed"
+	case CallStateCanceled:
+		return "canceled"
 	default:
-		return ""
+		return "unknown"
 	}
 }
 
-type CallDetails struct {
-	ID          string
-	Query       string
-	State       CallState
-	Took        time.Duration
-	Timestamp   time.Time
-	ArchivePath string
+type (
+	StatID string
+
+	Stat struct {
+		ID        StatID
+		Query     string
+		State     State
+		Took      time.Duration
+		Timestamp time.Time
+
+		result      *CacheResult
+		archive     *archive
+		cancelFunc  func()
+		onEventFunc func(state State)
+	}
+)
+
+// statPersistent is a form used to permanently store the call stat
+type statPersistent struct {
+	ID        string `msgpack:"id" json:"id"`
+	Query     string `msgpack:"query" json:"query"`
+	State     string `msgpack:"state" json:"state"`
+	Took      int64  `msgpack:"took_us" json:"took_us"`
+	Timestamp int64  `msgpack:"timestamp_us" json:"timestamp_us"`
 }
 
-func (cd *CallDetails) MarshalMsgPack(enc *msgpack.Encoder) error {
-	return enc.Encode(&struct {
-		ID          string `msgpack:"id"`
-		Query       string `msgpack:"query"`
-		State       string `msgpack:"state"`
-		Took        int64  `msgpack:"took_ms"`
-		Timestamp   int64  `msgpack:"timestamp"`
-		ArchivePath string `msgpack:"archive_path"`
-	}{
-		ID:          cd.ID,
-		Query:       cd.Query,
-		State:       cd.State.String(),
-		Took:        cd.Took.Microseconds(),
-		Timestamp:   cd.Timestamp.UnixMicro(),
-		ArchivePath: cd.ArchivePath,
-	})
-}
-
-// Caller builds the call
-type Caller struct {
-	id          string
-	log         models.Logger
-	query       string
-	exec        func(context.Context) (models.IterResult, error)
-	callback    func(*CallDetails)
-	archivePath string
-}
-
-func NewCaller(logger models.Logger) *Caller {
-	id := uuid.New().String()
-	return &Caller{
-		id:          id,
-		log:         logger,
-		callback:    func(*CallDetails) {},
-		archivePath: callHistoryPath(id),
+func (s *Stat) toPersistent() *statPersistent {
+	return &statPersistent{
+		ID:        string(s.ID),
+		Query:     s.Query,
+		State:     s.State.String(),
+		Took:      s.Took.Microseconds(),
+		Timestamp: s.Timestamp.UnixMicro(),
 	}
 }
 
-func (b *Caller) WithID(id string) *Caller {
-	b.id = id
-	return b
+func (s *Stat) MarshalMsgPack(enc *msgpack.Encoder) error {
+	return enc.Encode(s.toPersistent())
 }
 
-func (b *Caller) WithArchivePath(path string) *Caller {
-	b.archivePath = path
-	return b
+func (s *Stat) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.toPersistent())
 }
 
-func (b *Caller) WithQuery(query string) *Caller {
-	b.query = query
-	return b
-}
+func (s *Stat) UnmarshalJSON(data []byte) error {
+	var alias statPersistent
 
-func (b *Caller) WithExecutor(executor func(context.Context) (models.IterResult, error)) *Caller {
-	b.exec = executor
-	return b
-}
-
-func (b *Caller) WithCallback(cb func(*CallDetails)) *Caller {
-	b.callback = cb
-	return b
-}
-
-func (b *Caller) FromDetails(details *CallDetails) *Call {
-	details.State = CallStateUninitialized
-	return &Call{
-		cache:   NewCache(details.ArchivePath, b.log),
-		log:     b.log,
-		details: details,
-	}
-}
-
-func (b *Caller) Do() *Call {
-	c := &Call{
-		cache: NewCache(b.archivePath, b.log),
-		log:   b.log,
-		details: &CallDetails{
-			ID:          b.id,
-			Query:       b.query,
-			State:       CallStateUninitialized,
-			ArchivePath: b.archivePath,
-		},
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
 	}
 
-	if b.exec == nil {
-		return c
+	archive := newArchive(StatID(alias.ID))
+	state := StateFromString(alias.ID)
+
+	if !archive.isEmpty() {
+		state = CallStateArchived
+	}
+
+	*s = Stat{
+		ID:        StatID(alias.ID),
+		Query:     alias.Query,
+		State:     state,
+		Took:      time.Duration(alias.Took) * time.Microsecond,
+		Timestamp: time.UnixMicro(alias.Timestamp),
+
+		result:  new(CacheResult),
+		archive: newArchive(StatID(alias.ID)),
+	}
+
+	return nil
+}
+
+// Caller builds the cal
+func NewStatFromExecutor(executor func(context.Context) (models.IterResult, error), query string, onEvent func(state State)) *Stat {
+	id := StatID(uuid.New().String())
+	c := &Stat{
+		ID:    id,
+		Query: query,
+		State: CallStateUninitialized,
+
+		result:      new(CacheResult),
+		archive:     newArchive(id),
+		onEventFunc: onEvent,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	c.cancel = cancel
+	c.cancelFunc = cancel
 
-	c.details.State = CallStateExecuting
 	go func() {
-		c.details.Timestamp = time.Now()
+		c.Timestamp = time.Now()
 		defer func() {
-			c.details.Took = time.Since(c.details.Timestamp)
-			b.callback(c.GetDetails())
+			c.Took = time.Since(c.Timestamp)
 		}()
 
-		rows, err := b.exec(ctx)
+		// execute the function
+		c.setState(CallStateExecuting)
+		iter, err := executor(ctx)
 		if err != nil {
-			c.details.State = CallStateFailed
-			c.log.Error(err.Error())
+			c.setState(CallStateFailed)
+			return
+		}
+		c.setState(CallStateRetrieving)
+
+		// set iterator to result
+		err = c.result.setIter(iter)
+		if err != nil {
+			c.setState(CallStateFailed)
 			return
 		}
 
-		// save to cache
-		err = c.cache.Set(ctx, rows)
-		if err != nil && !errors.Is(err, ErrCacheAlreadyFilled) {
-			c.details.State = CallStateFailed
-			c.log.Error(err.Error())
+		// archive the result
+		err = c.archive.setResult(c.result)
+		if err != nil {
+			c.setState(CallStateFailed)
 			return
 		}
+
+		c.setState(CallStateArchived)
 	}()
 
 	return c
 }
 
-// Call represents a single call to database
-// it contains various metadata fields, state and a context cancelation function
-type Call struct {
-	cancel  func()
-	cache   *cache
-	log     models.Logger
-	details *CallDetails
-}
-
-func (c *Call) GetDetails() *CallDetails {
-	// update state from cache
-	if c.cache.HasResultInMemory() {
-		c.details.State = CallStateCached
-	} else if c.cache.HasResultInArchive() {
-		c.details.State = CallStateArchived
+func (c *Stat) setState(state State) {
+	if c.State == CallStateFailed || c.State == CallStateCanceled {
+		return
 	}
+	c.State = state
 
-	return c.details
+	// trigger event callback
+	if c.onEventFunc != nil {
+		c.onEventFunc(state)
+	}
 }
 
-// GetResult pipes the selected range of rows to the outputs
-// returns length of the result set
-func (c *Call) GetResult(from int, to int) (models.IterResult, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-	oldCancel := c.cancel
-	c.cancel = func() {
-		if oldCancel != nil {
-			oldCancel()
+func (c *Stat) Cancel() {
+	if c.State != CallStateExecuting {
+		return
+	}
+	c.setState(CallStateCanceled)
+	if c.cancelFunc != nil {
+		c.cancelFunc()
+	}
+}
+
+func (c *Stat) GetResult() (*CacheResult, error) {
+	if c.result.IsEmpty() {
+		iter, err := c.archive.getResult()
+		if err != nil {
+			return nil, fmt.Errorf("c.archive.getResult: %w", err)
 		}
-		cancel()
-		c.cancel = nil
+		err = c.result.setIter(iter)
+		if err != nil {
+			return nil, fmt.Errorf("c.result.setIter: %w", err)
+		}
 	}
 
-	return c.cache.Get(ctx, from, to)
-}
-
-func (c *Call) Cancel() {
-	if c.cancel != nil {
-		c.cancel()
-	}
+	return c.result, nil
 }

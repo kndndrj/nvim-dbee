@@ -69,7 +69,7 @@ local function lazy_setup()
   m.editor = Editor:new(editor_ui, m.handler, m.config.editor)
   m.drawer = Drawer:new(drawer_ui, m.handler, m.editor, m.config.drawer)
 
-  m.handler:add_helpers(m.config.extra_helpers)
+  m.handler:helpers_add(m.config.extra_helpers)
 end
 
 ---@return boolean ok was setup successful?

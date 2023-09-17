@@ -1,12 +1,10 @@
 package output
 
 import (
-	"io"
-
-	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
 )
 
 type Formatter interface {
-	Format(result models.IterResult, writer io.Writer) error
+	Format(result *call.CacheResult, from, to int) ([]byte, error)
 	Name() string
 }

@@ -1,11 +1,16 @@
 local utils = require("dbee.utils")
 
----@alias result_config { mappings: table<string, mapping> }
+---@alias result_config { mappings: table<string, mapping>, page_size: integer }
 
 -- Result represents the part of ui with displayed results
 ---@class Result
 ---@field private ui Ui
 ---@field private handler Handler
+---@field private current_call call_details
+---@field private page_size integer
+---@field private page_index integer index of the current page
+---@field private page_ammount integer number of pages in the current result set
+---@field private old_calls table<call_id, boolean> lookup of past displayed calls
 local Result = {}
 
 ---@param ui Ui
@@ -26,6 +31,11 @@ function Result:new(ui, handler, opts)
   local o = {
     ui = ui,
     handler = handler,
+    current_call = {},
+    page_size = opts.page_size or 100,
+    page_index = 0,
+    page_ammount = 0,
+    old_calls = {},
   }
   setmetatable(o, self)
   self.__index = self
@@ -33,7 +43,36 @@ function Result:new(ui, handler, opts)
   -- set keymaps
   o.ui:set_keymap(o:generate_keymap(opts.mappings))
 
+  handler:register_event_listener("call_state_changed", function(data)
+    o:on_call_state_changed(data)
+  end)
+
   return o
+end
+
+-- event listener for new calls
+---@private
+---@param data { call: call_details }
+function Result:on_call_state_changed(data)
+  local call = data.call
+
+  -- check if it's an old call
+  if self.old_calls[call.id] then
+    return
+  end
+
+  -- update the current call
+  self.old_calls[self.current_call] = true
+  self.current_call = call
+
+  -- action accordingly
+  if call.state == "executing" then
+    -- TODO: display progress
+  elseif call.state == "retrieving" then
+    self:page_current()
+  else
+    -- TODO: stop progress
+  end
 end
 
 ---@private
@@ -44,13 +83,13 @@ function Result:generate_keymap(mappings)
   return {
     {
       action = function()
-        self.handler:current_connection():page_next()
+        self:page_next()
       end,
       mapping = mappings["page_next"],
     },
     {
       action = function()
-        self.handler:current_connection():page_prev()
+        self:page_prev()
       end,
       mapping = mappings["page_prev"],
     },
@@ -95,6 +134,66 @@ function Result:generate_keymap(mappings)
   }
 end
 
+-- sets call's result to Result's buffer
+---@param call call_details
+function Result:set_call(call)
+  self.page_index = 0
+  self.page_ammount = 0
+  self.current_call = call
+end
+
+function Result:page_current()
+  self.page_index = self:show_page(self.page_index)
+end
+
+function Result:page_next()
+  self.page_index = self:show_page(self.page_index + 1)
+end
+
+function Result:page_prev()
+  self.page_index = self:show_page(self.page_index - 1)
+end
+
+--- Displays a page of the current result in the results buffer
+---@private
+---@param page integer zero based page index
+---@return integer # current page
+function Result:show_page(page)
+  -- calculate the ranges
+  if page < 0 then
+    page = 0
+  end
+  if page > self.page_ammount then
+    page = self.page_ammount
+  end
+  local from = self.page_size * page
+  local to = self.page_size * (page + 1)
+
+  -- open ui window
+  local winid, bufnr = self.ui:open()
+
+  -- call go function
+  local length = self.handler:call_display_result(self.current_call.id, bufnr, from, to)
+
+  -- adjust page ammount
+  self.page_ammount = math.floor(length / self.page_size)
+  if length % self.page_size == 0 and self.page_ammount ~= 0 then
+    self.page_ammount = self.page_ammount - 1
+  end
+
+  -- convert from microseconds to seconds
+  local seconds = self.current_call.took_us / 1000000
+
+  -- set winbar status
+  vim.api.nvim_win_set_option(
+    winid,
+    "winbar",
+    string.format("%d/%d%%=Took %.3fs", page + 1, self.page_ammount + 1, seconds)
+  )
+
+  return page
+end
+
 -- wrapper for storing the current row
 ---@private
 ---@param format string
@@ -111,7 +210,12 @@ function Result:store_current_wrapper(format, output, arg)
     index = 0
   end
 
-  self.handler:current_connection():store(format, output, { from = index, to = index + 1, extra_arg = arg })
+  self.handler:call_store_result(
+    self.current_call.id,
+    format,
+    output,
+    { from = index, to = index + 1, extra_arg = arg }
+  )
 end
 
 -- wrapper for storing the current visualy selected rows
@@ -128,7 +232,7 @@ function Result:store_selection_wrapper(format, output, arg)
     sindex = 0
   end
 
-  self.handler:current_connection():store(format, output, { from = sindex, to = eindex, extra_arg = arg })
+  self.handler:call_store_result(self.current_call.id, format, output, { from = sindex, to = eindex, extra_arg = arg })
 end
 
 -- wrapper for storing all rows
@@ -137,7 +241,7 @@ end
 ---@param output string
 ---@param arg any
 function Result:store_all_wrapper(format, output, arg)
-  self.handler:current_connection():store(format, output, { extra_arg = arg })
+  self.handler:call_store_result(self.current_call.id, format, output, { extra_arg = arg })
 end
 
 ---@return number # index of the current row

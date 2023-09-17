@@ -12,7 +12,7 @@ type SharedResource struct {
 	ConnectionStorage *ConnectionStorage
 	Logger            models.Logger
 	Callbacker        *Callbacker
-	BufferOutput      *output.BufferOutput
+	BufferOutput      *output.Buffer
 	Vim               *nvim.Nvim
 }
 
