@@ -1,4 +1,4 @@
-package clients
+package drivers
 
 import (
 	"context"
@@ -6,21 +6,22 @@ import (
 	"fmt"
 	nurl "net/url"
 
-	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
-	"github.com/kndndrj/nvim-dbee/dbee/core"
 	_ "github.com/microsoft/go-mssqldb"
 	_ "github.com/microsoft/go-mssqldb/integratedauth/krb5"
+
+	"github.com/kndndrj/nvim-dbee/dbee/core"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 )
 
 // Register client
 func init() {
-	c := func(url string) (core.Client, error) {
+	c := func(url string) (core.Driver, error) {
 		return NewSQLServer(url)
 	}
 	_ = register(c, "sqlserver", "mssql")
 }
 
-var _ core.Client = (*SQLServer)(nil)
+var _ core.Driver = (*SQLServer)(nil)
 
 type SQLServer struct {
 	c   *builders.Client
@@ -44,7 +45,7 @@ func NewSQLServer(url string) (*SQLServer, error) {
 	}, nil
 }
 
-func (c *SQLServer) Query(ctx context.Context, query string) (core.IterResult, error) {
+func (c *SQLServer) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -75,7 +76,7 @@ func (c *SQLServer) Query(ctx context.Context, query string) (core.IterResult, e
 	return rows, err
 }
 
-func (c *SQLServer) Layout() ([]core.Layout, error) {
+func (c *SQLServer) Structure() ([]core.Structure, error) {
 	query := `SELECT table_schema, table_name FROM INFORMATION_SCHEMA.TABLES`
 
 	rows, err := c.Query(context.TODO(), query)
@@ -83,7 +84,7 @@ func (c *SQLServer) Layout() ([]core.Layout, error) {
 		return nil, err
 	}
 
-	children := make(map[string][]core.Layout)
+	children := make(map[string][]core.Structure)
 
 	for rows.HasNext() {
 		row, err := rows.Next()
@@ -95,25 +96,21 @@ func (c *SQLServer) Layout() ([]core.Layout, error) {
 		schema := row[0].(string)
 		table := row[1].(string)
 
-		children[schema] = append(children[schema], core.Layout{
+		children[schema] = append(children[schema], core.Structure{
 			Name:   table,
 			Schema: schema,
-			// TODO:
-			Database: "",
-			Type:     core.LayoutTypeTable,
+			Type:   core.StructureTypeTable,
 		})
 
 	}
 
-	var layout []core.Layout
+	var layout []core.Structure
 
 	for k, v := range children {
-		layout = append(layout, core.Layout{
-			Name:   k,
-			Schema: k,
-			// TODO:
-			Database: "",
-			Type:     core.LayoutTypeNone,
+		layout = append(layout, core.Structure{
+			Name:     k,
+			Schema:   k,
+			Type:     core.StructureTypeNone,
 			Children: v,
 		})
 	}

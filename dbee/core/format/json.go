@@ -15,10 +15,6 @@ func NewJSON() *JSON {
 	return &JSON{}
 }
 
-func (jf *JSON) Name() string {
-	return "json"
-}
-
 func (jf *JSON) parseSchemaFul(header core.Header, rows []core.Row) []map[string]any {
 	var data []map[string]any
 
@@ -52,7 +48,7 @@ func (jf *JSON) parseSchemaLess(header core.Header, rows []core.Row) []any {
 	return data
 }
 
-func (jf *JSON) Format(header core.Header, rows []core.Row, opts *core.FormatOpts) ([]byte, error) {
+func (jf *JSON) Format(header core.Header, rows []core.Row, opts *core.FormatterOpts) ([]byte, error) {
 	var data any
 	switch opts.SchemaType {
 	case core.SchemaLess:

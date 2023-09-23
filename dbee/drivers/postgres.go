@@ -1,4 +1,4 @@
-package clients
+package drivers
 
 import (
 	"context"
@@ -9,19 +9,19 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 	"github.com/kndndrj/nvim-dbee/dbee/core"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 )
 
 // Register client
 func init() {
-	c := func(url string) (core.Client, error) {
+	c := func(url string) (core.Driver, error) {
 		return NewPostgres(url)
 	}
 	_ = register(c, "postgres", "postgresql", "pg")
 }
 
-var _ core.Client = (*Postgres)(nil)
+var _ core.Driver = (*Postgres)(nil)
 
 type Postgres struct {
 	c   *builders.Client
@@ -45,7 +45,7 @@ func NewPostgres(url string) (*Postgres, error) {
 	}, nil
 }
 
-func (c *Postgres) Query(ctx context.Context, query string) (core.IterResult, error) {
+func (c *Postgres) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func (c *Postgres) Query(ctx context.Context, query string) (core.IterResult, er
 	return rows, nil
 }
 
-func (c *Postgres) Layout() ([]core.Layout, error) {
+func (c *Postgres) Structure() ([]core.Structure, error) {
 	query := `
 		SELECT table_schema, table_name, table_type FROM information_schema.tables UNION ALL
 		SELECT schemaname, matviewname, 'VIEW' FROM pg_matviews;
@@ -141,8 +141,8 @@ func (c *Postgres) SelectDatabase(name string) error {
 
 // getPGLayouts fetches the layout from the postgres database.
 // rows is at least 3 column wide result
-func getPGLayouts(rows core.IterResult) ([]core.Layout, error) {
-	children := make(map[string][]core.Layout)
+func getPGLayouts(rows core.ResultStream) ([]core.Structure, error) {
+	children := make(map[string][]core.Structure)
 
 	for rows.HasNext() {
 		row, err := rows.Next()
@@ -152,20 +152,20 @@ func getPGLayouts(rows core.IterResult) ([]core.Layout, error) {
 
 		schema, table, tableType := row[0].(string), row[1].(string), row[2].(string)
 
-		children[schema] = append(children[schema], core.Layout{
+		children[schema] = append(children[schema], core.Structure{
 			Name:   table,
 			Schema: schema,
 			Type:   getPGLayoutType(tableType),
 		})
 	}
 
-	var layout []core.Layout
+	var layout []core.Structure
 
 	for k, v := range children {
-		layout = append(layout, core.Layout{
+		layout = append(layout, core.Structure{
 			Name:     k,
 			Schema:   k,
-			Type:     core.LayoutTypeNone,
+			Type:     core.StructureTypeNone,
 			Children: v,
 		})
 	}
@@ -174,13 +174,13 @@ func getPGLayouts(rows core.IterResult) ([]core.Layout, error) {
 }
 
 // getPGLayoutType returns the layout type based on the string.
-func getPGLayoutType(typ string) core.LayoutType {
+func getPGLayoutType(typ string) core.StructureType {
 	switch typ {
 	case "TABLE", "BASE TABLE":
-		return core.LayoutTypeTable
+		return core.StructureTypeTable
 	case "VIEW":
-		return core.LayoutTypeView
+		return core.StructureTypeView
 	default:
-		return core.LayoutTypeNone
+		return core.StructureTypeNone
 	}
 }

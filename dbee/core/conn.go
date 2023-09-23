@@ -13,52 +13,53 @@ import (
 var ErrDatabaseSwitchingNotSupported = errors.New("database switching not supported")
 
 type (
-	// Client is an interface for a specific database driver
-	Client interface {
-		Query(context.Context, string) (IterResult, error)
-		Layout() ([]Layout, error)
+	// Driver is an interface for a specific database driver
+	Driver interface {
+		Query(context.Context, string) (ResultStream, error)
+		Structure() ([]Structure, error)
 		Close()
 	}
 
-	// DatabaseSwitcher is an optional interface for clients that have database switching capabilities
+	// DatabaseSwitcher is an optional interface for drivers that have database switching capabilities
 	DatabaseSwitcher interface {
 		SelectDatabase(string) error
 		ListDatabases() (current string, available []string, err error)
 	}
 
+	// adapter is an object which allows to connect to database via type and url
 	Adapter interface {
-		Connect(typ string, url string) (Client, error)
+		Connect(typ string, url string) (Driver, error)
 	}
 )
 
-type ID string
+type ConnectionID string
 
-type Params struct {
-	ID   ID
+type ConnectionParams struct {
+	ID   ConnectionID
 	Name string
 	Type string
 	URL  string
 }
 
 // Expand returns a copy of the original parameters with expanded fields
-func (p *Params) Expand() *Params {
-	return &Params{
-		ID:   ID(expand(string(p.ID))),
+func (p *ConnectionParams) Expand() *ConnectionParams {
+	return &ConnectionParams{
+		ID:   ConnectionID(expand(string(p.ID))),
 		Name: expand(p.Name),
 		Type: expand(p.Type),
 		URL:  expand(p.URL),
 	}
 }
 
-type paramsPersistent struct {
+type connectionParamsPersistent struct {
 	ID   string `msgpack:"id" json:"id"`
 	Name string `msgpack:"name" json:"name"`
 	Type string `msgpack:"type" json:"type"`
 	URL  string `msgpack:"url" json:"url"`
 }
 
-func (s *Params) toPersistent() *paramsPersistent {
-	return &paramsPersistent{
+func (s *ConnectionParams) toPersistent() *connectionParamsPersistent {
+	return &connectionParamsPersistent{
 		ID:   string(s.ID),
 		Name: s.Name,
 		Type: s.Type,
@@ -66,34 +67,34 @@ func (s *Params) toPersistent() *paramsPersistent {
 	}
 }
 
-func (p *Params) MarshalMsgPack(enc *msgpack.Encoder) error {
+func (p *ConnectionParams) MarshalMsgPack(enc *msgpack.Encoder) error {
 	return enc.Encode(p.toPersistent())
 }
 
-func (p *Params) MarshalJSON() ([]byte, error) {
+func (p *ConnectionParams) MarshalJSON() ([]byte, error) {
 	return json.Marshal(p.toPersistent())
 }
 
-type Conn struct {
-	params           *Params
-	unexpandedParams *Params
+type Connection struct {
+	params           *ConnectionParams
+	unexpandedParams *ConnectionParams
 
-	driver Client
+	driver Driver
 }
 
-func (s *Conn) MarshalMsgPack(enc *msgpack.Encoder) error {
+func (s *Connection) MarshalMsgPack(enc *msgpack.Encoder) error {
 	return enc.Encode(s.params)
 }
 
-func (s *Conn) MarshalJSON() ([]byte, error) {
+func (s *Connection) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.params)
 }
 
-func New(params *Params, adapter Adapter) (*Conn, error) {
+func NewConnection(params *ConnectionParams, adapter Adapter) (*Connection, error) {
 	expanded := params.Expand()
 
 	if expanded.ID == "" {
-		expanded.ID = ID(uuid.New().String())
+		expanded.ID = ConnectionID(uuid.New().String())
 	}
 
 	driver, err := adapter.Connect(expanded.Type, expanded.URL)
@@ -101,7 +102,7 @@ func New(params *Params, adapter Adapter) (*Conn, error) {
 		return nil, fmt.Errorf("adapter.Connect: %w", err)
 	}
 
-	c := &Conn{
+	c := &Connection{
 		params:           expanded,
 		unexpandedParams: params,
 
@@ -111,29 +112,29 @@ func New(params *Params, adapter Adapter) (*Conn, error) {
 	return c, nil
 }
 
-func (c *Conn) GetID() ID {
+func (c *Connection) GetID() ConnectionID {
 	return c.params.ID
 }
 
-func (c *Conn) GetName() string {
+func (c *Connection) GetName() string {
 	return c.params.Name
 }
 
-func (c *Conn) GetType() string {
+func (c *Connection) GetType() string {
 	return c.params.Type
 }
 
-func (c *Conn) GetURL() string {
+func (c *Connection) GetURL() string {
 	return c.params.URL
 }
 
 // GetParams returns the original source for this connection
-func (c *Conn) GetParams() *Params {
+func (c *Connection) GetParams() *ConnectionParams {
 	return c.unexpandedParams
 }
 
-func (c *Conn) Execute(query string, onEvent func(state State)) *Stat {
-	exec := func(ctx context.Context) (IterResult, error) {
+func (c *Connection) Execute(query string, onEvent func(state CallState)) *Call {
+	exec := func(ctx context.Context) (ResultStream, error) {
 		return c.driver.Query(ctx, query)
 	}
 
@@ -142,7 +143,7 @@ func (c *Conn) Execute(query string, onEvent func(state State)) *Stat {
 
 // SelectDatabase tries to switch to a given database with the used client.
 // on error, the switch doesn't happen and the previous connection remains active.
-func (c *Conn) SelectDatabase(name string) error {
+func (c *Connection) SelectDatabase(name string) error {
 	switcher, ok := c.driver.(DatabaseSwitcher)
 	if !ok {
 		return ErrDatabaseSwitchingNotSupported
@@ -156,7 +157,7 @@ func (c *Conn) SelectDatabase(name string) error {
 	return nil
 }
 
-func (c *Conn) ListDatabases() (current string, available []string, err error) {
+func (c *Connection) ListDatabases() (current string, available []string, err error) {
 	switcher, ok := c.driver.(DatabaseSwitcher)
 	if !ok {
 		return "", nil, ErrDatabaseSwitchingNotSupported
@@ -170,25 +171,25 @@ func (c *Conn) ListDatabases() (current string, available []string, err error) {
 	return currentDB, availableDBs, nil
 }
 
-func (c *Conn) GetStructure() ([]Layout, error) {
+func (c *Connection) GetStructure() ([]Structure, error) {
 	// structure
-	structure, err := c.driver.Layout()
+	structure, err := c.driver.Structure()
 	if err != nil {
 		return nil, err
 	}
 
 	// fallback to not confuse users
 	if len(structure) < 1 {
-		structure = []Layout{
+		structure = []Structure{
 			{
 				Name: "no schema to show",
-				Type: LayoutTypeNone,
+				Type: StructureTypeNone,
 			},
 		}
 	}
 	return structure, nil
 }
 
-func (c *Conn) Close() {
+func (c *Connection) Close() {
 	c.driver.Close()
 }

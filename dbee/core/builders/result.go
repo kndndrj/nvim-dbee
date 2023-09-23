@@ -7,8 +7,9 @@ import (
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 )
 
-// Result fills conn.IterResult interface for all sql dbs
-type Result struct {
+var _ core.ResultStream = (*ResultStream)(nil)
+
+type ResultStream struct {
 	next     func() (core.Row, error)
 	hasNext  func() bool
 	close    func()
@@ -18,27 +19,27 @@ type Result struct {
 	once     sync.Once
 }
 
-func (r *Result) SetCustomHeader(header core.Header) {
+func (r *ResultStream) SetCustomHeader(header core.Header) {
 	r.header = header
 }
 
-func (r *Result) SetCallback(callback func()) {
+func (r *ResultStream) SetCallback(callback func()) {
 	r.callback = callback
 }
 
-func (r *Result) Meta() *core.Meta {
+func (r *ResultStream) Meta() *core.Meta {
 	return r.meta
 }
 
-func (r *Result) Header() core.Header {
+func (r *ResultStream) Header() core.Header {
 	return r.header
 }
 
-func (r *Result) HasNext() bool {
+func (r *ResultStream) HasNext() bool {
 	return r.hasNext()
 }
 
-func (r *Result) Next() (core.Row, error) {
+func (r *ResultStream) Next() (core.Row, error) {
 	rows, err := r.next()
 	if err != nil || rows == nil {
 		r.Close()
@@ -47,7 +48,7 @@ func (r *Result) Next() (core.Row, error) {
 	return rows, nil
 }
 
-func (r *Result) Close() {
+func (r *ResultStream) Close() {
 	r.close()
 	if r.callback != nil {
 		r.once.Do(r.callback)
@@ -57,8 +58,8 @@ func (r *Result) Close() {
 	}
 }
 
-// ResultBuilder builds the rows
-type ResultBuilder struct {
+// ResultStreamBuilder builds the rows
+type ResultStreamBuilder struct {
 	next    func() (core.Row, error)
 	hasNext func() bool
 	header  core.Header
@@ -66,8 +67,8 @@ type ResultBuilder struct {
 	meta    *core.Meta
 }
 
-func NewResultBuilder() *ResultBuilder {
-	return &ResultBuilder{
+func NewResultStreamBuilder() *ResultStreamBuilder {
+	return &ResultStreamBuilder{
 		next:    func() (core.Row, error) { return nil, errors.New("no next row") },
 		hasNext: func() bool { return false },
 		header:  core.Header{},
@@ -76,29 +77,29 @@ func NewResultBuilder() *ResultBuilder {
 	}
 }
 
-func (b *ResultBuilder) WithNextFunc(fn func() (core.Row, error), has func() bool) *ResultBuilder {
+func (b *ResultStreamBuilder) WithNextFunc(fn func() (core.Row, error), has func() bool) *ResultStreamBuilder {
 	b.next = fn
 	b.hasNext = has
 	return b
 }
 
-func (b *ResultBuilder) WithHeader(header core.Header) *ResultBuilder {
+func (b *ResultStreamBuilder) WithHeader(header core.Header) *ResultStreamBuilder {
 	b.header = header
 	return b
 }
 
-func (b *ResultBuilder) WithCloseFunc(fn func()) *ResultBuilder {
+func (b *ResultStreamBuilder) WithCloseFunc(fn func()) *ResultStreamBuilder {
 	b.close = fn
 	return b
 }
 
-func (b *ResultBuilder) WithMeta(meta *core.Meta) *ResultBuilder {
+func (b *ResultStreamBuilder) WithMeta(meta *core.Meta) *ResultStreamBuilder {
 	b.meta = meta
 	return b
 }
 
-func (b *ResultBuilder) Build() *Result {
-	return &Result{
+func (b *ResultStreamBuilder) Build() *ResultStream {
+	return &ResultStream{
 		next:    b.next,
 		hasNext: b.hasNext,
 		header:  b.header,

@@ -20,27 +20,27 @@ const archiveBasePath = "/tmp/dbee-history/"
 
 // these variables create a file name for a specified type
 var (
-	archiveDir = func(callID StatID) string {
+	archiveDir = func(callID CallID) string {
 		return filepath.Join(archiveBasePath, string(callID))
 	}
 
-	metaFile = func(callID StatID) string {
+	metaFile = func(callID CallID) string {
 		return filepath.Join(archiveDir(callID), "meta.gob")
 	}
-	headerFile = func(callID StatID) string {
+	headerFile = func(callID CallID) string {
 		return filepath.Join(archiveDir(callID), "header.gob")
 	}
-	rowFile = func(callID StatID, i int) string {
+	rowFile = func(callID CallID, i int) string {
 		return filepath.Join(archiveDir(callID), fmt.Sprintf("row_%d.gob", i))
 	}
 )
 
 type archive struct {
-	id       StatID
+	id       CallID
 	isFilled bool
 }
 
-func newArchive(id StatID) *archive {
+func newArchive(id CallID) *archive {
 	isFilled := true
 	_, err := os.Stat(archiveDir(id))
 	if os.IsNotExist(err) {
@@ -57,7 +57,7 @@ func (a *archive) isEmpty() bool {
 }
 
 // archive stores the cache record to disk as a set of gob files
-func (a *archive) setResult(result *CacheResult) error {
+func (a *archive) setResult(result *Result) error {
 	if a.isFilled {
 		return nil
 	}
@@ -158,14 +158,14 @@ func (a *archive) getResult() (*archiveRows, error) {
 }
 
 type archiveRows struct {
-	id      StatID
+	id      CallID
 	header  Header
 	meta    *Meta
 	iter    func() (Row, error)
 	hasNext func() bool
 }
 
-func newArchiveRows(id StatID) (*archiveRows, error) {
+func newArchiveRows(id CallID) (*archiveRows, error) {
 	r := &archiveRows{
 		id: id,
 	}

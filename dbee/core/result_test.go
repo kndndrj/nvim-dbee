@@ -1,73 +1,36 @@
-package core_test
+package core
 
 import (
-	"context"
 	"errors"
-	"log"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"gotest.tools/assert"
 )
 
-type mockLogger struct{}
-
-func (ml *mockLogger) Debug(msg string) {
-	log.Default().Print(msg)
-}
-
-func (ml *mockLogger) Debugf(format string, args ...any) {
-	log.Default().Printf(format, args...)
-}
-
-func (ml *mockLogger) Info(msg string) {
-	log.Default().Print(msg)
-}
-
-func (ml *mockLogger) Infof(format string, args ...any) {
-	log.Default().Printf(format, args...)
-}
-
-func (ml *mockLogger) Warn(msg string) {
-	log.Default().Print(msg)
-}
-
-func (ml *mockLogger) Warnf(format string, args ...any) {
-	log.Default().Printf(format, args...)
-}
-
-func (ml *mockLogger) Error(msg string) {
-	log.Default().Print(msg)
-}
-
-func (ml *mockLogger) Errorf(format string, args ...any) {
-	log.Default().Printf(format, args...)
-}
-
-type mockedIterResult struct {
+type mockedResultStream struct {
 	max     int
 	current int
 	sleep   time.Duration
 }
 
-func newMockedIterResult(maxRows int, sleep time.Duration) *mockedIterResult {
-	return &mockedIterResult{
+func newMockedResultStream(maxRows int, sleep time.Duration) *mockedResultStream {
+	return &mockedResultStream{
 		max:   maxRows,
 		sleep: sleep,
 	}
 }
 
-func (mir *mockedIterResult) Meta() *core.Meta {
-	return &core.Meta{}
+func (mir *mockedResultStream) Meta() *Meta {
+	return &Meta{}
 }
 
-func (mir *mockedIterResult) Header() core.Header {
-	return core.Header{"header1", "header2"}
+func (mir *mockedResultStream) Header() Header {
+	return Header{"header1", "header2"}
 }
 
-func (mir *mockedIterResult) Next() (core.Row, error) {
+func (mir *mockedResultStream) Next() (Row, error) {
 	if mir.current < mir.max {
 
 		// sleep between iterations
@@ -75,114 +38,114 @@ func (mir *mockedIterResult) Next() (core.Row, error) {
 
 		num := mir.current
 		mir.current += 1
-		return core.Row{num, strconv.Itoa(num)}, nil
+		return Row{num, strconv.Itoa(num)}, nil
 	}
 
 	return nil, errors.New("no next row")
 }
 
-func (mir *mockedIterResult) HasNext() bool {
+func (mir *mockedResultStream) HasNext() bool {
 	return mir.current < mir.max
 }
 
-func (mir *mockedIterResult) Close() {}
+func (mir *mockedResultStream) Close() {}
 
-func (mir *mockedIterResult) Range(from int, to int) []core.Row {
-	var rows []core.Row
+func (mir *mockedResultStream) Range(from int, to int) []Row {
+	var rows []Row
 
 	for i := from; i < to; i++ {
-		rows = append(rows, core.Row{i, strconv.Itoa(i)})
+		rows = append(rows, Row{i, strconv.Itoa(i)})
 	}
 	return rows
 }
 
 func TestCache(t *testing.T) {
 	// prepare cache and mocks
-	cache := NewCache("", &mockLogger{})
+	result := new(Result)
 
 	numOfRows := 10
-	rows := newMockedIterResult(numOfRows, 0)
+	stream := newMockedResultStream(numOfRows, 0)
 
-	err := cache.Set(context.Background(), rows)
+	err := result.setIter(stream)
 	assert.NilError(t, err)
 
 	type testCase struct {
-		name           string
-		from           int
-		to             int
-		before         func()
-		expectedResult []core.Row
-		expectedError  error
+		name          string
+		from          int
+		to            int
+		before        func()
+		expectedRows  []Row
+		expectedError error
 	}
 
 	testCases := []testCase{
 		{
-			name:           "get all",
-			from:           0,
-			to:             -1,
-			expectedResult: rows.Range(0, numOfRows),
-			expectedError:  nil,
+			name:          "get all",
+			from:          0,
+			to:            -1,
+			expectedRows:  stream.Range(0, numOfRows),
+			expectedError: nil,
 		},
 		{
-			name:           "get basic range",
-			from:           0,
-			to:             3,
-			expectedResult: rows.Range(0, 3),
-			expectedError:  nil,
+			name:          "get basic range",
+			from:          0,
+			to:            3,
+			expectedRows:  stream.Range(0, 3),
+			expectedError: nil,
 		},
 		{
-			name:           "get last 2",
-			from:           -3,
-			to:             -1,
-			expectedResult: rows.Range(numOfRows-2, numOfRows),
-			expectedError:  nil,
+			name:          "get last 2",
+			from:          -3,
+			to:            -1,
+			expectedRows:  stream.Range(numOfRows-2, numOfRows),
+			expectedError: nil,
 		},
 		{
-			name:           "get only one",
-			from:           0,
-			to:             1,
-			expectedResult: rows.Range(0, 1),
-			expectedError:  nil,
-		},
-
-		{
-			name:           "invalid range",
-			from:           5,
-			to:             1,
-			expectedResult: nil,
-			expectedError:  core.ErrInvalidRange(5, 1),
-		},
-		{
-			name:           "invalid range (even if 10 can be higher than -1, its undefined and should fail)",
-			from:           -5,
-			to:             10,
-			expectedResult: nil,
-			expectedError:  core.ErrInvalidRange(-5, 10),
+			name:          "get only one",
+			from:          0,
+			to:            1,
+			expectedRows:  stream.Range(0, 1),
+			expectedError: nil,
 		},
 
 		{
-			name:           "wait for available index",
-			from:           0,
-			to:             3,
-			expectedResult: rows.Range(0, 3),
-			expectedError:  nil,
+			name:          "invalid range",
+			from:          5,
+			to:            1,
+			expectedRows:  nil,
+			expectedError: ErrInvalidRange(5, 1),
+		},
+		{
+			name:          "invalid range (even if 10 can be higher than -1, its undefined and should fail)",
+			from:          -5,
+			to:            10,
+			expectedRows:  nil,
+			expectedError: ErrInvalidRange(-5, 10),
+		},
+
+		{
+			name:          "wait for available index",
+			from:          0,
+			to:            3,
+			expectedRows:  stream.Range(0, 3),
+			expectedError: nil,
 			before: func() {
-				cache.Wipe()
+				result.Wipe()
 				// reset result with sleep between iterations
-				err = cache.Set(context.Background(), newMockedIterResult(numOfRows, 500*time.Millisecond))
+				err = result.setIter(newMockedResultStream(numOfRows, 500*time.Millisecond))
 				assert.NilError(t, err)
 			},
 		},
 		{
-			name:           "wait for all to be drained",
-			from:           0,
-			to:             -1,
-			expectedResult: rows.Range(0, numOfRows),
-			expectedError:  nil,
+			name:          "wait for all to be drained",
+			from:          0,
+			to:            -1,
+			expectedRows:  stream.Range(0, numOfRows),
+			expectedError: nil,
 			before: func() {
-				cache.Wipe()
+				result.Wipe()
 				// reset result with sleep between iterations
-				err = cache.Set(context.Background(), newMockedIterResult(numOfRows, 500*time.Millisecond))
+				err = result.setIter(newMockedResultStream(numOfRows, 500*time.Millisecond))
 				assert.NilError(t, err)
 			},
 		},
@@ -194,23 +157,13 @@ func TestCache(t *testing.T) {
 				tc.before()
 			}
 
-			result, err := cache.Get(context.Background(), tc.from, tc.to)
+			rows, err := result.Rows(tc.from, tc.to)
 			if err != nil && tc.expectedError != nil {
 				assert.Equal(t, err.Error(), tc.expectedError.Error())
 				return
 			}
 
-			// drain the iterator and compare results
-			var resultRows []core.Row
-
-			for result.HasNext() {
-				row, err := result.Next()
-				assert.NilError(t, err)
-
-				resultRows = append(resultRows, row)
-			}
-
-			assert.DeepEqual(t, tc.expectedResult, resultRows)
+			assert.DeepEqual(t, rows, tc.expectedRows)
 		})
 	}
 }

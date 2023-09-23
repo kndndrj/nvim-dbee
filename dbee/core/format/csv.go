@@ -16,10 +16,6 @@ func NewCSV() *CSV {
 	return &CSV{}
 }
 
-func (cf *CSV) Name() string {
-	return "csv"
-}
-
 func (cf *CSV) parseSchemaFul(header core.Header, rows []core.Row) [][]string {
 	data := [][]string{
 		header,
@@ -35,7 +31,7 @@ func (cf *CSV) parseSchemaFul(header core.Header, rows []core.Row) [][]string {
 	return data
 }
 
-func (cf *CSV) Format(header core.Header, rows []core.Row, _ *core.FormatOpts) ([]byte, error) {
+func (cf *CSV) Format(header core.Header, rows []core.Row, _ *core.FormatterOpts) ([]byte, error) {
 	// parse as if schema is defined regardles of schema presence in the result
 	data := cf.parseSchemaFul(header, rows)
 

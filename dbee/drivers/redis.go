@@ -1,4 +1,4 @@
-package clients
+package drivers
 
 import (
 	"context"
@@ -8,14 +8,15 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
-	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/kndndrj/nvim-dbee/dbee/core"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 )
 
 // Register client
 func init() {
-	c := func(url string) (core.Client, error) {
+	c := func(url string) (core.Driver, error) {
 		return NewRedis(url)
 	}
 	_ = register(c, "redis")
@@ -26,7 +27,7 @@ func init() {
 	gob.Register(map[any]any{})
 }
 
-var _ core.Client = (*Redis)(nil)
+var _ core.Driver = (*Redis)(nil)
 
 type Redis struct {
 	redis *redis.Client
@@ -44,7 +45,7 @@ func NewRedis(url string) (*Redis, error) {
 	}, nil
 }
 
-func (c *Redis) Query(ctx context.Context, query string) (core.IterResult, error) {
+func (c *Redis) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	cmd, err := parseRedisCmd(query)
 	if err != nil {
 		return nil, err
@@ -103,7 +104,7 @@ func (c *Redis) Query(ctx context.Context, query string) (core.IterResult, error
 	}
 
 	// build result
-	result := builders.NewResultBuilder().
+	result := builders.NewResultStreamBuilder().
 		WithNextFunc(nextFunc, hasNextFunc).
 		WithHeader(core.Header{"Reply"}).
 		WithMeta(&core.Meta{
@@ -114,13 +115,12 @@ func (c *Redis) Query(ctx context.Context, query string) (core.IterResult, error
 	return result, err
 }
 
-func (c *Redis) Layout() ([]core.Layout, error) {
-	return []core.Layout{
+func (c *Redis) Structure() ([]core.Structure, error) {
+	return []core.Structure{
 		{
-			Name:     "DB",
-			Schema:   "",
-			Database: "",
-			Type:     core.LayoutTypeTable,
+			Name:   "DB",
+			Schema: "",
+			Type:   core.StructureTypeTable,
 		},
 	}, nil
 }

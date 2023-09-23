@@ -1,26 +1,27 @@
 //go:build (darwin && (amd64 || arm64)) || (freebsd && (386 || amd64 || arm || arm64)) || (linux && (386 || amd64 || arm || arm64 || ppc64le || riscv64 || s390x)) || (netbsd && amd64) || (openbsd && (amd64 || arm64)) || (windows && (amd64 || arm64))
 
-package clients
+package drivers
 
 import (
 	"context"
 	"database/sql"
 	"fmt"
 
-	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
-	"github.com/kndndrj/nvim-dbee/dbee/core"
 	_ "modernc.org/sqlite"
+
+	"github.com/kndndrj/nvim-dbee/dbee/core"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 )
 
 // Register client
 func init() {
-	c := func(url string) (core.Client, error) {
+	c := func(url string) (core.Driver, error) {
 		return NewSqlite(url)
 	}
 	_ = register(c, "sqlite", "sqlite3")
 }
 
-var _ core.Client = (*SQLite)(nil)
+var _ core.Driver = (*SQLite)(nil)
 
 type SQLite struct {
 	c *builders.Client
@@ -37,7 +38,7 @@ func NewSqlite(url string) (*SQLite, error) {
 	}, nil
 }
 
-func (c *SQLite) Query(ctx context.Context, query string) (core.IterResult, error) {
+func (c *SQLite) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -68,7 +69,7 @@ func (c *SQLite) Query(ctx context.Context, query string) (core.IterResult, erro
 	return rows, err
 }
 
-func (c *SQLite) Layout() ([]core.Layout, error) {
+func (c *SQLite) Structure() ([]core.Structure, error) {
 	query := `SELECT name FROM sqlite_schema WHERE type ='table'`
 
 	rows, err := c.Query(context.TODO(), query)
@@ -76,7 +77,7 @@ func (c *SQLite) Layout() ([]core.Layout, error) {
 		return nil, err
 	}
 
-	var schema []core.Layout
+	var schema []core.Structure
 	for rows.HasNext() {
 		row, err := rows.Next()
 		if err != nil {
@@ -85,12 +86,10 @@ func (c *SQLite) Layout() ([]core.Layout, error) {
 
 		// We know for a fact there is only one string field (see query above)
 		table := row[0].(string)
-		schema = append(schema, core.Layout{
+		schema = append(schema, core.Structure{
 			Name:   table,
 			Schema: "",
-			// TODO:
-			Database: "",
-			Type:     core.LayoutTypeTable,
+			Type:   core.StructureTypeTable,
 		})
 	}
 

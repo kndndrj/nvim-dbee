@@ -1,4 +1,4 @@
-package clients
+package drivers
 
 import (
 	"context"
@@ -7,19 +7,20 @@ import (
 	"regexp"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
+
 	"github.com/kndndrj/nvim-dbee/dbee/core"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 )
 
 // Register client
 func init() {
-	c := func(url string) (core.Client, error) {
+	c := func(url string) (core.Driver, error) {
 		return NewMysql(url)
 	}
 	_ = register(c, "mysql")
 }
 
-var _ core.Client = (*MySQL)(nil)
+var _ core.Driver = (*MySQL)(nil)
 
 type MySQL struct {
 	sql *builders.Client
@@ -46,7 +47,7 @@ func NewMysql(url string) (*MySQL, error) {
 	}, nil
 }
 
-func (c *MySQL) Query(ctx context.Context, query string) (core.IterResult, error) {
+func (c *MySQL) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	con, err := c.sql.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -77,7 +78,7 @@ func (c *MySQL) Query(ctx context.Context, query string) (core.IterResult, error
 	return rows, err
 }
 
-func (c *MySQL) Layout() ([]core.Layout, error) {
+func (c *MySQL) Structure() ([]core.Structure, error) {
 	query := `SELECT table_schema, table_name FROM information_schema.tables`
 
 	rows, err := c.Query(context.TODO(), query)
@@ -85,7 +86,7 @@ func (c *MySQL) Layout() ([]core.Layout, error) {
 		return nil, err
 	}
 
-	children := make(map[string][]core.Layout)
+	children := make(map[string][]core.Structure)
 
 	for rows.HasNext() {
 		row, err := rows.Next()
@@ -97,25 +98,21 @@ func (c *MySQL) Layout() ([]core.Layout, error) {
 		schema := row[0].(string)
 		table := row[1].(string)
 
-		children[schema] = append(children[schema], core.Layout{
+		children[schema] = append(children[schema], core.Structure{
 			Name:   table,
 			Schema: schema,
-			// TODO:
-			Database: "",
-			Type:     core.LayoutTypeTable,
+			Type:   core.StructureTypeTable,
 		})
 
 	}
 
-	var layout []core.Layout
+	var layout []core.Structure
 
 	for k, v := range children {
-		layout = append(layout, core.Layout{
-			Name:   k,
-			Schema: k,
-			// TODO:
-			Database: "",
-			Type:     core.LayoutTypeNone,
+		layout = append(layout, core.Structure{
+			Name:     k,
+			Schema:   k,
+			Type:     core.StructureTypeNone,
 			Children: v,
 		})
 	}

@@ -9,12 +9,8 @@ import (
 
 var ErrInvalidRange = func(from int, to int) error { return fmt.Errorf("invalid selection range: %d ... %d", from, to) }
 
-type Formatter interface {
-	Format(header Header, rows []Row, opts *FormatOpts) ([]byte, error)
-}
-
-// CacheResult is the cached form of the Result iterator
-type CacheResult struct {
+// Result is the cached form of the ResultStream iterator
+type Result struct {
 	header Header
 	meta   *Meta
 	rows   []Row
@@ -25,7 +21,7 @@ type CacheResult struct {
 	readMutex  sync.RWMutex
 }
 
-func (cr *CacheResult) setIter(iter IterResult) error {
+func (cr *Result) setIter(iter ResultStream) error {
 	// lock write mutex
 	cr.writeMutex.Lock()
 	defer cr.writeMutex.Unlock()
@@ -61,25 +57,28 @@ func (cr *CacheResult) setIter(iter IterResult) error {
 	return nil
 }
 
-func (cr *CacheResult) Wipe() {
+func (cr *Result) Wipe() {
 	// lock write and read mutexes
 	cr.writeMutex.Lock()
 	defer cr.writeMutex.Unlock()
 	cr.readMutex.Lock()
 	defer cr.readMutex.Unlock()
 
-	*cr = CacheResult{}
+	// clear everything
+	cr.header = Header{}
+	cr.meta = &Meta{}
+	cr.rows = []Row{}
 	cr.isDrained = false
 	cr.isFilled = false
 }
 
-func (cr *CacheResult) Format(formatter Formatter, from, to int) ([]byte, error) {
+func (cr *Result) Format(formatter Formatter, from, to int) ([]byte, error) {
 	rows, fromAdjusted, _, err := cr.getRows(from, to)
 	if err != nil {
 		return nil, fmt.Errorf("cr.Rows: %w", err)
 	}
 
-	opts := &FormatOpts{
+	opts := &FormatterOpts{
 		SchemaType: cr.meta.SchemaType,
 		ChunkStart: fromAdjusted,
 	}
@@ -92,29 +91,29 @@ func (cr *CacheResult) Format(formatter Formatter, from, to int) ([]byte, error)
 	return f, nil
 }
 
-func (cr *CacheResult) Len() int {
+func (cr *Result) Len() int {
 	return len(cr.rows)
 }
 
-func (cr *CacheResult) IsEmpty() bool {
+func (cr *Result) IsEmpty() bool {
 	return !cr.isFilled
 }
 
-func (cr *CacheResult) Header() Header {
+func (cr *Result) Header() Header {
 	return cr.header
 }
 
-func (cr *CacheResult) Meta() *Meta {
+func (cr *Result) Meta() *Meta {
 	return cr.meta
 }
 
-func (cr *CacheResult) Rows(from, to int) ([]Row, error) {
+func (cr *Result) Rows(from, to int) ([]Row, error) {
 	rows, _, _, err := cr.getRows(from, to)
 	return rows, err
 }
 
 // getRows returns the row range and adjusted from-to values
-func (cr *CacheResult) getRows(from, to int) (rows []Row, rangeFrom int, rangeTo int, err error) {
+func (cr *Result) getRows(from, to int) (rows []Row, rangeFrom int, rangeTo int, err error) {
 	// increment the read mutex
 	cr.readMutex.RLock()
 	defer cr.readMutex.RUnlock()

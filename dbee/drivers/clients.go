@@ -1,4 +1,4 @@
-package clients
+package drivers
 
 import (
 	"errors"
@@ -13,7 +13,7 @@ var (
 )
 
 // creator creates a new driver instance
-type creator func(url string) (core.Client, error)
+type creator func(url string) (core.Driver, error)
 
 // registeredCreators holds implemented driver types - specific drivers register themselves in their init functions.
 // The main reason is to be able to compile the binary without unsupported os/arch of specific drivers
@@ -49,7 +49,7 @@ func Adapter() *DefaultAdapter {
 	return &DefaultAdapter{}
 }
 
-func (*DefaultAdapter) Connect(typ string, url string) (core.Client, error) {
+func (*DefaultAdapter) Connect(typ string, url string) (core.Driver, error) {
 	creator, ok := registeredCreators[typ]
 	if !ok {
 		return nil, ErrUnsupportedTypeAlias

@@ -22,7 +22,7 @@ end
 ---@param state call_state
 ---@return string # highlight group
 local function call_state_highlight(state)
-  if state == "uninitialized" then
+  if state == "unknown" then
     return "NonText"
   elseif state == "executing" then
     return "WarningMsg"
@@ -52,14 +52,14 @@ local function create_tree(bufnr)
         line:append(" | ", "NonText")
         line:append(make_length(call.query, 40))
         line:append(" | ", "NonText")
-        line:append(os.date("%c", (call.timestamp_us or 0) / 1000000))
+        line:append(tostring(os.date("%c", (call.timestamp_us or 0) / 1000000)))
         return line
       end,
       get_node_id = function(node)
         if node.id then
           return node.id
         end
-        return math.random()
+        return tostring(math.random())
       end,
     }
 

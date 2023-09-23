@@ -1,5 +1,5 @@
 local Helpers = require("dbee.handler.helpers")
-local event_bus = require("dbee.handler.__callbacks")
+local event_bus = require("dbee.handler.__events")
 
 -- structure of the database
 ---@class DBStructure
@@ -182,13 +182,13 @@ end
 ---@param query string
 ---@return call_details
 function Handler:connection_execute(id, query)
-  return vim.fn.DbeeConnExecute { id = id, query = query }
+  return vim.fn.DbeeConnectionExecute { id = id, query = query }
 end
 
 ---@param id conn_id
 ---@return Layout[]
 function Handler:connection_get_structure(id)
-  local ret = vim.fn.DbeeConnGetStructure { id = id }
+  local ret = vim.fn.DbeeConnectionGetStructure { id = id }
   if not ret or ret == vim.NIL then
     return {}
   end
@@ -198,7 +198,7 @@ end
 ---@param id conn_id
 ---@return connection_details?
 function Handler:connection_get_params(id)
-  local ret = vim.fn.DbeeConnGetParams { id = id }
+  local ret = vim.fn.DbeeConnectionGetParams { id = id }
   if not ret or ret == vim.NIL then
     return
   end
@@ -209,19 +209,19 @@ end
 ---@return string current_db
 ---@return string[] available_dbs
 function Handler:connection_list_databases(id)
-  return unpack(vim.fn.DbeeConnListDatabases { id = id })
+  return unpack(vim.fn.DbeeConnectionListDatabases { id = id })
 end
 
 ---@param id conn_id
 ---@param database string
 function Handler:connection_select_database(id, database)
-  vim.fn.DbeeConnSelectDatabase { id = id, database = database }
+  vim.fn.DbeeConnectionSelectDatabase { id = id, database = database }
 end
 
 ---@param id conn_id
 ---@return call_details[]
 function Handler:connection_get_calls(id)
-  local ret = vim.fn.DbeeConnGetCalls { id = id }
+  local ret = vim.fn.DbeeConnectionGetCalls { id = id }
   if not ret or ret == vim.NIL then
     return {}
   end

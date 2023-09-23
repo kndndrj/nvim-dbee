@@ -1,4 +1,4 @@
-package clients
+package drivers
 
 import (
 	"context"
@@ -11,19 +11,19 @@ import (
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 
-	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 	"github.com/kndndrj/nvim-dbee/dbee/core"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 )
 
 // Register client
 func init() {
-	c := func(url string) (core.Client, error) {
+	c := func(url string) (core.Driver, error) {
 		return NewBigQuery(url)
 	}
 	_ = register(c, "bigquery")
 }
 
-var _ core.Client = (*BigQuery)(nil)
+var _ core.Driver = (*BigQuery)(nil)
 
 type BigQuery struct {
 	c                 *bigquery.Client
@@ -33,7 +33,7 @@ type BigQuery struct {
 	useLegacySQL      bool
 }
 
-// NewBigQuery creates a [BigQueryClient] connected to the project specified
+// NewBigQuery creates a [BigQuery] client connected to the project specified
 // in the url. The format of the url is as follows:
 //
 //	bigquery://[project][?options]
@@ -111,7 +111,7 @@ func NewBigQuery(rawURL string) (*BigQuery, error) {
 	return client, nil
 }
 
-func (c *BigQuery) Query(ctx context.Context, queryStr string) (core.IterResult, error) {
+func (c *BigQuery) Query(ctx context.Context, queryStr string) (core.ResultStream, error) {
 	query := c.c.Query(queryStr)
 	query.DisableQueryCache = c.disableQueryCache
 	query.MaxBytesBilled = c.maxBytesBilled
@@ -155,14 +155,14 @@ func (c *BigQuery) Query(ctx context.Context, queryStr string) (core.IterResult,
 		return hasNext
 	}
 
-	result := builders.NewResultBuilder().
+	result := builders.NewResultStreamBuilder().
 		WithNextFunc(nextFn, hasNextFn).
 		WithHeader(header).
 		Build()
 	return result, nil
 }
 
-func (c *BigQuery) Layout() (layouts []core.Layout, err error) {
+func (c *BigQuery) Structure() (layouts []core.Structure, err error) {
 	ctx := context.TODO()
 
 	datasetsIter := c.c.Datasets(ctx)
@@ -176,12 +176,11 @@ func (c *BigQuery) Layout() (layouts []core.Layout, err error) {
 			break
 		}
 
-		datasetLayout := core.Layout{
+		datasetLayout := core.Structure{
 			Name:     dataset.DatasetID,
 			Schema:   dataset.DatasetID,
-			Database: dataset.ProjectID,
-			Type:     core.LayoutTypeNone,
-			Children: []core.Layout{},
+			Type:     core.StructureTypeNone,
+			Children: []core.Structure{},
 		}
 
 		tablesIter := dataset.Tables(ctx)
@@ -195,11 +194,10 @@ func (c *BigQuery) Layout() (layouts []core.Layout, err error) {
 				break
 			}
 
-			datasetLayout.Children = append(datasetLayout.Children, core.Layout{
+			datasetLayout.Children = append(datasetLayout.Children, core.Structure{
 				Name:     table.TableID,
 				Schema:   table.DatasetID,
-				Database: table.ProjectID,
-				Type:     core.LayoutTypeTable,
+				Type:     core.StructureTypeTable,
 				Children: nil,
 			})
 		}

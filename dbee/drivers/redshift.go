@@ -1,4 +1,4 @@
-package clients
+package drivers
 
 import (
 	"context"
@@ -6,20 +6,20 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 	"github.com/kndndrj/nvim-dbee/dbee/core"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 )
 
 // init registers the RedshiftClient to the store,
 // i.e. to lua frontend.
 func init() {
-	c := func(url string) (core.Client, error) {
+	c := func(url string) (core.Driver, error) {
 		return NewRedshift(url)
 	}
 	_ = register(c, "redshift")
 }
 
-var _ core.Client = (*Redshift)(nil)
+var _ core.Driver = (*Redshift)(nil)
 
 // Redshift is a sql client for Redshift.
 // Mainly uses the postgres driver under the hood but with
@@ -46,7 +46,7 @@ func NewRedshift(rawURL string) (*Redshift, error) {
 }
 
 // Query executes a query and returns the result as an IterResult.
-func (c *Redshift) Query(ctx context.Context, query string) (core.IterResult, error) {
+func (c *Redshift) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -74,10 +74,10 @@ func (c *Redshift) Close() {
 	c.c.Close()
 }
 
-// Layout returns the layout of the database. This represents the
+// Structure returns the layout of the database. This represents the
 // "schema" with all the tables and views. Note that ordering is not
 // done here. The ordering is done in the lua frontend.
-func (c *Redshift) Layout() ([]core.Layout, error) {
+func (c *Redshift) Structure() ([]core.Structure, error) {
 	query := `
 		SELECT
 		trim(n.nspname) AS schema_name

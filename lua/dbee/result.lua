@@ -68,6 +68,12 @@ function Result:on_call_state_changed(data)
     print("executing")
   elseif call.state == "retrieving" then
     self:page_current()
+  elseif call.state == "failed" then
+    -- TODO: stop progress
+    -- TODO: show status
+  elseif call.state == "canceled" then
+    -- TODO: stop progress
+    -- TODO: show status
   else
     -- TODO: stop progress
   end
@@ -182,7 +188,7 @@ function Result:show_page(page)
   end
 
   -- convert from microseconds to seconds
-  local seconds = self.current_call.took_us / 1000000
+  local seconds = self.current_call.time_taken_us / 1000000
 
   -- set winbar status
   vim.api.nvim_win_set_option(

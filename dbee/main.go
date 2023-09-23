@@ -32,22 +32,12 @@ func main() {
 				Name string `arg:"name"`
 			},
 			) (any, error) {
-				return handler.CreateConnection(&core.Params{
-					ID:   core.ID(args.ID),
+				return handler.CreateConnection(&core.ConnectionParams{
+					ID:   core.ConnectionID(args.ID),
 					Name: args.Name,
 					Type: args.Type,
 					URL:  args.URL,
 				})
-			}))
-
-		entry.Register(
-			"DbeeDeleteConnection",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID string `arg:"id"`
-			},
-			) (any, error) {
-				handler.DeleteConnection(core.ID(args.ID))
-				return nil, nil
 			}))
 
 		entry.Register(
@@ -63,13 +53,13 @@ func main() {
 					return nil, nil
 				}
 
-				is := make([]core.ID, len(ids))
+				is := make([]core.ConnectionID, len(ids))
 				for i := range ids {
 					str, ok := ids[i].(string)
 					if !ok {
 						continue
 					}
-					is[i] = core.ID(str)
+					is[i] = core.ConnectionID(str)
 				}
 
 				return handler.GetConnections(is), nil
@@ -81,7 +71,7 @@ func main() {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				return handler.SetCurrentConnection(core.ID(args.ID)), nil
+				return handler.SetCurrentConnection(core.ConnectionID(args.ID)), nil
 			}))
 
 		entry.Register(
@@ -92,49 +82,49 @@ func main() {
 			}))
 
 		entry.Register(
-			"DbeeConnExecute",
+			"DbeeConnectionExecute",
 			vim.Wrap(func(r *vim.SharedResource, args *struct {
 				ID    string `arg:"id"`
 				Query string `arg:"query"`
 			},
 			) (any, error) {
-				return handler.ConnExecute(core.ID(args.ID), args.Query)
+				return handler.ConnectionExecute(core.ConnectionID(args.ID), args.Query)
 			}))
 
 		entry.Register(
-			"DbeeConnGetCalls",
+			"DbeeConnectionGetCalls",
 			vim.Wrap(func(r *vim.SharedResource, args *struct {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				return handler.ConnGetCalls(core.ID(args.ID))
+				return handler.ConnectionGetCalls(core.ConnectionID(args.ID))
 			}))
 
 		entry.Register(
-			"DbeeConnGetParams",
+			"DbeeConnectionGetParams",
 			vim.Wrap(func(r *vim.SharedResource, args *struct {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				return handler.ConnGetParams(core.ID(args.ID))
+				return handler.ConnectionGetParams(core.ConnectionID(args.ID))
 			}))
 
 		entry.Register(
-			"DbeeConnGetStructure",
+			"DbeeConnectionGetStructure",
 			vim.Wrap(func(r *vim.SharedResource, args *struct {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				return handler.ConnGetStructure(core.ID(args.ID))
+				return handler.ConnectionGetStructure(core.ConnectionID(args.ID))
 			}))
 
 		entry.Register(
-			"DbeeConnListDatabases",
+			"DbeeConnectionListDatabases",
 			vim.Wrap(func(r *vim.SharedResource, args *struct {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				current, available, err := handler.ConnListDatabases(core.ID(args.ID))
+				current, available, err := handler.ConnectionListDatabases(core.ConnectionID(args.ID))
 				if err != nil {
 					return nil, err
 				}
@@ -142,13 +132,13 @@ func main() {
 			}))
 
 		entry.Register(
-			"DbeeConnSelectDatabase",
+			"DbeeConnectionSelectDatabase",
 			vim.Wrap(func(r *vim.SharedResource, args *struct {
 				ID       string `arg:"id"`
 				Database string `arg:"database"`
 			},
 			) (any, error) {
-				return nil, handler.ConnSelectDatabase(core.ID(args.ID), args.Database)
+				return nil, handler.ConnectionSelectDatabase(core.ConnectionID(args.ID), args.Database)
 			}))
 
 		entry.Register(
@@ -157,7 +147,7 @@ func main() {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				return nil, handler.CallCancel(core.StatID(args.ID))
+				return nil, handler.CallCancel(core.CallID(args.ID))
 			}))
 
 		entry.Register(
@@ -169,7 +159,7 @@ func main() {
 				To     int    `arg:"to"`
 			},
 			) (any, error) {
-				return handler.CallDisplayResult(core.StatID(args.ID), nvim.Buffer(args.Buffer), args.From, args.To)
+				return handler.CallDisplayResult(core.CallID(args.ID), nvim.Buffer(args.Buffer), args.From, args.To)
 			}))
 
 		entry.Register(
@@ -192,7 +182,7 @@ func main() {
 					extraArg = args.Buffer
 				}
 
-				return nil, handler.CallStoreResult(core.StatID(args.ID), args.Format, args.Output, args.From, args.To, extraArg)
+				return nil, handler.CallStoreResult(core.CallID(args.ID), args.Format, args.Output, args.From, args.To, extraArg)
 			}))
 
 		return nil

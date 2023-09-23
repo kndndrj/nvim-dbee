@@ -15,7 +15,7 @@ func newTable() *Table {
 	return &Table{}
 }
 
-func (tf *Table) Format(header core.Header, rows []core.Row, opts *core.FormatOpts) ([]byte, error) {
+func (tf *Table) Format(header core.Header, rows []core.Row, opts *core.FormatterOpts) ([]byte, error) {
 	tableHeaders := []any{""}
 	for _, k := range header {
 		tableHeaders = append(tableHeaders, k)

@@ -12,8 +12,8 @@ local floats = require("dbee.floats")
 
 -- call details represent a single call to database
 ---@alias call_id string
----@alias call_state "uninitialized"|"executing"|"retrieving"|"archived"|"failed"|"canceled"
----@alias call_details { id: call_id, took_us: duration, query: string, state: call_state, timestamp_us: timestamp }
+---@alias call_state "unknown"|"executing"|"retrieving"|"archived"|"failed"|"canceled"
+---@alias call_details { id: call_id, time_taken_us: duration, query: string, state: call_state, timestamp_us: timestamp }
 
 -- Conn is a 1:1 mapping to go's connections
 ---@class Conn

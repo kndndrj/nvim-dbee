@@ -10,10 +10,10 @@ import (
 	"github.com/neovim/go-client/msgpack"
 )
 
-type State int
+type CallState int
 
 const (
-	CallStateUninitialized State = iota
+	CallStateUnknown CallState = iota
 	CallStateExecuting
 	CallStateRetrieving
 	CallStateArchived
@@ -21,10 +21,10 @@ const (
 	CallStateCanceled
 )
 
-func StateFromString(s string) State {
+func CallStateFromString(s string) CallState {
 	switch s {
-	case "uninitialized":
-		return CallStateUninitialized
+	case "unknown":
+		return CallStateUnknown
 	case "executing":
 		return CallStateExecuting
 	case "retrieving":
@@ -36,14 +36,14 @@ func StateFromString(s string) State {
 	case "canceled":
 		return CallStateCanceled
 	default:
-		return CallStateUninitialized
+		return CallStateUnknown
 	}
 }
 
-func (s State) String() string {
+func (s CallState) String() string {
 	switch s {
-	case CallStateUninitialized:
-		return "uninitialized"
+	case CallStateUnknown:
+		return "unknown"
 	case CallStateExecuting:
 		return "executing"
 	case CallStateRetrieving:
@@ -60,86 +60,85 @@ func (s State) String() string {
 }
 
 type (
-	StatID string
+	CallID string
 
-	Stat struct {
-		ID        StatID
-		Query     string
-		State     State
-		Took      time.Duration
-		Timestamp time.Time
+	Call struct {
+		id        CallID
+		query     string
+		state     CallState
+		timeTaken time.Duration
+		timestamp time.Time
 
-		result      *CacheResult
+		result      *Result
 		archive     *archive
 		cancelFunc  func()
-		onEventFunc func(state State)
+		onEventFunc func(state CallState)
 	}
 )
 
-// statPersistent is a form used to permanently store the call stat
-type statPersistent struct {
+// callPersistent is a form used to permanently store the call stat
+type callPersistent struct {
 	ID        string `msgpack:"id" json:"id"`
 	Query     string `msgpack:"query" json:"query"`
 	State     string `msgpack:"state" json:"state"`
-	Took      int64  `msgpack:"took_us" json:"took_us"`
+	TimeTaken int64  `msgpack:"time_taken_us" json:"time_taken_us"`
 	Timestamp int64  `msgpack:"timestamp_us" json:"timestamp_us"`
 }
 
-func (s *Stat) toPersistent() *statPersistent {
-	return &statPersistent{
-		ID:        string(s.ID),
-		Query:     s.Query,
-		State:     s.State.String(),
-		Took:      s.Took.Microseconds(),
-		Timestamp: s.Timestamp.UnixMicro(),
+func (s *Call) toPersistent() *callPersistent {
+	return &callPersistent{
+		ID:        string(s.id),
+		Query:     s.query,
+		State:     s.state.String(),
+		TimeTaken: s.timeTaken.Microseconds(),
+		Timestamp: s.timestamp.UnixMicro(),
 	}
 }
 
-func (s *Stat) MarshalMsgPack(enc *msgpack.Encoder) error {
+func (s *Call) MarshalMsgPack(enc *msgpack.Encoder) error {
 	return enc.Encode(s.toPersistent())
 }
 
-func (s *Stat) MarshalJSON() ([]byte, error) {
+func (s *Call) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.toPersistent())
 }
 
-func (s *Stat) UnmarshalJSON(data []byte) error {
-	var alias statPersistent
+func (s *Call) UnmarshalJSON(data []byte) error {
+	var alias callPersistent
 
 	if err := json.Unmarshal(data, &alias); err != nil {
 		return err
 	}
 
-	archive := newArchive(StatID(alias.ID))
-	state := StateFromString(alias.ID)
-
-	if !archive.isEmpty() {
-		state = CallStateArchived
+	archive := newArchive(CallID(alias.ID))
+	state := CallStateFromString(alias.State)
+	if state == CallStateArchived && archive.isEmpty() {
+		state = CallStateUnknown
 	}
 
-	*s = Stat{
-		ID:        StatID(alias.ID),
-		Query:     alias.Query,
-		State:     state,
-		Took:      time.Duration(alias.Took) * time.Microsecond,
-		Timestamp: time.UnixMicro(alias.Timestamp),
+	*s = Call{
+		id:        CallID(alias.ID),
+		query:     alias.Query,
+		state:     state,
+		timeTaken: time.Duration(alias.TimeTaken) * time.Microsecond,
+		timestamp: time.UnixMicro(alias.Timestamp),
 
-		result:  new(CacheResult),
-		archive: newArchive(StatID(alias.ID)),
+		result:  new(Result),
+		archive: newArchive(CallID(alias.ID)),
 	}
 
 	return nil
 }
 
 // Caller builds the cal
-func newCallFromExecutor(executor func(context.Context) (IterResult, error), query string, onEvent func(state State)) *Stat {
-	id := StatID(uuid.New().String())
-	c := &Stat{
-		ID:    id,
-		Query: query,
-		State: CallStateUninitialized,
+func newCallFromExecutor(executor func(context.Context) (ResultStream, error), query string, onEvent func(CallState)) *Call {
+	id := CallID(uuid.New().String())
+	c := &Call{
+		id:    id,
+		query: query,
+		state: CallStateUnknown,
 
-		result:      new(CacheResult),
+		result:      new(Result),
 		archive:     newArchive(id),
 		onEventFunc: onEvent,
 	}
@@ -148,9 +147,9 @@ func newCallFromExecutor(executor func(context.Context) (IterResult, error), que
 	c.cancelFunc = cancel
 
 	go func() {
-		c.Timestamp = time.Now()
+		c.timestamp = time.Now()
 		defer func() {
-			c.Took = time.Since(c.Timestamp)
+			c.timeTaken = time.Since(c.timestamp)
 		}()
 
 		// execute the function
@@ -182,11 +181,31 @@ func newCallFromExecutor(executor func(context.Context) (IterResult, error), que
 	return c
 }
 
-func (c *Stat) setState(state State) {
-	if c.State == CallStateFailed || c.State == CallStateCanceled {
+func (c *Call) GetID() CallID {
+	return c.id
+}
+
+func (c *Call) GetQuery() string {
+	return c.query
+}
+
+func (c *Call) GetState() CallState {
+	return c.state
+}
+
+func (c *Call) GetTimeTaken() time.Duration {
+	return c.timeTaken
+}
+
+func (c *Call) GetTimestamp() time.Time {
+	return c.timestamp
+}
+
+func (c *Call) setState(state CallState) {
+	if c.state == CallStateFailed || c.state == CallStateCanceled {
 		return
 	}
-	c.State = state
+	c.state = state
 
 	// trigger event callback
 	if c.onEventFunc != nil {
@@ -194,8 +213,8 @@ func (c *Stat) setState(state State) {
 	}
 }
 
-func (c *Stat) Cancel() {
-	if c.State != CallStateExecuting {
+func (c *Call) Cancel() {
+	if c.state != CallStateExecuting {
 		return
 	}
 	c.setState(CallStateCanceled)
@@ -204,7 +223,7 @@ func (c *Stat) Cancel() {
 	}
 }
 
-func (c *Stat) GetResult() (*CacheResult, error) {
+func (c *Call) GetResult() (*Result, error) {
 	if c.result.IsEmpty() {
 		iter, err := c.archive.getResult()
 		if err != nil {

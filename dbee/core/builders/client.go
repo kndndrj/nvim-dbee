@@ -45,7 +45,7 @@ func (c *Conn) Close() error {
 	return c.conn.Close()
 }
 
-func (c *Conn) Exec(ctx context.Context, query string) (*Result, error) {
+func (c *Conn) Exec(ctx context.Context, query string) (*ResultStream, error) {
 	res, err := c.conn.ExecContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -71,7 +71,7 @@ func (c *Conn) Exec(ctx context.Context, query string) (*Result, error) {
 		return !first
 	}
 
-	rows := NewResultBuilder().
+	rows := NewResultStreamBuilder().
 		WithNextFunc(nextFn, hasNextFn).
 		WithHeader(core.Header{"Rows Affected"}).
 		Build()
@@ -79,7 +79,7 @@ func (c *Conn) Exec(ctx context.Context, query string) (*Result, error) {
 	return rows, nil
 }
 
-func (c *Conn) Query(ctx context.Context, query string) (*Result, error) {
+func (c *Conn) Query(ctx context.Context, query string) (*ResultStream, error) {
 	dbRows, err := c.conn.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -91,7 +91,7 @@ func (c *Conn) Query(ctx context.Context, query string) (*Result, error) {
 		return nil, err
 	}
 
-	hasNextFn := func() bool {
+	hasNextFunc := func() bool {
 		// TODO: do we even support multiple result sets?
 		// if not next result, check for any new sets
 		if !dbRows.Next() {
@@ -103,7 +103,7 @@ func (c *Conn) Query(ctx context.Context, query string) (*Result, error) {
 		return true
 	}
 
-	nextFn := func() (core.Row, error) {
+	nextFunc := func() (core.Row, error) {
 		dbCols, err := dbRows.Columns()
 		if err != nil {
 			return nil, err
@@ -135,8 +135,8 @@ func (c *Conn) Query(ctx context.Context, query string) (*Result, error) {
 		return row, nil
 	}
 
-	rows := NewResultBuilder().
-		WithNextFunc(nextFn, hasNextFn).
+	rows := NewResultStreamBuilder().
+		WithNextFunc(nextFunc, hasNextFunc).
 		WithHeader(header).
 		WithCloseFunc(func() {
 			dbRows.Close()

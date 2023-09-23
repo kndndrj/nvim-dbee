@@ -1,4 +1,4 @@
-package clients
+package drivers
 
 import (
 	"context"
@@ -8,17 +8,18 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
-	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+
+	"github.com/kndndrj/nvim-dbee/dbee/core"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 )
 
 // Register client
 func init() {
-	c := func(url string) (core.Client, error) {
+	c := func(url string) (core.Driver, error) {
 		return NewMongo(url)
 	}
 	_ = register(c, "mongo", "mongodb")
@@ -44,7 +45,7 @@ func init() {
 	// gob.Register(primitive.Symbol)
 }
 
-var _ core.Client = (*Mongo)(nil)
+var _ core.Driver = (*Mongo)(nil)
 
 type Mongo struct {
 	c      *mongo.Client
@@ -87,7 +88,7 @@ func (c *Mongo) getCurrentDatabase(ctx context.Context) (string, error) {
 	return c.dbName, nil
 }
 
-func (c *Mongo) Query(ctx context.Context, query string) (core.IterResult, error) {
+func (c *Mongo) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	dbName, err := c.getCurrentDatabase(ctx)
 	if err != nil {
 		return nil, err
@@ -154,7 +155,7 @@ func (c *Mongo) Query(ctx context.Context, query string) (core.IterResult, error
 	}
 
 	// build result
-	result := builders.NewResultBuilder().
+	result := builders.NewResultStreamBuilder().
 		WithNextFunc(nextFunc, hasNextFunc).
 		WithHeader(core.Header{"Reply"}).
 		WithMeta(&core.Meta{
@@ -165,7 +166,7 @@ func (c *Mongo) Query(ctx context.Context, query string) (core.IterResult, error
 	return result, nil
 }
 
-func (c *Mongo) Layout() ([]core.Layout, error) {
+func (c *Mongo) Structure() ([]core.Structure, error) {
 	ctx := context.Background()
 
 	dbName, err := c.getCurrentDatabase(ctx)
@@ -178,14 +179,13 @@ func (c *Mongo) Layout() ([]core.Layout, error) {
 		return nil, err
 	}
 
-	var layout []core.Layout
+	var layout []core.Structure
 
 	for _, coll := range collections {
-		layout = append(layout, core.Layout{
-			Name:     coll,
-			Schema:   "",
-			Database: "",
-			Type:     core.LayoutTypeTable,
+		layout = append(layout, core.Structure{
+			Name:   coll,
+			Schema: "",
+			Type:   core.StructureTypeTable,
 		})
 	}
 
