@@ -1,4 +1,4 @@
-package conn
+package core
 
 import (
 	"context"
@@ -7,8 +7,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
-	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"github.com/neovim/go-client/msgpack"
 )
 
@@ -17,8 +15,8 @@ var ErrDatabaseSwitchingNotSupported = errors.New("database switching not suppor
 type (
 	// Client is an interface for a specific database driver
 	Client interface {
-		Query(context.Context, string) (models.IterResult, error)
-		Layout() ([]models.Layout, error)
+		Query(context.Context, string) (IterResult, error)
+		Layout() ([]Layout, error)
 		Close()
 	}
 
@@ -134,12 +132,12 @@ func (c *Conn) GetParams() *Params {
 	return c.unexpandedParams
 }
 
-func (c *Conn) Execute(query string, onEvent func(state call.State)) *call.Stat {
-	exec := func(ctx context.Context) (models.IterResult, error) {
+func (c *Conn) Execute(query string, onEvent func(state State)) *Stat {
+	exec := func(ctx context.Context) (IterResult, error) {
 		return c.driver.Query(ctx, query)
 	}
 
-	return call.NewStatFromExecutor(exec, query, onEvent)
+	return newCallFromExecutor(exec, query, onEvent)
 }
 
 // SelectDatabase tries to switch to a given database with the used client.
@@ -172,7 +170,7 @@ func (c *Conn) ListDatabases() (current string, available []string, err error) {
 	return currentDB, availableDBs, nil
 }
 
-func (c *Conn) GetStructure() ([]models.Layout, error) {
+func (c *Conn) GetStructure() ([]Layout, error) {
 	// structure
 	structure, err := c.driver.Layout()
 	if err != nil {
@@ -181,10 +179,10 @@ func (c *Conn) GetStructure() ([]models.Layout, error) {
 
 	// fallback to not confuse users
 	if len(structure) < 1 {
-		structure = []models.Layout{
+		structure = []Layout{
 			{
 				Name: "no schema to show",
-				Type: models.LayoutTypeNone,
+				Type: LayoutTypeNone,
 			},
 		}
 	}

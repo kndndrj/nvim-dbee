@@ -5,11 +5,10 @@ import (
 	"encoding/csv"
 	"fmt"
 
-	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
-	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/kndndrj/nvim-dbee/dbee/core"
 )
 
-var _ call.Formatter = (*CSV)(nil)
+var _ core.Formatter = (*CSV)(nil)
 
 type CSV struct{}
 
@@ -21,7 +20,7 @@ func (cf *CSV) Name() string {
 	return "csv"
 }
 
-func (cf *CSV) parseSchemaFul(header models.Header, rows []models.Row) [][]string {
+func (cf *CSV) parseSchemaFul(header core.Header, rows []core.Row) [][]string {
 	data := [][]string{
 		header,
 	}
@@ -36,7 +35,7 @@ func (cf *CSV) parseSchemaFul(header models.Header, rows []models.Row) [][]strin
 	return data
 }
 
-func (cf *CSV) Format(header models.Header, rows []models.Row, _ *models.FormatOpts) ([]byte, error) {
+func (cf *CSV) Format(header core.Header, rows []core.Row, _ *core.FormatOpts) ([]byte, error) {
 	// parse as if schema is defined regardles of schema presence in the result
 	data := cf.parseSchemaFul(header, rows)
 

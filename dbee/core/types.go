@@ -1,7 +1,41 @@
-package models
+package core
 
-import (
-	"github.com/neovim/go-client/msgpack"
+import "github.com/neovim/go-client/msgpack"
+
+type (
+	// Row and Header are attributes of IterResult iterator
+	Row    []any
+	Header []string
+)
+
+type SchemaType int
+
+const (
+	SchemaFul SchemaType = iota
+	SchemaLess
+)
+
+type (
+	// FormatOpts provide various options for formatters
+	FormatOpts struct {
+		SchemaType SchemaType
+		ChunkStart int
+	}
+
+	// Meta holds metadata
+	Meta struct {
+		// type of schema (schemaful or schemaless)
+		SchemaType SchemaType
+	}
+
+	// IterResult is an iterator which provides rows and headers from the Input
+	IterResult interface {
+		Meta() *Meta
+		Header() Header
+		Next() (Row, error)
+		HasNext() bool
+		Close()
+	}
 )
 
 type LayoutType int
@@ -66,12 +100,12 @@ type Layout struct {
 
 func (l *Layout) MarshalMsgPack(enc *msgpack.Encoder) error {
 	return enc.Encode(&struct {
-		Name              string   `msgpack:"name"`
-		Schema            string   `msgpack:"schema"`
-		Database          string   `msgpack:"database"`
-		Type              string   `msgpack:"type"`
-		Children          []Layout `msgpack:"children"`
-		PickItems         []string `msgpack:"pick_items"`
+		Name      string   `msgpack:"name"`
+		Schema    string   `msgpack:"schema"`
+		Database  string   `msgpack:"database"`
+		Type      string   `msgpack:"type"`
+		Children  []Layout `msgpack:"children"`
+		PickItems []string `msgpack:"pick_items"`
 	}{
 		Name:      l.Name,
 		Schema:    l.Schema,

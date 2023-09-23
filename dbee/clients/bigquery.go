@@ -11,20 +11,21 @@ import (
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 
-	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
+	"github.com/kndndrj/nvim-dbee/dbee/core"
 )
 
 // Register client
 func init() {
-	c := func(url string) (conn.Client, error) {
+	c := func(url string) (core.Client, error) {
 		return NewBigQuery(url)
 	}
 	_ = register(c, "bigquery")
 }
 
-type BigQueryClient struct {
+var _ core.Client = (*BigQuery)(nil)
+
+type BigQuery struct {
 	c                 *bigquery.Client
 	location          string
 	maxBytesBilled    int64
@@ -52,7 +53,7 @@ type BigQueryClient struct {
 //
 // If credentials are not explicitly specified, credentials will attempt
 // to be located according to the Google Default Credentials process.
-func NewBigQuery(rawURL string) (*BigQueryClient, error) {
+func NewBigQuery(rawURL string) (*BigQuery, error) {
 	ctx := context.TODO()
 
 	u, err := url.Parse(rawURL)
@@ -83,7 +84,7 @@ func NewBigQuery(rawURL string) (*BigQueryClient, error) {
 		return nil, err
 	}
 
-	client := &BigQueryClient{
+	client := &BigQuery{
 		c: bqc,
 	}
 
@@ -110,7 +111,7 @@ func NewBigQuery(rawURL string) (*BigQueryClient, error) {
 	return client, nil
 }
 
-func (c *BigQueryClient) Query(ctx context.Context, queryStr string) (models.IterResult, error) {
+func (c *BigQuery) Query(ctx context.Context, queryStr string) (core.IterResult, error) {
 	query := c.c.Query(queryStr)
 	query.DisableQueryCache = c.disableQueryCache
 	query.MaxBytesBilled = c.maxBytesBilled
@@ -131,7 +132,7 @@ func (c *BigQueryClient) Query(ctx context.Context, queryStr string) (models.Ite
 	header := c.buildHeader("", iter.Schema)
 
 	hasNext := true
-	nextFn := func() (models.Row, error) {
+	nextFn := func() (core.Row, error) {
 		if firstRowLoader.row != nil {
 			row := firstRowLoader.row
 			firstRowLoader.row = nil
@@ -154,14 +155,14 @@ func (c *BigQueryClient) Query(ctx context.Context, queryStr string) (models.Ite
 		return hasNext
 	}
 
-	result := common.NewResultBuilder().
+	result := builders.NewResultBuilder().
 		WithNextFunc(nextFn, hasNextFn).
 		WithHeader(header).
 		Build()
 	return result, nil
 }
 
-func (c *BigQueryClient) Layout() (layouts []models.Layout, err error) {
+func (c *BigQuery) Layout() (layouts []core.Layout, err error) {
 	ctx := context.TODO()
 
 	datasetsIter := c.c.Datasets(ctx)
@@ -175,12 +176,12 @@ func (c *BigQueryClient) Layout() (layouts []models.Layout, err error) {
 			break
 		}
 
-		datasetLayout := models.Layout{
+		datasetLayout := core.Layout{
 			Name:     dataset.DatasetID,
 			Schema:   dataset.DatasetID,
 			Database: dataset.ProjectID,
-			Type:     models.LayoutTypeNone,
-			Children: []models.Layout{},
+			Type:     core.LayoutTypeNone,
+			Children: []core.Layout{},
 		}
 
 		tablesIter := dataset.Tables(ctx)
@@ -194,11 +195,11 @@ func (c *BigQueryClient) Layout() (layouts []models.Layout, err error) {
 				break
 			}
 
-			datasetLayout.Children = append(datasetLayout.Children, models.Layout{
+			datasetLayout.Children = append(datasetLayout.Children, core.Layout{
 				Name:     table.TableID,
 				Schema:   table.DatasetID,
 				Database: table.ProjectID,
-				Type:     models.LayoutTypeTable,
+				Type:     core.LayoutTypeTable,
 				Children: nil,
 			})
 		}
@@ -209,11 +210,11 @@ func (c *BigQueryClient) Layout() (layouts []models.Layout, err error) {
 	return layouts, nil
 }
 
-func (c *BigQueryClient) Close() {
+func (c *BigQuery) Close() {
 	_ = c.c.Close()
 }
 
-func (c *BigQueryClient) buildHeader(parentName string, schema bigquery.Schema) (columns models.Header) {
+func (c *BigQuery) buildHeader(parentName string, schema bigquery.Schema) (columns core.Header) {
 	for _, field := range schema {
 		if field.Type == bigquery.RecordFieldType {
 			nestedName := field.Name
@@ -230,11 +231,11 @@ func (c *BigQueryClient) buildHeader(parentName string, schema bigquery.Schema) 
 }
 
 type bigqueryRowLoader struct {
-	row models.Row
+	row core.Row
 }
 
 func (l *bigqueryRowLoader) Load(row []bigquery.Value, schema bigquery.Schema) error {
-	l.row = make(models.Row, len(row))
+	l.row = make(core.Row, len(row))
 
 	for i, col := range row {
 		l.row[i] = col

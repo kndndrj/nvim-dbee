@@ -1,16 +1,13 @@
 package vim
 
 import (
-	"github.com/kndndrj/nvim-dbee/dbee/models"
-	"github.com/kndndrj/nvim-dbee/dbee/output"
 	"github.com/neovim/go-client/nvim"
 	"github.com/neovim/go-client/nvim/plugin"
 )
 
 type SharedResource struct {
-	Logger       models.Logger
-	BufferOutput *output.Buffer
-	Vim          *nvim.Nvim
+	Logger *Logger
+	Vim    *nvim.Nvim
 }
 
 type Entrypoint struct {

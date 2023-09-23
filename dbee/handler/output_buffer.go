@@ -1,4 +1,4 @@
-package output
+package handler
 
 import (
 	"bufio"
@@ -7,7 +7,7 @@ import (
 	"github.com/neovim/go-client/nvim"
 )
 
-func NewBuffer(vim *nvim.Nvim, buffer nvim.Buffer) *Buffer {
+func newBuffer(vim *nvim.Nvim, buffer nvim.Buffer) *Buffer {
 	return &Buffer{
 		buffer: buffer,
 		vim:    vim,

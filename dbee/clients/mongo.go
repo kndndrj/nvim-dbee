@@ -8,9 +8,8 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
+	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -19,7 +18,7 @@ import (
 
 // Register client
 func init() {
-	c := func(url string) (conn.Client, error) {
+	c := func(url string) (core.Client, error) {
 		return NewMongo(url)
 	}
 	_ = register(c, "mongo", "mongodb")
@@ -45,12 +44,14 @@ func init() {
 	// gob.Register(primitive.Symbol)
 }
 
-type MongoClient struct {
+var _ core.Client = (*Mongo)(nil)
+
+type Mongo struct {
 	c      *mongo.Client
 	dbName string
 }
 
-func NewMongo(rawURL string) (*MongoClient, error) {
+func NewMongo(rawURL string) (*Mongo, error) {
 	// get database name from url
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -63,13 +64,13 @@ func NewMongo(rawURL string) (*MongoClient, error) {
 		return nil, err
 	}
 
-	return &MongoClient{
+	return &Mongo{
 		c:      client,
 		dbName: u.Path[1:],
 	}, nil
 }
 
-func (c *MongoClient) getCurrentDatabase(ctx context.Context) (string, error) {
+func (c *Mongo) getCurrentDatabase(ctx context.Context) (string, error) {
 	if c.dbName != "" {
 		return c.dbName, nil
 	}
@@ -86,7 +87,7 @@ func (c *MongoClient) getCurrentDatabase(ctx context.Context) (string, error) {
 	return c.dbName, nil
 }
 
-func (c *MongoClient) Query(ctx context.Context, query string) (models.IterResult, error) {
+func (c *Mongo) Query(ctx context.Context, query string) (core.IterResult, error) {
 	dbName, err := c.getCurrentDatabase(ctx)
 	if err != nil {
 		return nil, err
@@ -106,7 +107,7 @@ func (c *MongoClient) Query(ctx context.Context, query string) (models.IterResul
 	}
 
 	// check if "cursor" field exists and create an appropriate func
-	var nextFunc func() (models.Row, error)
+	var nextFunc func() (core.Row, error)
 	hasNext := true
 
 	cur, ok := resp["cursor"]
@@ -131,20 +132,20 @@ func (c *MongoClient) Query(ctx context.Context, query string) (models.IterResul
 			hasNext = false
 		}()
 
-		nextFunc = func() (models.Row, error) {
+		nextFunc = func() (core.Row, error) {
 			val, ok := <-ch
 			if !ok {
 				return nil, errors.New("no next row")
 			}
-			return models.Row{newMongoResponse(val)}, nil
+			return core.Row{newMongoResponse(val)}, nil
 		}
 	} else {
-		nextFunc = func() (models.Row, error) {
+		nextFunc = func() (core.Row, error) {
 			if !hasNext {
 				return nil, errors.New("no next row")
 			}
 			hasNext = false
-			return models.Row{newMongoResponse(resp)}, nil
+			return core.Row{newMongoResponse(resp)}, nil
 		}
 	}
 
@@ -153,18 +154,18 @@ func (c *MongoClient) Query(ctx context.Context, query string) (models.IterResul
 	}
 
 	// build result
-	result := common.NewResultBuilder().
+	result := builders.NewResultBuilder().
 		WithNextFunc(nextFunc, hasNextFunc).
-		WithHeader(models.Header{"Reply"}).
-		WithMeta(&models.Meta{
-			SchemaType: models.SchemaLess,
+		WithHeader(core.Header{"Reply"}).
+		WithMeta(&core.Meta{
+			SchemaType: core.SchemaLess,
 		}).
 		Build()
 
 	return result, nil
 }
 
-func (c *MongoClient) Layout() ([]models.Layout, error) {
+func (c *Mongo) Layout() ([]core.Layout, error) {
 	ctx := context.Background()
 
 	dbName, err := c.getCurrentDatabase(ctx)
@@ -177,25 +178,25 @@ func (c *MongoClient) Layout() ([]models.Layout, error) {
 		return nil, err
 	}
 
-	var layout []models.Layout
+	var layout []core.Layout
 
 	for _, coll := range collections {
-		layout = append(layout, models.Layout{
+		layout = append(layout, core.Layout{
 			Name:     coll,
 			Schema:   "",
 			Database: "",
-			Type:     models.LayoutTypeTable,
+			Type:     core.LayoutTypeTable,
 		})
 	}
 
 	return layout, nil
 }
 
-func (c *MongoClient) Close() {
+func (c *Mongo) Close() {
 	_ = c.c.Disconnect(context.TODO())
 }
 
-func (c *MongoClient) ListDatabases() (current string, available []string, err error) {
+func (c *Mongo) ListDatabases() (current string, available []string, err error) {
 	ctx := context.Background()
 
 	dbName, err := c.getCurrentDatabase(ctx)
@@ -220,7 +221,7 @@ func (c *MongoClient) ListDatabases() (current string, available []string, err e
 	return dbName, all, nil
 }
 
-func (c *MongoClient) SelectDatabase(name string) error {
+func (c *Mongo) SelectDatabase(name string) error {
 	c.dbName = name
 	return nil
 }

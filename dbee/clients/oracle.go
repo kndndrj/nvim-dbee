@@ -6,36 +6,37 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
+	"github.com/kndndrj/nvim-dbee/dbee/core"
 	_ "github.com/sijms/go-ora/v2"
 )
 
 // Register client
 func init() {
-	c := func(url string) (conn.Client, error) {
+	c := func(url string) (core.Client, error) {
 		return NewOracle(url)
 	}
 	_ = register(c, "oracle")
 }
 
-type OracleClient struct {
-	c *common.Client
+var _ core.Client = (*Oracle)(nil)
+
+type Oracle struct {
+	c *builders.Client
 }
 
-func NewOracle(url string) (*OracleClient, error) {
+func NewOracle(url string) (*Oracle, error) {
 	db, err := sql.Open("oracle", url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to oracle database: %v", err)
 	}
 
-	return &OracleClient{
-		c: common.NewClient(db),
+	return &Oracle{
+		c: builders.NewClient(db),
 	}, nil
 }
 
-func (c *OracleClient) Query(ctx context.Context, query string) (models.IterResult, error) {
+func (c *Oracle) Query(ctx context.Context, query string) (core.IterResult, error) {
 	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -69,14 +70,14 @@ func (c *OracleClient) Query(ctx context.Context, query string) (models.IterResu
 		return nil, err
 	}
 	if len(rows.Header()) == 0 {
-		rows.SetCustomHeader(models.Header{"No Results"})
+		rows.SetCustomHeader(core.Header{"No Results"})
 	}
 	rows.SetCallback(cb)
 
 	return rows, nil
 }
 
-func (c *OracleClient) Layout() ([]models.Layout, error) {
+func (c *Oracle) Layout() ([]core.Layout, error) {
 	query := `
 		SELECT T.owner, T.table_name
 		FROM (
@@ -95,7 +96,7 @@ func (c *OracleClient) Layout() ([]models.Layout, error) {
 		return nil, err
 	}
 
-	children := make(map[string][]models.Layout)
+	children := make(map[string][]core.Layout)
 
 	for rows.HasNext() {
 		row, err := rows.Next()
@@ -107,25 +108,25 @@ func (c *OracleClient) Layout() ([]models.Layout, error) {
 		schema := row[0].(string)
 		table := row[1].(string)
 
-		children[schema] = append(children[schema], models.Layout{
+		children[schema] = append(children[schema], core.Layout{
 			Name:   table,
 			Schema: schema,
 			// TODO:
 			Database: "",
-			Type:     models.LayoutTypeTable,
+			Type:     core.LayoutTypeTable,
 		})
 
 	}
 
-	var layout []models.Layout
+	var layout []core.Layout
 
 	for k, v := range children {
-		layout = append(layout, models.Layout{
+		layout = append(layout, core.Layout{
 			Name:   k,
 			Schema: k,
 			// TODO:
 			Database: "",
-			Type:     models.LayoutTypeNone,
+			Type:     core.LayoutTypeNone,
 			Children: v,
 		})
 	}
@@ -133,6 +134,6 @@ func (c *OracleClient) Layout() ([]models.Layout, error) {
 	return layout, nil
 }
 
-func (c *OracleClient) Close() {
+func (c *Oracle) Close() {
 	c.c.Close()
 }

@@ -8,15 +8,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
+	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"github.com/redis/go-redis/v9"
 )
 
 // Register client
 func init() {
-	c := func(url string) (conn.Client, error) {
+	c := func(url string) (core.Client, error) {
 		return NewRedis(url)
 	}
 	_ = register(c, "redis")
@@ -27,23 +26,25 @@ func init() {
 	gob.Register(map[any]any{})
 }
 
-type RedisClient struct {
+var _ core.Client = (*Redis)(nil)
+
+type Redis struct {
 	redis *redis.Client
 }
 
-func NewRedis(url string) (*RedisClient, error) {
+func NewRedis(url string) (*Redis, error) {
 	c := redis.NewClient(&redis.Options{
 		Addr:     url,
 		Password: "",
 		DB:       0,
 	})
 
-	return &RedisClient{
+	return &Redis{
 		redis: c,
 	}, nil
 }
 
-func (c *RedisClient) Query(ctx context.Context, query string) (models.IterResult, error) {
+func (c *Redis) Query(ctx context.Context, query string) (core.IterResult, error) {
 	cmd, err := parseRedisCmd(query)
 	if err != nil {
 		return nil, err
@@ -57,26 +58,26 @@ func (c *RedisClient) Query(ctx context.Context, query string) (models.IterResul
 	hasNext := true
 
 	// iterator functions
-	nextOnce := func(value any) func() (models.Row, error) {
-		return func() (models.Row, error) {
+	nextOnce := func(value any) func() (core.Row, error) {
+		return func() (core.Row, error) {
 			if !hasNext {
 				return nil, errors.New("no next row")
 			}
 			hasNext = false
-			return models.Row{newRedisResponse(value)}, nil
+			return core.Row{newRedisResponse(value)}, nil
 		}
 	}
-	nextChannel := func(ch chan any) func() (models.Row, error) {
-		return func() (models.Row, error) {
+	nextChannel := func(ch chan any) func() (core.Row, error) {
+		return func() (core.Row, error) {
 			val, ok := <-ch
 			if !ok {
 				return nil, errors.New("no next row")
 			}
-			return models.Row{newRedisResponse(val)}, nil
+			return core.Row{newRedisResponse(val)}, nil
 		}
 	}
 
-	var nextFunc func() (models.Row, error)
+	var nextFunc func() (core.Row, error)
 
 	// parse response
 	switch resp := response.(type) {
@@ -102,29 +103,29 @@ func (c *RedisClient) Query(ctx context.Context, query string) (models.IterResul
 	}
 
 	// build result
-	result := common.NewResultBuilder().
+	result := builders.NewResultBuilder().
 		WithNextFunc(nextFunc, hasNextFunc).
-		WithHeader(models.Header{"Reply"}).
-		WithMeta(&models.Meta{
-			SchemaType: models.SchemaLess,
+		WithHeader(core.Header{"Reply"}).
+		WithMeta(&core.Meta{
+			SchemaType: core.SchemaLess,
 		}).
 		Build()
 
 	return result, err
 }
 
-func (c *RedisClient) Layout() ([]models.Layout, error) {
-	return []models.Layout{
+func (c *Redis) Layout() ([]core.Layout, error) {
+	return []core.Layout{
 		{
 			Name:     "DB",
 			Schema:   "",
 			Database: "",
-			Type:     models.LayoutTypeTable,
+			Type:     core.LayoutTypeTable,
 		},
 	}, nil
 }
 
-func (c *RedisClient) Close() {
+func (c *Redis) Close() {
 	c.redis.Close()
 }
 

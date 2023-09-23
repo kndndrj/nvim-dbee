@@ -1,4 +1,4 @@
-package call
+package core
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"github.com/neovim/go-client/msgpack"
 )
 
@@ -133,7 +132,7 @@ func (s *Stat) UnmarshalJSON(data []byte) error {
 }
 
 // Caller builds the cal
-func NewStatFromExecutor(executor func(context.Context) (models.IterResult, error), query string, onEvent func(state State)) *Stat {
+func newCallFromExecutor(executor func(context.Context) (IterResult, error), query string, onEvent func(state State)) *Stat {
 	id := StatID(uuid.New().String())
 	c := &Stat{
 		ID:    id,

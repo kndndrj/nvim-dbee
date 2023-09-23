@@ -8,20 +8,19 @@ import (
 	"os"
 	"slices"
 
-	"github.com/kndndrj/nvim-dbee/dbee/clients"
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
-	"github.com/kndndrj/nvim-dbee/dbee/models"
-	"github.com/kndndrj/nvim-dbee/dbee/output"
-	"github.com/kndndrj/nvim-dbee/dbee/output/format"
 	"github.com/neovim/go-client/nvim"
+
+	"github.com/kndndrj/nvim-dbee/dbee/clients"
+	"github.com/kndndrj/nvim-dbee/dbee/core"
+	"github.com/kndndrj/nvim-dbee/dbee/core/format"
+	"github.com/kndndrj/nvim-dbee/dbee/vim"
 )
 
 const callLogFileName = "/tmp/dbee-calllog.json"
 
 type eventBus struct {
 	vim *nvim.Nvim
-	log models.Logger
+	log *vim.Logger
 }
 
 func (eb *eventBus) callLua(event string, data string) {
@@ -31,7 +30,7 @@ func (eb *eventBus) callLua(event string, data string) {
 	}
 }
 
-func (eb *eventBus) CallStateChanged(call *call.Stat) {
+func (eb *eventBus) CallStateChanged(call *core.Stat) {
 	data := fmt.Sprintf(`{
 		call = {
 			id = %q,
@@ -49,7 +48,7 @@ func (eb *eventBus) CallStateChanged(call *call.Stat) {
 	eb.callLua("call_state_changed", data)
 }
 
-func (eb *eventBus) CurrentConnectionChanged(id conn.ID) {
+func (eb *eventBus) CurrentConnectionChanged(id core.ID) {
 	data := fmt.Sprintf(`{
 		conn_id = %q,
 	}`, id)
@@ -59,18 +58,18 @@ func (eb *eventBus) CurrentConnectionChanged(id conn.ID) {
 
 type Handler struct {
 	vim    *nvim.Nvim
-	log    models.Logger
+	log    *vim.Logger
 	events *eventBus
 
-	lookupConn     map[conn.ID]*conn.Conn
-	lookupStat     map[call.StatID]*call.Stat
-	lookupConnStat map[conn.ID][]call.StatID
+	lookupConn     map[core.ID]*core.Conn
+	lookupStat     map[core.StatID]*core.Stat
+	lookupConnStat map[core.ID][]core.StatID
 
-	currentConnID conn.ID
-	currentStatID call.StatID
+	currentConnID core.ID
+	currentStatID core.StatID
 }
 
-func NewHandler(vim *nvim.Nvim, logger models.Logger) *Handler {
+func NewHandler(vim *nvim.Nvim, logger *vim.Logger) *Handler {
 	h := &Handler{
 		vim: vim,
 		log: logger,
@@ -79,9 +78,9 @@ func NewHandler(vim *nvim.Nvim, logger models.Logger) *Handler {
 			log: logger,
 		},
 
-		lookupConn:     make(map[conn.ID]*conn.Conn),
-		lookupStat:     make(map[call.StatID]*call.Stat),
-		lookupConnStat: make(map[conn.ID][]call.StatID),
+		lookupConn:     make(map[core.ID]*core.Conn),
+		lookupStat:     make(map[core.StatID]*core.Stat),
+		lookupConnStat: make(map[core.ID][]core.StatID),
 	}
 
 	// restore the call log concurrently
@@ -96,7 +95,7 @@ func NewHandler(vim *nvim.Nvim, logger models.Logger) *Handler {
 }
 
 func (h *Handler) storeCallLog() error {
-	store := make(map[conn.ID][]*call.Stat)
+	store := make(map[core.ID][]*core.Stat)
 
 	for connID := range h.lookupConn {
 		calls, err := h.ConnGetCalls(connID)
@@ -134,7 +133,7 @@ func (h *Handler) restoreCallLog() error {
 
 	decoder := json.NewDecoder(file)
 
-	var store map[conn.ID][]*call.Stat
+	var store map[core.ID][]*core.Stat
 
 	err = decoder.Decode(&store)
 	if err != nil {
@@ -142,7 +141,7 @@ func (h *Handler) restoreCallLog() error {
 	}
 
 	for connID, calls := range store {
-		callIDs := make([]call.StatID, len(calls))
+		callIDs := make([]core.StatID, len(calls))
 
 		// fill call lookup
 		for i, c := range calls {
@@ -168,10 +167,10 @@ func (h *Handler) Close() {
 	}
 }
 
-func (h *Handler) CreateConnection(params *conn.Params) (conn.ID, error) {
-	c, err := conn.New(params, clients.Adapter())
+func (h *Handler) CreateConnection(params *core.Params) (core.ID, error) {
+	c, err := core.New(params, clients.Adapter())
 	if err != nil {
-		return "", fmt.Errorf("conn.New: %w", err)
+		return "", fmt.Errorf("core.New: %w", err)
 	}
 
 	old, ok := h.lookupConn[c.GetID()]
@@ -184,7 +183,7 @@ func (h *Handler) CreateConnection(params *conn.Params) (conn.ID, error) {
 	return c.GetID(), nil
 }
 
-func (h *Handler) DeleteConnection(connID conn.ID) {
+func (h *Handler) DeleteConnection(connID core.ID) {
 	c, ok := h.lookupConn[connID]
 	if !ok {
 		return
@@ -193,8 +192,8 @@ func (h *Handler) DeleteConnection(connID conn.ID) {
 	delete(h.lookupConn, connID)
 }
 
-func (h *Handler) GetConnections(ids []conn.ID) []*conn.Conn {
-	var conns []*conn.Conn
+func (h *Handler) GetConnections(ids []core.ID) []*core.Conn {
+	var conns []*core.Conn
 
 	for _, c := range h.lookupConn {
 		if len(ids) > 0 && !slices.Contains(ids, c.GetID()) {
@@ -206,7 +205,7 @@ func (h *Handler) GetConnections(ids []conn.ID) []*conn.Conn {
 	return conns
 }
 
-func (h *Handler) GetCurrentConnection() (*conn.Conn, error) {
+func (h *Handler) GetCurrentConnection() (*core.Conn, error) {
 	c, ok := h.lookupConn[h.currentConnID]
 	if !ok {
 		return nil, fmt.Errorf("current connection has not been set yet")
@@ -214,7 +213,7 @@ func (h *Handler) GetCurrentConnection() (*conn.Conn, error) {
 	return c, nil
 }
 
-func (h *Handler) SetCurrentConnection(connID conn.ID) error {
+func (h *Handler) SetCurrentConnection(connID core.ID) error {
 	_, ok := h.lookupConn[connID]
 	if !ok {
 		return fmt.Errorf("unknown connection with id: %q", connID)
@@ -233,14 +232,14 @@ func (h *Handler) SetCurrentConnection(connID conn.ID) error {
 	return nil
 }
 
-func (h *Handler) ConnExecute(connID conn.ID, query string) (*call.Stat, error) {
+func (h *Handler) ConnExecute(connID core.ID, query string) (*core.Stat, error) {
 	c, ok := h.lookupConn[connID]
 	if !ok {
 		return nil, fmt.Errorf("unknown connection with id: %q", connID)
 	}
 
-	stat := new(call.Stat)
-	onEvent := func(state call.State) {
+	stat := new(core.Stat)
+	onEvent := func(state core.State) {
 		h.events.CallStateChanged(stat)
 	}
 
@@ -259,13 +258,13 @@ func (h *Handler) ConnExecute(connID conn.ID, query string) (*call.Stat, error) 
 	return stat, nil
 }
 
-func (h *Handler) ConnGetCalls(connID conn.ID) ([]*call.Stat, error) {
+func (h *Handler) ConnGetCalls(connID core.ID) ([]*core.Stat, error) {
 	_, ok := h.lookupConn[connID]
 	if !ok {
 		return nil, fmt.Errorf("unknown connection with id: %q", connID)
 	}
 
-	var calls []*call.Stat
+	var calls []*core.Stat
 	callIDs, ok := h.lookupConnStat[connID]
 	if !ok {
 		return calls, nil
@@ -281,7 +280,7 @@ func (h *Handler) ConnGetCalls(connID conn.ID) ([]*call.Stat, error) {
 	return calls, nil
 }
 
-func (h *Handler) ConnGetParams(connID conn.ID) (*conn.Params, error) {
+func (h *Handler) ConnGetParams(connID core.ID) (*core.Params, error) {
 	c, ok := h.lookupConn[connID]
 	if !ok {
 		return nil, fmt.Errorf("unknown connection with id: %q", connID)
@@ -290,7 +289,7 @@ func (h *Handler) ConnGetParams(connID conn.ID) (*conn.Params, error) {
 	return c.GetParams(), nil
 }
 
-func (h *Handler) ConnGetStructure(connID conn.ID) ([]models.Layout, error) {
+func (h *Handler) ConnGetStructure(connID core.ID) ([]core.Layout, error) {
 	c, ok := h.lookupConn[connID]
 	if !ok {
 		return nil, fmt.Errorf("unknown connection with id: %q", connID)
@@ -298,13 +297,13 @@ func (h *Handler) ConnGetStructure(connID conn.ID) ([]models.Layout, error) {
 
 	layout, err := c.GetStructure()
 	if err != nil {
-		return nil, fmt.Errorf("conn.Layout: %w", err)
+		return nil, fmt.Errorf("c.GetStructure: %w", err)
 	}
 
 	return layout, nil
 }
 
-func (h *Handler) ConnListDatabases(connID conn.ID) (current string, available []string, err error) {
+func (h *Handler) ConnListDatabases(connID core.ID) (current string, available []string, err error) {
 	c, ok := h.lookupConn[connID]
 	if !ok {
 		return "", nil, fmt.Errorf("unknown connection with id: %q", connID)
@@ -312,16 +311,16 @@ func (h *Handler) ConnListDatabases(connID conn.ID) (current string, available [
 
 	currentDB, availableDBs, err := c.ListDatabases()
 	if err != nil {
-		if errors.Is(err, conn.ErrDatabaseSwitchingNotSupported) {
+		if errors.Is(err, core.ErrDatabaseSwitchingNotSupported) {
 			return "", []string{}, nil
 		}
-		return "", nil, fmt.Errorf("conn.ListDatabases: %w", err)
+		return "", nil, fmt.Errorf("c.ListDatabases: %w", err)
 	}
 
 	return currentDB, availableDBs, nil
 }
 
-func (h *Handler) ConnSelectDatabase(connID conn.ID, database string) error {
+func (h *Handler) ConnSelectDatabase(connID core.ID, database string) error {
 	c, ok := h.lookupConn[connID]
 	if !ok {
 		return fmt.Errorf("unknown connection with id: %q", connID)
@@ -329,13 +328,13 @@ func (h *Handler) ConnSelectDatabase(connID conn.ID, database string) error {
 
 	err := c.SelectDatabase(database)
 	if err != nil {
-		return fmt.Errorf("conn.SelectDatabase: %w", err)
+		return fmt.Errorf("c.SelectDatabase: %w", err)
 	}
 
 	return nil
 }
 
-func (h *Handler) CallCancel(callID call.StatID) error {
+func (h *Handler) CallCancel(callID core.StatID) error {
 	stat, ok := h.lookupStat[callID]
 	if !ok {
 		return fmt.Errorf("unknown call with id: %q", callID)
@@ -345,7 +344,7 @@ func (h *Handler) CallCancel(callID call.StatID) error {
 	return nil
 }
 
-func (h *Handler) CallDisplayResult(callID call.StatID, buffer nvim.Buffer, from, to int) (int, error) {
+func (h *Handler) CallDisplayResult(callID core.StatID, buffer nvim.Buffer, from, to int) (int, error) {
 	stat, ok := h.lookupStat[callID]
 	if !ok {
 		return 0, fmt.Errorf("unknown call with id: %q", callID)
@@ -356,12 +355,12 @@ func (h *Handler) CallDisplayResult(callID call.StatID, buffer nvim.Buffer, from
 		return 0, fmt.Errorf("stat.GetResult: %w", err)
 	}
 
-	text, err := res.Format(format.NewTable(), from, to)
+	text, err := res.Format(newTable(), from, to)
 	if err != nil {
 		return 0, fmt.Errorf("res.Format: %w", err)
 	}
 
-	_, err = output.NewBuffer(h.vim, buffer).Write(text)
+	_, err = newBuffer(h.vim, buffer).Write(text)
 	if err != nil {
 		return 0, fmt.Errorf("buffer.Write: %w", err)
 	}
@@ -369,20 +368,20 @@ func (h *Handler) CallDisplayResult(callID call.StatID, buffer nvim.Buffer, from
 	return res.Len(), nil
 }
 
-func (h *Handler) CallStoreResult(callID call.StatID, fmat, out string, from, to int, arg ...any) error {
+func (h *Handler) CallStoreResult(callID core.StatID, fmat, out string, from, to int, arg ...any) error {
 	stat, ok := h.lookupStat[callID]
 	if !ok {
 		return fmt.Errorf("unknown call with id: %q", callID)
 	}
 
-	var formatter call.Formatter
+	var formatter core.Formatter
 	switch fmat {
 	case "json":
 		formatter = format.NewJSON()
 	case "csv":
 		formatter = format.NewCSV()
 	case "table":
-		formatter = format.NewTable()
+		formatter = newTable()
 	default:
 		return fmt.Errorf("store output: %q is not supported", fmat)
 	}
@@ -411,9 +410,9 @@ func (h *Handler) CallStoreResult(callID call.StatID, fmat, out string, from, to
 		if !ok {
 			return fmt.Errorf("invalid output path")
 		}
-		writer = output.NewBuffer(h.vim, nvim.Buffer(buf))
+		writer = newBuffer(h.vim, nvim.Buffer(buf))
 	case "yank":
-		writer = output.NewYankRegister(h.vim)
+		writer = newYankRegister(h.vim)
 	default:
 		return fmt.Errorf("store output: %q is not supported", out)
 	}

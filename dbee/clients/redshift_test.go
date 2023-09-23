@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 )
 
 func TestNewRedshift(t *testing.T) {
@@ -13,7 +13,7 @@ func TestNewRedshift(t *testing.T) {
 		rawURL string
 	}
 	tests := []struct {
-		want    *RedshiftClient
+		want    *Redshift
 		name    string
 		args    args
 		wantErr bool
@@ -23,8 +23,8 @@ func TestNewRedshift(t *testing.T) {
 			args: args{
 				rawURL: "postgres://user:password@localhost:5432/dbname?sslmode=disable",
 			},
-			want: &RedshiftClient{
-				c: &common.Client{},
+			want: &Redshift{
+				c: &builders.Client{},
 			},
 		},
 	}

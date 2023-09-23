@@ -1,4 +1,4 @@
-package output
+package handler
 
 import "github.com/neovim/go-client/nvim"
 
@@ -6,7 +6,7 @@ type YankRegister struct {
 	vim *nvim.Nvim
 }
 
-func NewYankRegister(vim *nvim.Nvim) *YankRegister {
+func newYankRegister(vim *nvim.Nvim) *YankRegister {
 	return &YankRegister{
 		vim: vim,
 	}

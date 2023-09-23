@@ -4,11 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
-	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/kndndrj/nvim-dbee/dbee/core"
 )
 
-var _ call.Formatter = (*JSON)(nil)
+var _ core.Formatter = (*JSON)(nil)
 
 type JSON struct{}
 
@@ -20,7 +19,7 @@ func (jf *JSON) Name() string {
 	return "json"
 }
 
-func (jf *JSON) parseSchemaFul(header models.Header, rows []models.Row) []map[string]any {
+func (jf *JSON) parseSchemaFul(header core.Header, rows []core.Row) []map[string]any {
 	var data []map[string]any
 
 	for _, row := range rows {
@@ -40,7 +39,7 @@ func (jf *JSON) parseSchemaFul(header models.Header, rows []models.Row) []map[st
 	return data
 }
 
-func (jf *JSON) parseSchemaLess(header models.Header, rows []models.Row) []any {
+func (jf *JSON) parseSchemaLess(header core.Header, rows []core.Row) []any {
 	var data []any
 
 	for _, row := range rows {
@@ -53,12 +52,12 @@ func (jf *JSON) parseSchemaLess(header models.Header, rows []models.Row) []any {
 	return data
 }
 
-func (jf *JSON) Format(header models.Header, rows []models.Row, opts *models.FormatOpts) ([]byte, error) {
+func (jf *JSON) Format(header core.Header, rows []core.Row, opts *core.FormatOpts) ([]byte, error) {
 	var data any
 	switch opts.SchemaType {
-	case models.SchemaLess:
+	case core.SchemaLess:
 		data = jf.parseSchemaLess(header, rows)
-	case models.SchemaFul:
+	case core.SchemaFul:
 		fallthrough
 	default:
 		data = jf.parseSchemaFul(header, rows)

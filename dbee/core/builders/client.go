@@ -1,11 +1,11 @@
-package common
+package builders
 
 import (
 	"context"
 	"database/sql"
 	"errors"
 
-	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/kndndrj/nvim-dbee/dbee/core"
 )
 
 // default sql client used by other specific implementations
@@ -54,7 +54,7 @@ func (c *Conn) Exec(ctx context.Context, query string) (*Result, error) {
 	// create new rows
 	first := true
 
-	nextFn := func() (models.Row, error) {
+	nextFn := func() (core.Row, error) {
 		if !first {
 			return nil, errors.New("no next row")
 		}
@@ -64,7 +64,7 @@ func (c *Conn) Exec(ctx context.Context, query string) (*Result, error) {
 		if err != nil {
 			return nil, err
 		}
-		return models.Row{affected}, nil
+		return core.Row{affected}, nil
 	}
 
 	hasNextFn := func() bool {
@@ -73,7 +73,7 @@ func (c *Conn) Exec(ctx context.Context, query string) (*Result, error) {
 
 	rows := NewResultBuilder().
 		WithNextFunc(nextFn, hasNextFn).
-		WithHeader(models.Header{"Rows Affected"}).
+		WithHeader(core.Header{"Rows Affected"}).
 		Build()
 
 	return rows, nil
@@ -103,7 +103,7 @@ func (c *Conn) Query(ctx context.Context, query string) (*Result, error) {
 		return true
 	}
 
-	nextFn := func() (models.Row, error) {
+	nextFn := func() (core.Row, error) {
 		dbCols, err := dbRows.Columns()
 		if err != nil {
 			return nil, err
@@ -119,7 +119,7 @@ func (c *Conn) Query(ctx context.Context, query string) (*Result, error) {
 			return nil, err
 		}
 
-		row := make(models.Row, len(dbCols))
+		row := make(core.Row, len(dbCols))
 		for i := range dbCols {
 			val := *columnPointers[i].(*any)
 			// TODO: this breaks some types with some drivers (namely sqlserver newid()):

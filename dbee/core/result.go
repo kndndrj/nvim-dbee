@@ -1,25 +1,23 @@
-package call
+package core
 
 import (
 	"context"
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
 var ErrInvalidRange = func(from int, to int) error { return fmt.Errorf("invalid selection range: %d ... %d", from, to) }
 
 type Formatter interface {
-	Format(header models.Header, rows []models.Row, opts *models.FormatOpts) ([]byte, error)
+	Format(header Header, rows []Row, opts *FormatOpts) ([]byte, error)
 }
 
 // CacheResult is the cached form of the Result iterator
 type CacheResult struct {
-	header models.Header
-	meta   *models.Meta
-	rows   []models.Row
+	header Header
+	meta   *Meta
+	rows   []Row
 
 	isDrained  bool
 	isFilled   bool
@@ -27,7 +25,7 @@ type CacheResult struct {
 	readMutex  sync.RWMutex
 }
 
-func (cr *CacheResult) setIter(iter models.IterResult) error {
+func (cr *CacheResult) setIter(iter IterResult) error {
 	// lock write mutex
 	cr.writeMutex.Lock()
 	defer cr.writeMutex.Unlock()
@@ -45,7 +43,7 @@ func (cr *CacheResult) setIter(iter models.IterResult) error {
 
 	cr.header = iter.Header()
 	cr.meta = iter.Meta()
-	cr.rows = []models.Row{}
+	cr.rows = []Row{}
 
 	// drain the iterator
 	for iter.HasNext() {
@@ -81,7 +79,7 @@ func (cr *CacheResult) Format(formatter Formatter, from, to int) ([]byte, error)
 		return nil, fmt.Errorf("cr.Rows: %w", err)
 	}
 
-	opts := &models.FormatOpts{
+	opts := &FormatOpts{
 		SchemaType: cr.meta.SchemaType,
 		ChunkStart: fromAdjusted,
 	}
@@ -102,21 +100,21 @@ func (cr *CacheResult) IsEmpty() bool {
 	return !cr.isFilled
 }
 
-func (cr *CacheResult) Header() models.Header {
+func (cr *CacheResult) Header() Header {
 	return cr.header
 }
 
-func (cr *CacheResult) Meta() *models.Meta {
+func (cr *CacheResult) Meta() *Meta {
 	return cr.meta
 }
 
-func (cr *CacheResult) Rows(from, to int) ([]models.Row, error) {
+func (cr *CacheResult) Rows(from, to int) ([]Row, error) {
 	rows, _, _, err := cr.getRows(from, to)
 	return rows, err
 }
 
 // getRows returns the row range and adjusted from-to values
-func (cr *CacheResult) getRows(from, to int) (rows []models.Row, rangeFrom int, rangeTo int, err error) {
+func (cr *CacheResult) getRows(from, to int) (rows []Row, rangeFrom int, rangeTo int, err error) {
 	// increment the read mutex
 	cr.readMutex.RLock()
 	defer cr.readMutex.RUnlock()

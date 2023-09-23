@@ -1,4 +1,4 @@
-package call
+package core
 
 import (
 	"encoding/gob"
@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/kndndrj/nvim-dbee/dbee/models"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -160,9 +159,9 @@ func (a *archive) getResult() (*archiveRows, error) {
 
 type archiveRows struct {
 	id      StatID
-	header  models.Header
-	meta    *models.Meta
-	iter    func() (models.Row, error)
+	header  Header
+	meta    *Meta
+	iter    func() (Row, error)
 	hasNext func() bool
 }
 
@@ -187,7 +186,7 @@ func newArchiveRows(id StatID) (*archiveRows, error) {
 
 func (r *archiveRows) readHeader() error {
 	// header
-	var header models.Header
+	var header Header
 	file, err := os.Open(headerFile(r.id))
 	if err != nil {
 		return fmt.Errorf("os.Open: %w", err)
@@ -207,7 +206,7 @@ func (r *archiveRows) readHeader() error {
 
 func (r *archiveRows) readMeta() error {
 	// meta
-	var meta models.Meta
+	var meta Meta
 	file, err := os.Open(metaFile(r.id))
 	if err != nil {
 		return fmt.Errorf("os.Open: %w", err)
@@ -235,14 +234,14 @@ func (r *archiveRows) readIter() {
 
 	// nextFile returns the contents of the next rows file
 	index := 0
-	nextFile := func() (resultRows []models.Row, isLast bool, err error) {
+	nextFile := func() (resultRows []Row, isLast bool, err error) {
 		file, err := os.Open(rowFile(r.id, index))
 		if err != nil {
 			return nil, false, fmt.Errorf("os.Open: %w", err)
 		}
 		defer file.Close()
 
-		var rows []models.Row
+		var rows []Row
 
 		decoder := gob.NewDecoder(file)
 		err = decoder.Decode(&rows)
@@ -255,12 +254,12 @@ func (r *archiveRows) readIter() {
 	}
 
 	// holds rows from current file in memory
-	currentRows := []models.Row{}
+	currentRows := []Row{}
 	maxIndex := -1
 	isLastFile := false
 	hasNext := true
 	i := 0
-	r.iter = func() (models.Row, error) {
+	r.iter = func() (Row, error) {
 		if i == maxIndex && isLastFile {
 			hasNext = false
 		}
@@ -287,15 +286,15 @@ func (r *archiveRows) readIter() {
 	}
 }
 
-func (r *archiveRows) Meta() *models.Meta {
+func (r *archiveRows) Meta() *Meta {
 	return r.meta
 }
 
-func (r *archiveRows) Header() models.Header {
+func (r *archiveRows) Header() Header {
 	return r.header
 }
 
-func (r *archiveRows) Next() (models.Row, error) {
+func (r *archiveRows) Next() (Row, error) {
 	return r.iter()
 }
 

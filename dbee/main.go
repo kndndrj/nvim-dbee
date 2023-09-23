@@ -6,8 +6,7 @@ import (
 	"github.com/neovim/go-client/nvim"
 	"github.com/neovim/go-client/nvim/plugin"
 
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
+	"github.com/kndndrj/nvim-dbee/dbee/core"
 	hnd "github.com/kndndrj/nvim-dbee/dbee/handler"
 	"github.com/kndndrj/nvim-dbee/dbee/vim"
 )
@@ -33,8 +32,8 @@ func main() {
 				Name string `arg:"name"`
 			},
 			) (any, error) {
-				return handler.CreateConnection(&conn.Params{
-					ID:   conn.ID(args.ID),
+				return handler.CreateConnection(&core.Params{
+					ID:   core.ID(args.ID),
 					Name: args.Name,
 					Type: args.Type,
 					URL:  args.URL,
@@ -47,7 +46,7 @@ func main() {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				handler.DeleteConnection(conn.ID(args.ID))
+				handler.DeleteConnection(core.ID(args.ID))
 				return nil, nil
 			}))
 
@@ -64,13 +63,13 @@ func main() {
 					return nil, nil
 				}
 
-				is := make([]conn.ID, len(ids))
+				is := make([]core.ID, len(ids))
 				for i := range ids {
 					str, ok := ids[i].(string)
 					if !ok {
 						continue
 					}
-					is[i] = conn.ID(str)
+					is[i] = core.ID(str)
 				}
 
 				return handler.GetConnections(is), nil
@@ -82,7 +81,7 @@ func main() {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				return handler.SetCurrentConnection(conn.ID(args.ID)), nil
+				return handler.SetCurrentConnection(core.ID(args.ID)), nil
 			}))
 
 		entry.Register(
@@ -99,7 +98,7 @@ func main() {
 				Query string `arg:"query"`
 			},
 			) (any, error) {
-				return handler.ConnExecute(conn.ID(args.ID), args.Query)
+				return handler.ConnExecute(core.ID(args.ID), args.Query)
 			}))
 
 		entry.Register(
@@ -108,7 +107,7 @@ func main() {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				return handler.ConnGetCalls(conn.ID(args.ID))
+				return handler.ConnGetCalls(core.ID(args.ID))
 			}))
 
 		entry.Register(
@@ -117,7 +116,7 @@ func main() {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				return handler.ConnGetParams(conn.ID(args.ID))
+				return handler.ConnGetParams(core.ID(args.ID))
 			}))
 
 		entry.Register(
@@ -126,7 +125,7 @@ func main() {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				return handler.ConnGetStructure(conn.ID(args.ID))
+				return handler.ConnGetStructure(core.ID(args.ID))
 			}))
 
 		entry.Register(
@@ -135,7 +134,7 @@ func main() {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				current, available, err := handler.ConnListDatabases(conn.ID(args.ID))
+				current, available, err := handler.ConnListDatabases(core.ID(args.ID))
 				if err != nil {
 					return nil, err
 				}
@@ -149,7 +148,7 @@ func main() {
 				Database string `arg:"database"`
 			},
 			) (any, error) {
-				return nil, handler.ConnSelectDatabase(conn.ID(args.ID), args.Database)
+				return nil, handler.ConnSelectDatabase(core.ID(args.ID), args.Database)
 			}))
 
 		entry.Register(
@@ -158,7 +157,7 @@ func main() {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				return nil, handler.CallCancel(call.StatID(args.ID))
+				return nil, handler.CallCancel(core.StatID(args.ID))
 			}))
 
 		entry.Register(
@@ -170,7 +169,7 @@ func main() {
 				To     int    `arg:"to"`
 			},
 			) (any, error) {
-				return handler.CallDisplayResult(call.StatID(args.ID), nvim.Buffer(args.Buffer), args.From, args.To)
+				return handler.CallDisplayResult(core.StatID(args.ID), nvim.Buffer(args.Buffer), args.From, args.To)
 			}))
 
 		entry.Register(
@@ -193,7 +192,7 @@ func main() {
 					extraArg = args.Buffer
 				}
 
-				return nil, handler.CallStoreResult(call.StatID(args.ID), args.Format, args.Output, args.From, args.To, extraArg)
+				return nil, handler.CallStoreResult(core.StatID(args.ID), args.Format, args.Output, args.From, args.To, extraArg)
 			}))
 
 		return nil

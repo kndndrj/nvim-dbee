@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
+	"github.com/kndndrj/nvim-dbee/dbee/core"
 )
 
 var (
@@ -13,7 +13,7 @@ var (
 )
 
 // creator creates a new driver instance
-type creator func(url string) (conn.Client, error)
+type creator func(url string) (core.Client, error)
 
 // registeredCreators holds implemented driver types - specific drivers register themselves in their init functions.
 // The main reason is to be able to compile the binary without unsupported os/arch of specific drivers
@@ -41,7 +41,7 @@ func register(creator creator, aliases ...string) error {
 	return nil
 }
 
-var _ conn.Adapter = (*DefaultAdapter)(nil)
+var _ core.Adapter = (*DefaultAdapter)(nil)
 
 type DefaultAdapter struct{}
 
@@ -49,7 +49,7 @@ func Adapter() *DefaultAdapter {
 	return &DefaultAdapter{}
 }
 
-func (*DefaultAdapter) Connect(typ string, url string) (conn.Client, error) {
+func (*DefaultAdapter) Connect(typ string, url string) (core.Client, error) {
 	creator, ok := registeredCreators[typ]
 	if !ok {
 		return nil, ErrUnsupportedTypeAlias

@@ -6,27 +6,28 @@ import (
 	"fmt"
 	nurl "net/url"
 
-	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
+	"github.com/kndndrj/nvim-dbee/dbee/core"
 	_ "github.com/microsoft/go-mssqldb"
 	_ "github.com/microsoft/go-mssqldb/integratedauth/krb5"
 )
 
 // Register client
 func init() {
-	c := func(url string) (conn.Client, error) {
+	c := func(url string) (core.Client, error) {
 		return NewSQLServer(url)
 	}
 	_ = register(c, "sqlserver", "mssql")
 }
 
-type SQLServerClient struct {
-	c   *common.Client
+var _ core.Client = (*SQLServer)(nil)
+
+type SQLServer struct {
+	c   *builders.Client
 	url *nurl.URL
 }
 
-func NewSQLServer(url string) (*SQLServerClient, error) {
+func NewSQLServer(url string) (*SQLServer, error) {
 	u, err := nurl.Parse(url)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse db connection string: %w: ", err)
@@ -37,13 +38,13 @@ func NewSQLServer(url string) (*SQLServerClient, error) {
 		return nil, fmt.Errorf("unable to connect to sqlserver database: %v", err)
 	}
 
-	return &SQLServerClient{
-		c:   common.NewClient(db),
+	return &SQLServer{
+		c:   builders.NewClient(db),
 		url: u,
 	}, nil
 }
 
-func (c *SQLServerClient) Query(ctx context.Context, query string) (models.IterResult, error) {
+func (c *SQLServer) Query(ctx context.Context, query string) (core.IterResult, error) {
 	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -74,7 +75,7 @@ func (c *SQLServerClient) Query(ctx context.Context, query string) (models.IterR
 	return rows, err
 }
 
-func (c *SQLServerClient) Layout() ([]models.Layout, error) {
+func (c *SQLServer) Layout() ([]core.Layout, error) {
 	query := `SELECT table_schema, table_name FROM INFORMATION_SCHEMA.TABLES`
 
 	rows, err := c.Query(context.TODO(), query)
@@ -82,7 +83,7 @@ func (c *SQLServerClient) Layout() ([]models.Layout, error) {
 		return nil, err
 	}
 
-	children := make(map[string][]models.Layout)
+	children := make(map[string][]core.Layout)
 
 	for rows.HasNext() {
 		row, err := rows.Next()
@@ -94,25 +95,25 @@ func (c *SQLServerClient) Layout() ([]models.Layout, error) {
 		schema := row[0].(string)
 		table := row[1].(string)
 
-		children[schema] = append(children[schema], models.Layout{
+		children[schema] = append(children[schema], core.Layout{
 			Name:   table,
 			Schema: schema,
 			// TODO:
 			Database: "",
-			Type:     models.LayoutTypeTable,
+			Type:     core.LayoutTypeTable,
 		})
 
 	}
 
-	var layout []models.Layout
+	var layout []core.Layout
 
 	for k, v := range children {
-		layout = append(layout, models.Layout{
+		layout = append(layout, core.Layout{
 			Name:   k,
 			Schema: k,
 			// TODO:
 			Database: "",
-			Type:     models.LayoutTypeNone,
+			Type:     core.LayoutTypeNone,
 			Children: v,
 		})
 	}
@@ -120,11 +121,11 @@ func (c *SQLServerClient) Layout() ([]models.Layout, error) {
 	return layout, nil
 }
 
-func (c *SQLServerClient) Close() {
+func (c *SQLServer) Close() {
 	c.c.Close()
 }
 
-func (c *SQLServerClient) ListDatabases() (current string, available []string, err error) {
+func (c *SQLServer) ListDatabases() (current string, available []string, err error) {
 	query := `
 		SELECT DB_NAME(), name
 		FROM sys.databases
@@ -150,7 +151,7 @@ func (c *SQLServerClient) ListDatabases() (current string, available []string, e
 	return current, available, nil
 }
 
-func (c *SQLServerClient) SelectDatabase(name string) error {
+func (c *SQLServer) SelectDatabase(name string) error {
 	q := c.url.Query()
 	q.Set("database", name)
 	c.url.RawQuery = q.Encode()

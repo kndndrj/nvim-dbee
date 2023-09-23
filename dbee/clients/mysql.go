@@ -7,24 +7,25 @@ import (
 	"regexp"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
+	"github.com/kndndrj/nvim-dbee/dbee/core"
 )
 
 // Register client
 func init() {
-	c := func(url string) (conn.Client, error) {
+	c := func(url string) (core.Client, error) {
 		return NewMysql(url)
 	}
 	_ = register(c, "mysql")
 }
 
-type MysqlClient struct {
-	sql *common.Client
+var _ core.Client = (*MySQL)(nil)
+
+type MySQL struct {
+	sql *builders.Client
 }
 
-func NewMysql(url string) (*MysqlClient, error) {
+func NewMysql(url string) (*MySQL, error) {
 	// add multiple statements support parameter
 	match, err := regexp.MatchString(`[\?][\w]+=[\w-]+`, url)
 	if err != nil {
@@ -40,12 +41,12 @@ func NewMysql(url string) (*MysqlClient, error) {
 		return nil, fmt.Errorf("unable to connect to mysql database: %v", err)
 	}
 
-	return &MysqlClient{
-		sql: common.NewClient(db),
+	return &MySQL{
+		sql: builders.NewClient(db),
 	}, nil
 }
 
-func (c *MysqlClient) Query(ctx context.Context, query string) (models.IterResult, error) {
+func (c *MySQL) Query(ctx context.Context, query string) (core.IterResult, error) {
 	con, err := c.sql.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -76,7 +77,7 @@ func (c *MysqlClient) Query(ctx context.Context, query string) (models.IterResul
 	return rows, err
 }
 
-func (c *MysqlClient) Layout() ([]models.Layout, error) {
+func (c *MySQL) Layout() ([]core.Layout, error) {
 	query := `SELECT table_schema, table_name FROM information_schema.tables`
 
 	rows, err := c.Query(context.TODO(), query)
@@ -84,7 +85,7 @@ func (c *MysqlClient) Layout() ([]models.Layout, error) {
 		return nil, err
 	}
 
-	children := make(map[string][]models.Layout)
+	children := make(map[string][]core.Layout)
 
 	for rows.HasNext() {
 		row, err := rows.Next()
@@ -96,25 +97,25 @@ func (c *MysqlClient) Layout() ([]models.Layout, error) {
 		schema := row[0].(string)
 		table := row[1].(string)
 
-		children[schema] = append(children[schema], models.Layout{
+		children[schema] = append(children[schema], core.Layout{
 			Name:   table,
 			Schema: schema,
 			// TODO:
 			Database: "",
-			Type:     models.LayoutTypeTable,
+			Type:     core.LayoutTypeTable,
 		})
 
 	}
 
-	var layout []models.Layout
+	var layout []core.Layout
 
 	for k, v := range children {
-		layout = append(layout, models.Layout{
+		layout = append(layout, core.Layout{
 			Name:   k,
 			Schema: k,
 			// TODO:
 			Database: "",
-			Type:     models.LayoutTypeNone,
+			Type:     core.LayoutTypeNone,
 			Children: v,
 		})
 	}
@@ -122,6 +123,6 @@ func (c *MysqlClient) Layout() ([]models.Layout, error) {
 	return layout, nil
 }
 
-func (c *MysqlClient) Close() {
+func (c *MySQL) Close() {
 	c.sql.Close()
 }

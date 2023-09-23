@@ -1,4 +1,4 @@
-package call_test
+package core_test
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"gotest.tools/assert"
 )
 
@@ -59,15 +59,15 @@ func newMockedIterResult(maxRows int, sleep time.Duration) *mockedIterResult {
 	}
 }
 
-func (mir *mockedIterResult) Meta() *models.Meta {
-	return &models.Meta{}
+func (mir *mockedIterResult) Meta() *core.Meta {
+	return &core.Meta{}
 }
 
-func (mir *mockedIterResult) Header() models.Header {
-	return models.Header{"header1", "header2"}
+func (mir *mockedIterResult) Header() core.Header {
+	return core.Header{"header1", "header2"}
 }
 
-func (mir *mockedIterResult) Next() (models.Row, error) {
+func (mir *mockedIterResult) Next() (core.Row, error) {
 	if mir.current < mir.max {
 
 		// sleep between iterations
@@ -75,7 +75,7 @@ func (mir *mockedIterResult) Next() (models.Row, error) {
 
 		num := mir.current
 		mir.current += 1
-		return models.Row{num, strconv.Itoa(num)}, nil
+		return core.Row{num, strconv.Itoa(num)}, nil
 	}
 
 	return nil, errors.New("no next row")
@@ -87,11 +87,11 @@ func (mir *mockedIterResult) HasNext() bool {
 
 func (mir *mockedIterResult) Close() {}
 
-func (mir *mockedIterResult) Range(from int, to int) []models.Row {
-	var rows []models.Row
+func (mir *mockedIterResult) Range(from int, to int) []core.Row {
+	var rows []core.Row
 
 	for i := from; i < to; i++ {
-		rows = append(rows, models.Row{i, strconv.Itoa(i)})
+		rows = append(rows, core.Row{i, strconv.Itoa(i)})
 	}
 	return rows
 }
@@ -111,7 +111,7 @@ func TestCache(t *testing.T) {
 		from           int
 		to             int
 		before         func()
-		expectedResult []models.Row
+		expectedResult []core.Row
 		expectedError  error
 	}
 
@@ -150,14 +150,14 @@ func TestCache(t *testing.T) {
 			from:           5,
 			to:             1,
 			expectedResult: nil,
-			expectedError:  ErrInvalidRange(5, 1),
+			expectedError:  core.ErrInvalidRange(5, 1),
 		},
 		{
 			name:           "invalid range (even if 10 can be higher than -1, its undefined and should fail)",
 			from:           -5,
 			to:             10,
 			expectedResult: nil,
-			expectedError:  ErrInvalidRange(-5, 10),
+			expectedError:  core.ErrInvalidRange(-5, 10),
 		},
 
 		{
@@ -201,7 +201,7 @@ func TestCache(t *testing.T) {
 			}
 
 			// drain the iterator and compare results
-			var resultRows []models.Row
+			var resultRows []core.Row
 
 			for result.HasNext() {
 				row, err := result.Next()

@@ -1,22 +1,21 @@
-package format
+package handler
 
 import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 
-	"github.com/kndndrj/nvim-dbee/dbee/conn/call"
-	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/kndndrj/nvim-dbee/dbee/core"
 )
 
-var _ call.Formatter = (*Table)(nil)
+var _ core.Formatter = (*Table)(nil)
 
 type Table struct{}
 
-func NewTable() *Table {
+func newTable() *Table {
 	return &Table{}
 }
 
-func (tf *Table) Format(header models.Header, rows []models.Row, opts *models.FormatOpts) ([]byte, error) {
+func (tf *Table) Format(header core.Header, rows []core.Row, opts *core.FormatOpts) ([]byte, error) {
 	tableHeaders := []any{""}
 	for _, k := range header {
 		tableHeaders = append(tableHeaders, k)

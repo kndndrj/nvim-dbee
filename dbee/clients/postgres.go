@@ -9,25 +9,26 @@ import (
 
 	_ "github.com/lib/pq"
 
-	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
+	"github.com/kndndrj/nvim-dbee/dbee/core"
 )
 
 // Register client
 func init() {
-	c := func(url string) (conn.Client, error) {
+	c := func(url string) (core.Client, error) {
 		return NewPostgres(url)
 	}
 	_ = register(c, "postgres", "postgresql", "pg")
 }
 
-type PostgresClient struct {
-	c   *common.Client
+var _ core.Client = (*Postgres)(nil)
+
+type Postgres struct {
+	c   *builders.Client
 	url *nurl.URL
 }
 
-func NewPostgres(url string) (*PostgresClient, error) {
+func NewPostgres(url string) (*Postgres, error) {
 	u, err := nurl.Parse(url)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse db connection string: %w: ", err)
@@ -38,13 +39,13 @@ func NewPostgres(url string) (*PostgresClient, error) {
 		return nil, fmt.Errorf("unable to connect to postgres database: %w", err)
 	}
 
-	return &PostgresClient{
-		c:   common.NewClient(db),
+	return &Postgres{
+		c:   builders.NewClient(db),
 		url: u,
 	}, nil
 }
 
-func (c *PostgresClient) Query(ctx context.Context, query string) (models.IterResult, error) {
+func (c *Postgres) Query(ctx context.Context, query string) (core.IterResult, error) {
 	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -75,14 +76,14 @@ func (c *PostgresClient) Query(ctx context.Context, query string) (models.IterRe
 		return nil, err
 	}
 	if len(rows.Header()) == 0 {
-		rows.SetCustomHeader(models.Header{"No Results"})
+		rows.SetCustomHeader(core.Header{"No Results"})
 	}
 	rows.SetCallback(cb)
 
 	return rows, nil
 }
 
-func (c *PostgresClient) Layout() ([]models.Layout, error) {
+func (c *Postgres) Layout() ([]core.Layout, error) {
 	query := `
 		SELECT table_schema, table_name, table_type FROM information_schema.tables UNION ALL
 		SELECT schemaname, matviewname, 'VIEW' FROM pg_matviews;
@@ -96,11 +97,11 @@ func (c *PostgresClient) Layout() ([]models.Layout, error) {
 	return getPGLayouts(rows)
 }
 
-func (c *PostgresClient) Close() {
+func (c *Postgres) Close() {
 	c.c.Close()
 }
 
-func (c *PostgresClient) ListDatabases() (current string, available []string, err error) {
+func (c *Postgres) ListDatabases() (current string, available []string, err error) {
 	query := `
 		SELECT current_database(), datname FROM pg_database
 		WHERE datistemplate = false
@@ -126,7 +127,7 @@ func (c *PostgresClient) ListDatabases() (current string, available []string, er
 	return current, available, nil
 }
 
-func (c *PostgresClient) SelectDatabase(name string) error {
+func (c *Postgres) SelectDatabase(name string) error {
 	c.url.Path = fmt.Sprintf("/%s", name)
 	db, err := sql.Open("postgres", c.url.String())
 	if err != nil {
@@ -140,8 +141,8 @@ func (c *PostgresClient) SelectDatabase(name string) error {
 
 // getPGLayouts fetches the layout from the postgres database.
 // rows is at least 3 column wide result
-func getPGLayouts(rows models.IterResult) ([]models.Layout, error) {
-	children := make(map[string][]models.Layout)
+func getPGLayouts(rows core.IterResult) ([]core.Layout, error) {
+	children := make(map[string][]core.Layout)
 
 	for rows.HasNext() {
 		row, err := rows.Next()
@@ -151,20 +152,20 @@ func getPGLayouts(rows models.IterResult) ([]models.Layout, error) {
 
 		schema, table, tableType := row[0].(string), row[1].(string), row[2].(string)
 
-		children[schema] = append(children[schema], models.Layout{
+		children[schema] = append(children[schema], core.Layout{
 			Name:   table,
 			Schema: schema,
 			Type:   getPGLayoutType(tableType),
 		})
 	}
 
-	var layout []models.Layout
+	var layout []core.Layout
 
 	for k, v := range children {
-		layout = append(layout, models.Layout{
+		layout = append(layout, core.Layout{
 			Name:     k,
 			Schema:   k,
-			Type:     models.LayoutTypeNone,
+			Type:     core.LayoutTypeNone,
 			Children: v,
 		})
 	}
@@ -173,13 +174,13 @@ func getPGLayouts(rows models.IterResult) ([]models.Layout, error) {
 }
 
 // getPGLayoutType returns the layout type based on the string.
-func getPGLayoutType(typ string) models.LayoutType {
+func getPGLayoutType(typ string) core.LayoutType {
 	switch typ {
 	case "TABLE", "BASE TABLE":
-		return models.LayoutTypeTable
+		return core.LayoutTypeTable
 	case "VIEW":
-		return models.LayoutTypeView
+		return core.LayoutTypeView
 	default:
-		return models.LayoutTypeNone
+		return core.LayoutTypeNone
 	}
 }

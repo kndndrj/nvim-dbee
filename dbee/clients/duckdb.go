@@ -7,36 +7,37 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/kndndrj/nvim-dbee/dbee/clients/common"
-	"github.com/kndndrj/nvim-dbee/dbee/conn"
-	"github.com/kndndrj/nvim-dbee/dbee/models"
+	"github.com/kndndrj/nvim-dbee/dbee/core"
+	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 	_ "github.com/marcboeker/go-duckdb"
 )
 
 // Register client
 func init() {
-	c := func(url string) (conn.Client, error) {
+	c := func(url string) (core.Client, error) {
 		return NewDuck(url)
 	}
 	_ = register(c, "duck", "duckdb")
 }
 
-type DuckClient struct {
-	c *common.Client
+var _ core.Client = (*Duck)(nil)
+
+type Duck struct {
+	c *builders.Client
 }
 
-func NewDuck(url string) (*DuckClient, error) {
+func NewDuck(url string) (*Duck, error) {
 	db, err := sql.Open("duckdb", url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to duckdb database: %v", err)
 	}
 
-	return &DuckClient{
-		c: common.NewClient(db),
+	return &Duck{
+		c: builders.NewClient(db),
 	}, nil
 }
 
-func (c *DuckClient) Query(ctx context.Context, query string) (models.IterResult, error) {
+func (c *Duck) Query(ctx context.Context, query string) (core.IterResult, error) {
 	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -58,7 +59,7 @@ func (c *DuckClient) Query(ctx context.Context, query string) (models.IterResult
 	return rows, nil
 }
 
-func (c *DuckClient) Layout() ([]models.Layout, error) {
+func (c *Duck) Layout() ([]core.Layout, error) {
 	query := `SHOW TABLES;`
 
 	rows, err := c.Query(context.TODO(), query)
@@ -66,7 +67,7 @@ func (c *DuckClient) Layout() ([]models.Layout, error) {
 		return nil, err
 	}
 
-	var schema []models.Layout
+	var schema []core.Layout
 	for rows.HasNext() {
 		row, err := rows.Next()
 		if err != nil {
@@ -75,18 +76,18 @@ func (c *DuckClient) Layout() ([]models.Layout, error) {
 
 		// We know for a fact there is only one string field (see query above)
 		table := row[0].(string)
-		schema = append(schema, models.Layout{
+		schema = append(schema, core.Layout{
 			Name:   table,
 			Schema: "",
 			// TODO:
 			Database: "",
-			Type:     models.LayoutTypeTable,
+			Type:     core.LayoutTypeTable,
 		})
 	}
 
 	return schema, nil
 }
 
-func (c *DuckClient) Close() {
+func (c *Duck) Close() {
 	c.c.Close()
 }
