@@ -108,55 +108,36 @@ func (c *Mongo) Query(ctx context.Context, query string) (core.ResultStream, err
 	}
 
 	// check if "cursor" field exists and create an appropriate func
-	var nextFunc func() (core.Row, error)
-	hasNext := true
+	var next func() (core.Row, error)
+	var hasNext func() bool
 
 	cur, ok := resp["cursor"]
 	if ok {
-		cursor := cur.(bson.M)
-		if !ok {
-			return nil, errors.New("type assertion for cursor object failed")
-		}
+		next, hasNext = builders.NextYield(func(yield func(any)) error {
+			cursor := cur.(bson.M)
+			if !ok {
+				return errors.New("type assertion for cursor object failed")
+			}
 
-		ch := make(chan any, 1)
-		go func() {
-			defer close(ch)
 			for _, b := range cursor {
 				batch, ok := b.(bson.A)
 				if !ok {
+					fmt.Println(b)
 					continue
 				}
 				for _, item := range batch {
-					ch <- item
+					yield(newMongoResponse(item))
 				}
 			}
-			hasNext = false
-		}()
-
-		nextFunc = func() (core.Row, error) {
-			val, ok := <-ch
-			if !ok {
-				return nil, errors.New("no next row")
-			}
-			return core.Row{newMongoResponse(val)}, nil
-		}
+			return nil
+		})
 	} else {
-		nextFunc = func() (core.Row, error) {
-			if !hasNext {
-				return nil, errors.New("no next row")
-			}
-			hasNext = false
-			return core.Row{newMongoResponse(resp)}, nil
-		}
-	}
-
-	hasNextFunc := func() bool {
-		return hasNext
+		next, hasNext = builders.NextSingle(newMongoResponse(resp))
 	}
 
 	// build result
 	result := builders.NewResultStreamBuilder().
-		WithNextFunc(nextFunc, hasNextFunc).
+		WithNextFunc(next, hasNext).
 		WithHeader(core.Header{"Reply"}).
 		WithMeta(&core.Meta{
 			SchemaType: core.SchemaLess,
@@ -166,7 +147,7 @@ func (c *Mongo) Query(ctx context.Context, query string) (core.ResultStream, err
 	return result, nil
 }
 
-func (c *Mongo) Structure() ([]core.Structure, error) {
+func (c *Mongo) Structure() ([]*core.Structure, error) {
 	ctx := context.Background()
 
 	dbName, err := c.getCurrentDatabase(ctx)
@@ -179,17 +160,17 @@ func (c *Mongo) Structure() ([]core.Structure, error) {
 		return nil, err
 	}
 
-	var layout []core.Structure
+	var structure []*core.Structure
 
 	for _, coll := range collections {
-		layout = append(layout, core.Structure{
+		structure = append(structure, &core.Structure{
 			Name:   coll,
 			Schema: "",
 			Type:   core.StructureTypeTable,
 		})
 	}
 
-	return layout, nil
+	return structure, nil
 }
 
 func (c *Mongo) Close() {

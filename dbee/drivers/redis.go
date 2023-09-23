@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/gob"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -45,6 +44,18 @@ func NewRedis(url string) (*Redis, error) {
 	}, nil
 }
 
+func redisResponseToNext(response any) (func() (core.Row, error), func() bool) {
+	// parse response
+	switch resp := response.(type) {
+	case string, int64, map[any]any:
+		return builders.NextSingle(newRedisResponse(resp))
+	case []any:
+		return builders.NextSlice(resp, newRedisResponse)
+	default:
+		return builders.NextNil()
+	}
+}
+
 func (c *Redis) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	cmd, err := parseRedisCmd(query)
 	if err != nil {
@@ -56,56 +67,11 @@ func (c *Redis) Query(ctx context.Context, query string) (core.ResultStream, err
 		return nil, err
 	}
 
-	hasNext := true
-
-	// iterator functions
-	nextOnce := func(value any) func() (core.Row, error) {
-		return func() (core.Row, error) {
-			if !hasNext {
-				return nil, errors.New("no next row")
-			}
-			hasNext = false
-			return core.Row{newRedisResponse(value)}, nil
-		}
-	}
-	nextChannel := func(ch chan any) func() (core.Row, error) {
-		return func() (core.Row, error) {
-			val, ok := <-ch
-			if !ok {
-				return nil, errors.New("no next row")
-			}
-			return core.Row{newRedisResponse(val)}, nil
-		}
-	}
-
-	var nextFunc func() (core.Row, error)
-
-	// parse response
-	switch resp := response.(type) {
-	case string, int64, map[any]any:
-		nextFunc = nextOnce(resp)
-	case []any:
-		ch := make(chan any, 1)
-		go func() {
-			defer close(ch)
-			for _, item := range resp {
-				ch <- item
-			}
-		}()
-		nextFunc = nextChannel(ch)
-	case nil:
-		return nil, errors.New("no reponse from redis")
-	default:
-		return nil, fmt.Errorf("unknown type reponse from redis: %T", resp)
-	}
-
-	hasNextFunc := func() bool {
-		return hasNext
-	}
+	next, hasNext := redisResponseToNext(response)
 
 	// build result
 	result := builders.NewResultStreamBuilder().
-		WithNextFunc(nextFunc, hasNextFunc).
+		WithNextFunc(next, hasNext).
 		WithHeader(core.Header{"Reply"}).
 		WithMeta(&core.Meta{
 			SchemaType: core.SchemaLess,
@@ -115,10 +81,10 @@ func (c *Redis) Query(ctx context.Context, query string) (core.ResultStream, err
 	return result, err
 }
 
-func (c *Redis) Structure() ([]core.Structure, error) {
-	return []core.Structure{
+func (c *Redis) Structure() ([]*core.Structure, error) {
+	return []*core.Structure{
 		{
-			Name:   "DB",
+			Name:   "Storage",
 			Schema: "",
 			Type:   core.StructureTypeTable,
 		},
@@ -158,13 +124,14 @@ func printMap(m map[any]any) string {
 	return strings.Join(ret, "\n")
 }
 
-// redisResponse serves as a wrapper around the mongo response
+// redisResponse serves as a wrapper around the redis response
 // to stringify the return values
 type redisResponse struct {
 	Value any
 }
 
-func newRedisResponse(val any) *redisResponse {
+// a preprocessor for redis response
+func newRedisResponse(val any) any {
 	return &redisResponse{
 		Value: val,
 	}

@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/neovim/go-client/msgpack"
 )
 
 var ErrDatabaseSwitchingNotSupported = errors.New("database switching not supported")
@@ -16,7 +15,7 @@ type (
 	// Driver is an interface for a specific database driver
 	Driver interface {
 		Query(context.Context, string) (ResultStream, error)
-		Structure() ([]Structure, error)
+		Structure() ([]*Structure, error)
 		Close()
 	}
 
@@ -34,56 +33,11 @@ type (
 
 type ConnectionID string
 
-type ConnectionParams struct {
-	ID   ConnectionID
-	Name string
-	Type string
-	URL  string
-}
-
-// Expand returns a copy of the original parameters with expanded fields
-func (p *ConnectionParams) Expand() *ConnectionParams {
-	return &ConnectionParams{
-		ID:   ConnectionID(expand(string(p.ID))),
-		Name: expand(p.Name),
-		Type: expand(p.Type),
-		URL:  expand(p.URL),
-	}
-}
-
-type connectionParamsPersistent struct {
-	ID   string `msgpack:"id" json:"id"`
-	Name string `msgpack:"name" json:"name"`
-	Type string `msgpack:"type" json:"type"`
-	URL  string `msgpack:"url" json:"url"`
-}
-
-func (s *ConnectionParams) toPersistent() *connectionParamsPersistent {
-	return &connectionParamsPersistent{
-		ID:   string(s.ID),
-		Name: s.Name,
-		Type: s.Type,
-		URL:  s.URL,
-	}
-}
-
-func (p *ConnectionParams) MarshalMsgPack(enc *msgpack.Encoder) error {
-	return enc.Encode(p.toPersistent())
-}
-
-func (p *ConnectionParams) MarshalJSON() ([]byte, error) {
-	return json.Marshal(p.toPersistent())
-}
-
 type Connection struct {
 	params           *ConnectionParams
 	unexpandedParams *ConnectionParams
 
 	driver Driver
-}
-
-func (s *Connection) MarshalMsgPack(enc *msgpack.Encoder) error {
-	return enc.Encode(s.params)
 }
 
 func (s *Connection) MarshalJSON() ([]byte, error) {
@@ -133,7 +87,7 @@ func (c *Connection) GetParams() *ConnectionParams {
 	return c.unexpandedParams
 }
 
-func (c *Connection) Execute(query string, onEvent func(state CallState)) *Call {
+func (c *Connection) Execute(query string, onEvent func(*Call)) *Call {
 	exec := func(ctx context.Context) (ResultStream, error) {
 		return c.driver.Query(ctx, query)
 	}
@@ -171,7 +125,7 @@ func (c *Connection) ListDatabases() (current string, available []string, err er
 	return currentDB, availableDBs, nil
 }
 
-func (c *Connection) GetStructure() ([]Structure, error) {
+func (c *Connection) GetStructure() ([]*Structure, error) {
 	// structure
 	structure, err := c.driver.Structure()
 	if err != nil {
@@ -180,7 +134,7 @@ func (c *Connection) GetStructure() ([]Structure, error) {
 
 	// fallback to not confuse users
 	if len(structure) < 1 {
-		structure = []Structure{
+		structure = []*Structure{
 			{
 				Name: "no schema to show",
 				Type: StructureTypeNone,

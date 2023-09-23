@@ -77,7 +77,7 @@ func (c *Redshift) Close() {
 // Structure returns the layout of the database. This represents the
 // "schema" with all the tables and views. Note that ordering is not
 // done here. The ordering is done in the lua frontend.
-func (c *Redshift) Structure() ([]core.Structure, error) {
+func (c *Redshift) Structure() ([]*core.Structure, error) {
 	query := `
 		SELECT
 		trim(n.nspname) AS schema_name
@@ -99,5 +99,5 @@ func (c *Redshift) Structure() ([]core.Structure, error) {
 		return nil, err
 	}
 
-	return getPGLayouts(rows)
+	return getPGStructure(rows)
 }

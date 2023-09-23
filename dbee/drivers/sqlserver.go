@@ -76,7 +76,7 @@ func (c *SQLServer) Query(ctx context.Context, query string) (core.ResultStream,
 	return rows, err
 }
 
-func (c *SQLServer) Structure() ([]core.Structure, error) {
+func (c *SQLServer) Structure() ([]*core.Structure, error) {
 	query := `SELECT table_schema, table_name FROM INFORMATION_SCHEMA.TABLES`
 
 	rows, err := c.Query(context.TODO(), query)
@@ -84,7 +84,7 @@ func (c *SQLServer) Structure() ([]core.Structure, error) {
 		return nil, err
 	}
 
-	children := make(map[string][]core.Structure)
+	children := make(map[string][]*core.Structure)
 
 	for rows.HasNext() {
 		row, err := rows.Next()
@@ -96,7 +96,7 @@ func (c *SQLServer) Structure() ([]core.Structure, error) {
 		schema := row[0].(string)
 		table := row[1].(string)
 
-		children[schema] = append(children[schema], core.Structure{
+		children[schema] = append(children[schema], &core.Structure{
 			Name:   table,
 			Schema: schema,
 			Type:   core.StructureTypeTable,
@@ -104,10 +104,10 @@ func (c *SQLServer) Structure() ([]core.Structure, error) {
 
 	}
 
-	var layout []core.Structure
+	var layout []*core.Structure
 
 	for k, v := range children {
-		layout = append(layout, core.Structure{
+		layout = append(layout, &core.Structure{
 			Name:     k,
 			Schema:   k,
 			Type:     core.StructureTypeNone,

@@ -1,7 +1,5 @@
 package core
 
-import "github.com/neovim/go-client/msgpack"
-
 type SchemaType int
 
 const (
@@ -72,19 +70,5 @@ type Structure struct {
 	// Type of layout
 	Type StructureType
 	// Children layout nodes
-	Children []Structure
-}
-
-func (l *Structure) MarshalMsgPack(enc *msgpack.Encoder) error {
-	return enc.Encode(&struct {
-		Name     string      `msgpack:"name"`
-		Schema   string      `msgpack:"schema"`
-		Type     string      `msgpack:"type"`
-		Children []Structure `msgpack:"children"`
-	}{
-		Name:     l.Name,
-		Schema:   l.Schema,
-		Type:     l.Type.String(),
-		Children: l.Children,
-	})
+	Children []*Structure
 }

@@ -78,7 +78,7 @@ func (c *Oracle) Query(ctx context.Context, query string) (core.ResultStream, er
 	return rows, nil
 }
 
-func (c *Oracle) Structure() ([]core.Structure, error) {
+func (c *Oracle) Structure() ([]*core.Structure, error) {
 	query := `
 		SELECT T.owner, T.table_name
 		FROM (
@@ -97,7 +97,7 @@ func (c *Oracle) Structure() ([]core.Structure, error) {
 		return nil, err
 	}
 
-	children := make(map[string][]core.Structure)
+	children := make(map[string][]*core.Structure)
 
 	for rows.HasNext() {
 		row, err := rows.Next()
@@ -109,7 +109,7 @@ func (c *Oracle) Structure() ([]core.Structure, error) {
 		schema := row[0].(string)
 		table := row[1].(string)
 
-		children[schema] = append(children[schema], core.Structure{
+		children[schema] = append(children[schema], &core.Structure{
 			Name:   table,
 			Schema: schema,
 			Type:   core.StructureTypeTable,
@@ -117,10 +117,10 @@ func (c *Oracle) Structure() ([]core.Structure, error) {
 
 	}
 
-	var layout []core.Structure
+	var structure []*core.Structure
 
 	for k, v := range children {
-		layout = append(layout, core.Structure{
+		structure = append(structure, &core.Structure{
 			Name:     k,
 			Schema:   k,
 			Type:     core.StructureTypeNone,
@@ -128,7 +128,7 @@ func (c *Oracle) Structure() ([]core.Structure, error) {
 		})
 	}
 
-	return layout, nil
+	return structure, nil
 }
 
 func (c *Oracle) Close() {

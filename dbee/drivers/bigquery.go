@@ -162,7 +162,7 @@ func (c *BigQuery) Query(ctx context.Context, queryStr string) (core.ResultStrea
 	return result, nil
 }
 
-func (c *BigQuery) Structure() (layouts []core.Structure, err error) {
+func (c *BigQuery) Structure() (layouts []*core.Structure, err error) {
 	ctx := context.TODO()
 
 	datasetsIter := c.c.Datasets(ctx)
@@ -176,11 +176,11 @@ func (c *BigQuery) Structure() (layouts []core.Structure, err error) {
 			break
 		}
 
-		datasetLayout := core.Structure{
+		datasetLayout := &core.Structure{
 			Name:     dataset.DatasetID,
 			Schema:   dataset.DatasetID,
 			Type:     core.StructureTypeNone,
-			Children: []core.Structure{},
+			Children: []*core.Structure{},
 		}
 
 		tablesIter := dataset.Tables(ctx)
@@ -194,7 +194,7 @@ func (c *BigQuery) Structure() (layouts []core.Structure, err error) {
 				break
 			}
 
-			datasetLayout.Children = append(datasetLayout.Children, core.Structure{
+			datasetLayout.Children = append(datasetLayout.Children, &core.Structure{
 				Name:     table.TableID,
 				Schema:   table.DatasetID,
 				Type:     core.StructureTypeTable,

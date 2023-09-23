@@ -69,7 +69,7 @@ func (c *SQLite) Query(ctx context.Context, query string) (core.ResultStream, er
 	return rows, err
 }
 
-func (c *SQLite) Structure() ([]core.Structure, error) {
+func (c *SQLite) Structure() ([]*core.Structure, error) {
 	query := `SELECT name FROM sqlite_schema WHERE type ='table'`
 
 	rows, err := c.Query(context.TODO(), query)
@@ -77,7 +77,7 @@ func (c *SQLite) Structure() ([]core.Structure, error) {
 		return nil, err
 	}
 
-	var schema []core.Structure
+	var schema []*core.Structure
 	for rows.HasNext() {
 		row, err := rows.Next()
 		if err != nil {
@@ -86,7 +86,7 @@ func (c *SQLite) Structure() ([]core.Structure, error) {
 
 		// We know for a fact there is only one string field (see query above)
 		table := row[0].(string)
-		schema = append(schema, core.Structure{
+		schema = append(schema, &core.Structure{
 			Name:   table,
 			Schema: "",
 			Type:   core.StructureTypeTable,

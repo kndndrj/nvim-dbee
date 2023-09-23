@@ -21,7 +21,7 @@ type Result struct {
 	readMutex  sync.RWMutex
 }
 
-func (cr *Result) setIter(iter ResultStream) error {
+func (cr *Result) setIter(iter ResultStream, onFillStart func()) error {
 	// lock write mutex
 	cr.writeMutex.Lock()
 	defer cr.writeMutex.Unlock()
@@ -34,12 +34,17 @@ func (cr *Result) setIter(iter ResultStream) error {
 		}
 	}()
 
-	cr.isDrained = false
-	cr.isFilled = true
-
 	cr.header = iter.Header()
 	cr.meta = iter.Meta()
 	cr.rows = []Row{}
+
+	cr.isDrained = false
+	cr.isFilled = true
+
+	// trigger callback
+	if onFillStart != nil {
+		onFillStart()
+	}
 
 	// drain the iterator
 	for iter.HasNext() {

@@ -62,7 +62,7 @@ func main() {
 					is[i] = core.ConnectionID(str)
 				}
 
-				return handler.GetConnections(is), nil
+				return hnd.WrapConnections(handler.GetConnections(is)), nil
 			})
 
 		entry.Register(
@@ -71,14 +71,15 @@ func main() {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				return handler.SetCurrentConnection(core.ConnectionID(args.ID)), nil
+				return nil, handler.SetCurrentConnection(core.ConnectionID(args.ID))
 			}))
 
 		entry.Register(
 			"DbeeGetCurrentConnection",
 			vim.Wrap(func(r *vim.SharedResource, args *struct{},
 			) (any, error) {
-				return handler.GetCurrentConnection()
+				conn, err := handler.GetCurrentConnection()
+				return hnd.WrapConnection(conn), err
 			}))
 
 		entry.Register(
@@ -88,7 +89,8 @@ func main() {
 				Query string `arg:"query"`
 			},
 			) (any, error) {
-				return handler.ConnectionExecute(core.ConnectionID(args.ID), args.Query)
+				call, err := handler.ConnectionExecute(core.ConnectionID(args.ID), args.Query)
+				return hnd.WrapCall(call), err
 			}))
 
 		entry.Register(
@@ -97,7 +99,8 @@ func main() {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				return handler.ConnectionGetCalls(core.ConnectionID(args.ID))
+				calls, err := handler.ConnectionGetCalls(core.ConnectionID(args.ID))
+				return hnd.WrapCalls(calls), err
 			}))
 
 		entry.Register(
@@ -106,7 +109,8 @@ func main() {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				return handler.ConnectionGetParams(core.ConnectionID(args.ID))
+				params, err := handler.ConnectionGetParams(core.ConnectionID(args.ID))
+				return hnd.WrapConnectionParams(params), err
 			}))
 
 		entry.Register(
@@ -115,7 +119,8 @@ func main() {
 				ID string `arg:"id"`
 			},
 			) (any, error) {
-				return handler.ConnectionGetStructure(core.ConnectionID(args.ID))
+				str, err := handler.ConnectionGetStructure(core.ConnectionID(args.ID))
+				return hnd.WrapStructures(str), err
 			}))
 
 		entry.Register(

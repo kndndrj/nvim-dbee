@@ -66,7 +66,7 @@ func TestCache(t *testing.T) {
 	numOfRows := 10
 	stream := newMockedResultStream(numOfRows, 0)
 
-	err := result.setIter(stream)
+	err := result.setIter(stream, nil)
 	assert.NilError(t, err)
 
 	type testCase struct {
@@ -132,7 +132,7 @@ func TestCache(t *testing.T) {
 			before: func() {
 				result.Wipe()
 				// reset result with sleep between iterations
-				err = result.setIter(newMockedResultStream(numOfRows, 500*time.Millisecond))
+				err = result.setIter(newMockedResultStream(numOfRows, 500*time.Millisecond), nil)
 				assert.NilError(t, err)
 			},
 		},
@@ -145,7 +145,7 @@ func TestCache(t *testing.T) {
 			before: func() {
 				result.Wipe()
 				// reset result with sleep between iterations
-				err = result.setIter(newMockedResultStream(numOfRows, 500*time.Millisecond))
+				err = result.setIter(newMockedResultStream(numOfRows, 500*time.Millisecond), nil)
 				assert.NilError(t, err)
 			},
 		},

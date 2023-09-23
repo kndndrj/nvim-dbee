@@ -78,7 +78,7 @@ func (c *MySQL) Query(ctx context.Context, query string) (core.ResultStream, err
 	return rows, err
 }
 
-func (c *MySQL) Structure() ([]core.Structure, error) {
+func (c *MySQL) Structure() ([]*core.Structure, error) {
 	query := `SELECT table_schema, table_name FROM information_schema.tables`
 
 	rows, err := c.Query(context.TODO(), query)
@@ -86,7 +86,7 @@ func (c *MySQL) Structure() ([]core.Structure, error) {
 		return nil, err
 	}
 
-	children := make(map[string][]core.Structure)
+	children := make(map[string][]*core.Structure)
 
 	for rows.HasNext() {
 		row, err := rows.Next()
@@ -98,7 +98,7 @@ func (c *MySQL) Structure() ([]core.Structure, error) {
 		schema := row[0].(string)
 		table := row[1].(string)
 
-		children[schema] = append(children[schema], core.Structure{
+		children[schema] = append(children[schema], &core.Structure{
 			Name:   table,
 			Schema: schema,
 			Type:   core.StructureTypeTable,
@@ -106,10 +106,10 @@ func (c *MySQL) Structure() ([]core.Structure, error) {
 
 	}
 
-	var layout []core.Structure
+	var structure []*core.Structure
 
 	for k, v := range children {
-		layout = append(layout, core.Structure{
+		structure = append(structure, &core.Structure{
 			Name:     k,
 			Schema:   k,
 			Type:     core.StructureTypeNone,
@@ -117,7 +117,7 @@ func (c *MySQL) Structure() ([]core.Structure, error) {
 		})
 	}
 
-	return layout, nil
+	return structure, nil
 }
 
 func (c *MySQL) Close() {

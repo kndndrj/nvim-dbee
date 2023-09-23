@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,44 +16,6 @@ import (
 )
 
 const callLogFileName = "/tmp/dbee-calllog.json"
-
-type eventBus struct {
-	vim *nvim.Nvim
-	log *vim.Logger
-}
-
-func (eb *eventBus) callLua(event string, data string) {
-	err := eb.vim.ExecLua(fmt.Sprintf(`require("dbee.handler.__events").trigger(%q, %s)`, event, data), nil)
-	if err != nil {
-		eb.log.Debugf("eb.vim.ExecLua: %s", err)
-	}
-}
-
-func (eb *eventBus) CallStateChanged(call *core.Call) {
-	data := fmt.Sprintf(`{
-		call = {
-			id = %q,
-			query = %q,
-			state = %q,
-			time_taken_us = %d,
-			timestamp_us = %d,
-		},
-	}`, call.GetID(),
-		call.GetQuery(),
-		call.GetState().String(),
-		call.GetTimeTaken().Microseconds(),
-		call.GetTimestamp().UnixMicro())
-
-	eb.callLua("call_state_changed", data)
-}
-
-func (eb *eventBus) CurrentConnectionChanged(id core.ConnectionID) {
-	data := fmt.Sprintf(`{
-		conn_id = %q,
-	}`, id)
-
-	eb.callLua("current_connection_changed", data)
-}
 
 type Handler struct {
 	vim    *nvim.Nvim
@@ -92,68 +53,6 @@ func NewHandler(vim *nvim.Nvim, logger *vim.Logger) *Handler {
 	}()
 
 	return h
-}
-
-func (h *Handler) storeCallLog() error {
-	store := make(map[core.ConnectionID][]*core.Call)
-
-	for connID := range h.lookupConnection {
-		calls, err := h.ConnectionGetCalls(connID)
-		if err != nil || len(calls) < 1 {
-			continue
-		}
-		store[connID] = calls
-	}
-
-	b, err := json.MarshalIndent(store, "", "  ")
-	if err != nil {
-		return fmt.Errorf("json.MarshalIndent: %w", err)
-	}
-
-	file, err := os.Create(callLogFileName)
-	if err != nil {
-		return fmt.Errorf("os.Create: %s", err)
-	}
-	defer file.Close()
-
-	_, err = file.Write(b)
-	if err != nil {
-		return fmt.Errorf("file.Write: %w", err)
-	}
-
-	return nil
-}
-
-func (h *Handler) restoreCallLog() error {
-	file, err := os.Open(callLogFileName)
-	if err != nil {
-		return fmt.Errorf("os.Open: %w", err)
-	}
-	defer file.Close()
-
-	decoder := json.NewDecoder(file)
-
-	var store map[core.ConnectionID][]*core.Call
-
-	err = decoder.Decode(&store)
-	if err != nil {
-		return fmt.Errorf("decoder.Decode: %w", err)
-	}
-
-	for connID, calls := range store {
-		callIDs := make([]core.CallID, len(calls))
-
-		// fill call lookup
-		for i, c := range calls {
-			h.lookupCall[c.GetID()] = c
-			callIDs[i] = c.GetID()
-		}
-
-		// add to conn-call lookup
-		h.lookupConnectionCall[connID] = append(h.lookupConnectionCall[connID], callIDs...)
-	}
-
-	return nil
 }
 
 func (h *Handler) Close() {
@@ -227,12 +126,13 @@ func (h *Handler) ConnectionExecute(connID core.ConnectionID, query string) (*co
 		return nil, fmt.Errorf("unknown connection with id: %q", connID)
 	}
 
-	call := new(core.Call)
-	onEvent := func(state core.CallState) {
-		h.events.CallStateChanged(call)
-	}
+	call := c.Execute(query, func(cl *core.Call) {
+		if err := cl.Err(); err != nil {
+			h.log.Errorf("cl.Err: %s", err)
+		}
 
-	call = c.Execute(query, onEvent)
+		h.events.CallStateChanged(cl)
+	})
 
 	id := call.GetID()
 
@@ -278,7 +178,7 @@ func (h *Handler) ConnectionGetParams(connID core.ConnectionID) (*core.Connectio
 	return c.GetParams(), nil
 }
 
-func (h *Handler) ConnectionGetStructure(connID core.ConnectionID) ([]core.Structure, error) {
+func (h *Handler) ConnectionGetStructure(connID core.ConnectionID) ([]*core.Structure, error) {
 	c, ok := h.lookupConnection[connID]
 	if !ok {
 		return nil, fmt.Errorf("unknown connection with id: %q", connID)

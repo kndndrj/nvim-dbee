@@ -60,7 +60,7 @@ func (c *Duck) Query(ctx context.Context, query string) (core.ResultStream, erro
 	return rows, nil
 }
 
-func (c *Duck) Structure() ([]core.Structure, error) {
+func (c *Duck) Structure() ([]*core.Structure, error) {
 	query := `SHOW TABLES;`
 
 	rows, err := c.Query(context.TODO(), query)
@@ -68,7 +68,7 @@ func (c *Duck) Structure() ([]core.Structure, error) {
 		return nil, err
 	}
 
-	var schema []core.Structure
+	var schema []*core.Structure
 	for rows.HasNext() {
 		row, err := rows.Next()
 		if err != nil {
@@ -77,7 +77,7 @@ func (c *Duck) Structure() ([]core.Structure, error) {
 
 		// We know for a fact there is only one string field (see query above)
 		table := row[0].(string)
-		schema = append(schema, core.Structure{
+		schema = append(schema, &core.Structure{
 			Name:   table,
 			Schema: "",
 			Type:   core.StructureTypeTable,

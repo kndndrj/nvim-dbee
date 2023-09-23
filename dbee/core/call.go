@@ -7,57 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/neovim/go-client/msgpack"
 )
-
-type CallState int
-
-const (
-	CallStateUnknown CallState = iota
-	CallStateExecuting
-	CallStateRetrieving
-	CallStateArchived
-	CallStateFailed
-	CallStateCanceled
-)
-
-func CallStateFromString(s string) CallState {
-	switch s {
-	case "unknown":
-		return CallStateUnknown
-	case "executing":
-		return CallStateExecuting
-	case "retrieving":
-		return CallStateRetrieving
-	case "archived":
-		return CallStateArchived
-	case "failed":
-		return CallStateFailed
-	case "canceled":
-		return CallStateCanceled
-	default:
-		return CallStateUnknown
-	}
-}
-
-func (s CallState) String() string {
-	switch s {
-	case CallStateUnknown:
-		return "unknown"
-	case CallStateExecuting:
-		return "executing"
-	case CallStateRetrieving:
-		return "retrieving"
-	case CallStateArchived:
-		return "archived"
-	case CallStateFailed:
-		return "failed"
-	case CallStateCanceled:
-		return "canceled"
-	default:
-		return "unknown"
-	}
-}
 
 type (
 	CallID string
@@ -72,17 +22,20 @@ type (
 		result      *Result
 		archive     *archive
 		cancelFunc  func()
-		onEventFunc func(state CallState)
+		onEventFunc func(*Call)
+
+		// any error that might occur during execution
+		err error
 	}
 )
 
-// callPersistent is a form used to permanently store the call stat
+// callPersistent is used for marshaling and unmarshaling the call
 type callPersistent struct {
-	ID        string `msgpack:"id" json:"id"`
-	Query     string `msgpack:"query" json:"query"`
-	State     string `msgpack:"state" json:"state"`
-	TimeTaken int64  `msgpack:"time_taken_us" json:"time_taken_us"`
-	Timestamp int64  `msgpack:"timestamp_us" json:"timestamp_us"`
+	ID        string `json:"id"`
+	Query     string `json:"query"`
+	State     string `json:"state"`
+	TimeTaken int64  `json:"time_taken_us"`
+	Timestamp int64  `json:"timestamp_us"`
 }
 
 func (s *Call) toPersistent() *callPersistent {
@@ -93,10 +46,6 @@ func (s *Call) toPersistent() *callPersistent {
 		TimeTaken: s.timeTaken.Microseconds(),
 		Timestamp: s.timestamp.UnixMicro(),
 	}
-}
-
-func (s *Call) MarshalMsgPack(enc *msgpack.Encoder) error {
-	return enc.Encode(s.toPersistent())
 }
 
 func (s *Call) MarshalJSON() ([]byte, error) {
@@ -131,7 +80,7 @@ func (s *Call) UnmarshalJSON(data []byte) error {
 }
 
 // Caller builds the cal
-func newCallFromExecutor(executor func(context.Context) (ResultStream, error), query string, onEvent func(CallState)) *Call {
+func newCallFromExecutor(executor func(context.Context) (ResultStream, error), query string, onEvent func(*Call)) *Call {
 	id := CallID(uuid.New().String())
 	c := &Call{
 		id:    id,
@@ -156,14 +105,15 @@ func newCallFromExecutor(executor func(context.Context) (ResultStream, error), q
 		c.setState(CallStateExecuting)
 		iter, err := executor(ctx)
 		if err != nil {
+			c.err = err
 			c.setState(CallStateFailed)
 			return
 		}
-		c.setState(CallStateRetrieving)
 
 		// set iterator to result
-		err = c.result.setIter(iter)
+		err = c.result.setIter(iter, func() { c.setState(CallStateRetrieving) })
 		if err != nil {
+			c.err = err
 			c.setState(CallStateFailed)
 			return
 		}
@@ -171,7 +121,7 @@ func newCallFromExecutor(executor func(context.Context) (ResultStream, error), q
 		// archive the result
 		err = c.archive.setResult(c.result)
 		if err != nil {
-			c.setState(CallStateFailed)
+			c.err = err
 			return
 		}
 
@@ -201,6 +151,10 @@ func (c *Call) GetTimestamp() time.Time {
 	return c.timestamp
 }
 
+func (c *Call) Err() error {
+	return c.err
+}
+
 func (c *Call) setState(state CallState) {
 	if c.state == CallStateFailed || c.state == CallStateCanceled {
 		return
@@ -209,7 +163,7 @@ func (c *Call) setState(state CallState) {
 
 	// trigger event callback
 	if c.onEventFunc != nil {
-		go c.onEventFunc(state)
+		c.onEventFunc(c)
 	}
 }
 
@@ -229,7 +183,7 @@ func (c *Call) GetResult() (*Result, error) {
 		if err != nil {
 			return nil, fmt.Errorf("c.archive.getResult: %w", err)
 		}
-		err = c.result.setIter(iter)
+		err = c.result.setIter(iter, nil)
 		if err != nil {
 			return nil, fmt.Errorf("c.result.setIter: %w", err)
 		}

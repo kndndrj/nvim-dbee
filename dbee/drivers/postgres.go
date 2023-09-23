@@ -83,7 +83,7 @@ func (c *Postgres) Query(ctx context.Context, query string) (core.ResultStream, 
 	return rows, nil
 }
 
-func (c *Postgres) Structure() ([]core.Structure, error) {
+func (c *Postgres) Structure() ([]*core.Structure, error) {
 	query := `
 		SELECT table_schema, table_name, table_type FROM information_schema.tables UNION ALL
 		SELECT schemaname, matviewname, 'VIEW' FROM pg_matviews;
@@ -94,7 +94,7 @@ func (c *Postgres) Structure() ([]core.Structure, error) {
 		return nil, err
 	}
 
-	return getPGLayouts(rows)
+	return getPGStructure(rows)
 }
 
 func (c *Postgres) Close() {
@@ -139,10 +139,10 @@ func (c *Postgres) SelectDatabase(name string) error {
 	return nil
 }
 
-// getPGLayouts fetches the layout from the postgres database.
+// getPGStructure fetches the layout from the postgres database.
 // rows is at least 3 column wide result
-func getPGLayouts(rows core.ResultStream) ([]core.Structure, error) {
-	children := make(map[string][]core.Structure)
+func getPGStructure(rows core.ResultStream) ([]*core.Structure, error) {
+	children := make(map[string][]*core.Structure)
 
 	for rows.HasNext() {
 		row, err := rows.Next()
@@ -152,17 +152,17 @@ func getPGLayouts(rows core.ResultStream) ([]core.Structure, error) {
 
 		schema, table, tableType := row[0].(string), row[1].(string), row[2].(string)
 
-		children[schema] = append(children[schema], core.Structure{
+		children[schema] = append(children[schema], &core.Structure{
 			Name:   table,
 			Schema: schema,
-			Type:   getPGLayoutType(tableType),
+			Type:   getPGStructureType(tableType),
 		})
 	}
 
-	var layout []core.Structure
+	var structure []*core.Structure
 
 	for k, v := range children {
-		layout = append(layout, core.Structure{
+		structure = append(structure, &core.Structure{
 			Name:     k,
 			Schema:   k,
 			Type:     core.StructureTypeNone,
@@ -170,11 +170,11 @@ func getPGLayouts(rows core.ResultStream) ([]core.Structure, error) {
 		})
 	}
 
-	return layout, nil
+	return structure, nil
 }
 
-// getPGLayoutType returns the layout type based on the string.
-func getPGLayoutType(typ string) core.StructureType {
+// getPGStructureType returns the structure type based on the provided string.
+func getPGStructureType(typ string) core.StructureType {
 	switch typ {
 	case "TABLE", "BASE TABLE":
 		return core.StructureTypeTable
