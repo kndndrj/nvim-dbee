@@ -27,6 +27,10 @@ type (
 		SelectDatabase(string) error
 		ListDatabases() (current string, available []string, err error)
 	}
+
+	Adapter interface {
+		Connect(typ string, url string) (Client, error)
+	}
 )
 
 type ID string
@@ -87,11 +91,16 @@ func (s *Conn) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.params)
 }
 
-func New(params *Params, driver Client) *Conn {
+func New(params *Params, adapter Adapter) (*Conn, error) {
 	expanded := params.Expand()
 
 	if expanded.ID == "" {
 		expanded.ID = ID(uuid.New().String())
+	}
+
+	driver, err := adapter.Connect(expanded.Type, expanded.URL)
+	if err != nil {
+		return nil, fmt.Errorf("adapter.Connect: %w", err)
 	}
 
 	c := &Conn{
@@ -101,7 +110,7 @@ func New(params *Params, driver Client) *Conn {
 		driver: driver,
 	}
 
-	return c
+	return c, nil
 }
 
 func (c *Conn) GetID() ID {

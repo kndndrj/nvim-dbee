@@ -19,7 +19,7 @@ func init() {
 	c := func(url string) (conn.Client, error) {
 		return NewPostgres(url)
 	}
-	_ = Store.Register(c, "postgres", "postgresql", "pg")
+	_ = register(c, "postgres", "postgresql", "pg")
 }
 
 type PostgresClient struct {
@@ -112,11 +112,8 @@ func (c *PostgresClient) ListDatabases() (current string, available []string, er
 		return "", nil, err
 	}
 
-	for {
+	for rows.HasNext() {
 		row, err := rows.Next()
-		if row == nil {
-			break
-		}
 		if err != nil {
 			return "", nil, err
 		}

@@ -85,6 +85,8 @@ function Handler:source_reload(id)
   -- add new connections
   self.source_conn_lookup[id] = {}
   for _, spec in ipairs(source:load()) do
+    spec.id = spec.id or spec.type .. spec.name
+
     local conn_id = vim.fn.DbeeCreateConnection(spec)
     table.insert(self.source_conn_lookup[id], conn_id)
   end
@@ -172,6 +174,7 @@ end
 
 ---@param id conn_id
 function Handler:set_current_connection(id)
+  print(id)
   vim.fn.DbeeSetCurrentConnection { id = id }
 end
 

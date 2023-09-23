@@ -53,10 +53,6 @@ func newArchive(id StatID) *archive {
 	}
 }
 
-func (a *archive) getPath() string {
-	return archiveDir(a.id)
-}
-
 func (a *archive) isEmpty() bool {
 	return !a.isFilled
 }
@@ -239,10 +235,10 @@ func (r *archiveRows) readIter() {
 
 	// nextFile returns the contents of the next rows file
 	index := 0
-	nextFile := func() (resultRows []models.Row, err error, isLast bool) {
+	nextFile := func() (resultRows []models.Row, isLast bool, err error) {
 		file, err := os.Open(rowFile(r.id, index))
 		if err != nil {
-			return nil, err, false
+			return nil, false, fmt.Errorf("os.Open: %w", err)
 		}
 		defer file.Close()
 
@@ -251,11 +247,11 @@ func (r *archiveRows) readIter() {
 		decoder := gob.NewDecoder(file)
 		err = decoder.Decode(&rows)
 		if err != nil {
-			return nil, err, false
+			return nil, false, fmt.Errorf("decoder.Decode: %w", err)
 		}
 
 		index++
-		return rows, nil, !fileExists(index + 1)
+		return rows, !fileExists(index + 1), nil
 	}
 
 	// holds rows from current file in memory
@@ -274,7 +270,7 @@ func (r *archiveRows) readIter() {
 			}
 
 			var err error
-			currentRows, err, isLastFile = nextFile()
+			currentRows, isLastFile, err = nextFile()
 			if err != nil {
 				return nil, err
 			}

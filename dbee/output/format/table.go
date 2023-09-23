@@ -16,12 +16,12 @@ func NewTable() *Table {
 	return &Table{}
 }
 
-func (tf *Table) Format(header models.Header, rows []models.Row, meta *models.Meta) ([]byte, error) {
+func (tf *Table) Format(header models.Header, rows []models.Row, opts *models.FormatOpts) ([]byte, error) {
 	tableHeaders := []any{""}
 	for _, k := range header {
 		tableHeaders = append(tableHeaders, k)
 	}
-	index := meta.ChunkStart
+	index := opts.ChunkStart
 
 	var tableRows []table.Row
 	for _, row := range rows {

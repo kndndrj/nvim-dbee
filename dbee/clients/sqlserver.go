@@ -18,7 +18,7 @@ func init() {
 	c := func(url string) (conn.Client, error) {
 		return NewSQLServer(url)
 	}
-	_ = Store.Register(c, "sqlserver", "mssql")
+	_ = register(c, "sqlserver", "mssql")
 }
 
 type SQLServerClient struct {
@@ -136,11 +136,8 @@ func (c *SQLServerClient) ListDatabases() (current string, available []string, e
 		return "", nil, err
 	}
 
-	for {
+	for rows.HasNext() {
 		row, err := rows.Next()
-		if row == nil {
-			break
-		}
 		if err != nil {
 			return "", nil, err
 		}

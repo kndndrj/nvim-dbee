@@ -18,7 +18,7 @@ func init() {
 	c := func(url string) (conn.Client, error) {
 		return NewSqlite(url)
 	}
-	_ = Store.Register(c, "sqlite", "sqlite3")
+	_ = register(c, "sqlite", "sqlite3")
 }
 
 type SqliteClient struct {

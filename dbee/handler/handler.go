@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +16,8 @@ import (
 	"github.com/kndndrj/nvim-dbee/dbee/output/format"
 	"github.com/neovim/go-client/nvim"
 )
+
+const callLogFileName = "/tmp/dbee-calllog.json"
 
 type eventBus struct {
 	vim *nvim.Nvim
@@ -68,7 +71,7 @@ type Handler struct {
 }
 
 func NewHandler(vim *nvim.Nvim, logger models.Logger) *Handler {
-	return &Handler{
+	h := &Handler{
 		vim: vim,
 		log: logger,
 		events: &eventBus{
@@ -80,26 +83,101 @@ func NewHandler(vim *nvim.Nvim, logger models.Logger) *Handler {
 		lookupStat:     make(map[call.StatID]*call.Stat),
 		lookupConnStat: make(map[conn.ID][]call.StatID),
 	}
+
+	// restore the call log concurrently
+	go func() {
+		err := h.restoreCallLog()
+		if err != nil {
+			h.log.Debugf("h.restoreCallLog: %s", err)
+		}
+	}()
+
+	return h
+}
+
+func (h *Handler) storeCallLog() error {
+	store := make(map[conn.ID][]*call.Stat)
+
+	for connID := range h.lookupConn {
+		calls, err := h.ConnGetCalls(connID)
+		if err != nil || len(calls) < 1 {
+			continue
+		}
+		store[connID] = calls
+	}
+
+	b, err := json.MarshalIndent(store, "", "  ")
+	if err != nil {
+		return fmt.Errorf("json.MarshalIndent: %w", err)
+	}
+
+	file, err := os.Create(callLogFileName)
+	if err != nil {
+		return fmt.Errorf("os.Create: %s", err)
+	}
+	defer file.Close()
+
+	_, err = file.Write(b)
+	if err != nil {
+		return fmt.Errorf("file.Write: %w", err)
+	}
+
+	return nil
+}
+
+func (h *Handler) restoreCallLog() error {
+	file, err := os.Open(callLogFileName)
+	if err != nil {
+		return fmt.Errorf("os.Open: %w", err)
+	}
+	defer file.Close()
+
+	decoder := json.NewDecoder(file)
+
+	var store map[conn.ID][]*call.Stat
+
+	err = decoder.Decode(&store)
+	if err != nil {
+		return fmt.Errorf("decoder.Decode: %w", err)
+	}
+
+	for connID, calls := range store {
+		callIDs := make([]call.StatID, len(calls))
+
+		// fill call lookup
+		for i, c := range calls {
+			h.lookupStat[c.ID] = c
+			callIDs[i] = c.ID
+		}
+
+		// add to conn-call lookup
+		h.lookupConnStat[connID] = append(h.lookupConnStat[connID], callIDs...)
+	}
+
+	return nil
 }
 
 func (h *Handler) Close() {
+	err := h.storeCallLog()
+	if err != nil {
+		h.log.Debugf("h.storeCallLog: %s", err)
+	}
+
 	for _, c := range h.lookupConn {
 		c.Close()
 	}
 }
 
-func (h *Handler) CreateConnection(spec *conn.Params) (conn.ID, error) {
-	_, ok := h.lookupConn[spec.ID]
-	if ok {
-		return "", nil
-	}
-
-	driver, err := clients.NewFromType(spec.URL, spec.Type)
+func (h *Handler) CreateConnection(params *conn.Params) (conn.ID, error) {
+	c, err := conn.New(params, clients.Adapter())
 	if err != nil {
-		return "", fmt.Errorf("clients.NewFromType: %w", err)
+		return "", fmt.Errorf("conn.New: %w", err)
 	}
 
-	c := conn.New(spec, driver)
+	old, ok := h.lookupConn[c.GetID()]
+	if ok {
+		go old.Close()
+	}
 
 	h.lookupConn[c.GetID()] = c
 
@@ -141,6 +219,8 @@ func (h *Handler) SetCurrentConnection(connID conn.ID) error {
 	if !ok {
 		return fmt.Errorf("unknown connection with id: %q", connID)
 	}
+
+	fmt.Println("here")
 
 	if h.currentConnID == connID {
 		return nil

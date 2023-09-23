@@ -87,8 +87,8 @@ local function connection_layout(handler, conn, result)
     table.insert(layouts, 1, ly)
   end
 
-  local current_db, _ = handler:connection_list_databases(conn.id)
-  if current_db ~= "" then
+  local current_db, available_dbs = handler:connection_list_databases(conn.id)
+  if current_db ~= "" and #available_dbs > 0 then
     ---@type Layout
     local ly = {
       id = conn.id .. "_database_switch__",
@@ -99,6 +99,7 @@ local function connection_layout(handler, conn, result)
         cb()
       end,
       pick_title = "Select a Database",
+      pick_items = available_dbs,
     }
     table.insert(layouts, 1, ly)
   end

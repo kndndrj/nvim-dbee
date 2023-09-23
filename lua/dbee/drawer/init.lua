@@ -38,6 +38,7 @@ local convert = require("dbee.drawer.convert")
 ---@field private mappings table<string, mapping>
 ---@field private candies table<string, Candy> map of eye-candy stuff (icons, highlight)
 ---@field private disable_help boolean show help or not
+---@field private current_conn_id conn_id current active connection
 local Drawer = {}
 
 ---@param ui Ui
@@ -77,6 +78,7 @@ function Drawer:new(ui, handler, editor, result, opts)
     mappings = opts.mappings or {},
     candies = candies,
     disable_help = opts.disable_help or false,
+    current_conn_id = "",
   }
   setmetatable(o, self)
   self.__index = self
@@ -84,8 +86,8 @@ function Drawer:new(ui, handler, editor, result, opts)
   -- set keymaps
   o.ui:set_keymap(o:generate_keymap(opts.mappings))
 
-  handler:register_event_listener("current_conn_changed", function(data)
-    o:on_call_state_changed(data)
+  handler:register_event_listener("current_connection_changed", function(data)
+    o:on_current_connection_changed(data)
   end)
 
   return o
@@ -93,8 +95,12 @@ end
 
 -- event listener for new calls
 ---@private
----@param _ { conn_id: conn_id }
-function Drawer:on_current_conn_changed(_)
+---@param data { conn_id: conn_id }
+function Drawer:on_current_connection_changed(data)
+  if self.current_conn_id == data.conn_id then
+    return
+  end
+  self.current_conn_id = data.conn_id
   self:refresh()
 end
 
@@ -137,11 +143,11 @@ function Drawer:create_tree(bufnr)
       end
 
       -- apply a special highlight for active connection and active scratchpad
-      -- if self.handler:get_current_connection().id == node.id or self.editor:get_active_scratch() == node.id then
-      --   line:append(node.name, candy.icon_highlight)
-      -- else
-      line:append(node.name, candy.text_highlight)
-      -- end
+      if node.id == self.current_conn_id or self.editor:get_active_scratch() == node.id then
+        line:append(node.name, candy.icon_highlight)
+      else
+        line:append(node.name, candy.text_highlight)
+      end
 
       return line
     end,

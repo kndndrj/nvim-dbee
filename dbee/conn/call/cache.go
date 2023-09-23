@@ -12,7 +12,7 @@ import (
 var ErrInvalidRange = func(from int, to int) error { return fmt.Errorf("invalid selection range: %d ... %d", from, to) }
 
 type Formatter interface {
-	Format(header models.Header, rows []models.Row, meta *models.Meta) ([]byte, error)
+	Format(header models.Header, rows []models.Row, opts *models.FormatOpts) ([]byte, error)
 }
 
 // CacheResult is the cached form of the Result iterator
@@ -51,6 +51,7 @@ func (cr *CacheResult) setIter(iter models.IterResult) error {
 	for iter.HasNext() {
 		row, err := iter.Next()
 		if err != nil {
+			cr.isFilled = false
 			return err
 		}
 
@@ -75,12 +76,17 @@ func (cr *CacheResult) Wipe() {
 }
 
 func (cr *CacheResult) Format(formatter Formatter, from, to int) ([]byte, error) {
-	rows, err := cr.Rows(from, to)
+	rows, fromAdjusted, _, err := cr.getRows(from, to)
 	if err != nil {
 		return nil, fmt.Errorf("cr.Rows: %w", err)
 	}
 
-	f, err := formatter.Format(cr.header, rows, cr.meta)
+	opts := &models.FormatOpts{
+		SchemaType: cr.meta.SchemaType,
+		ChunkStart: fromAdjusted,
+	}
+
+	f, err := formatter.Format(cr.header, rows, opts)
 	if err != nil {
 		return nil, fmt.Errorf("formatter.Format: %w", err)
 	}
@@ -105,6 +111,12 @@ func (cr *CacheResult) Meta() *models.Meta {
 }
 
 func (cr *CacheResult) Rows(from, to int) ([]models.Row, error) {
+	rows, _, _, err := cr.getRows(from, to)
+	return rows, err
+}
+
+// getRows returns the row range and adjusted from-to values
+func (cr *CacheResult) getRows(from, to int) (rows []models.Row, rangeFrom int, rangeTo int, err error) {
 	// increment the read mutex
 	cr.readMutex.RLock()
 	defer cr.readMutex.RUnlock()
@@ -112,12 +124,12 @@ func (cr *CacheResult) Rows(from, to int) ([]models.Row, error) {
 	// validation
 	if (from < 0 && to < 0) || (from >= 0 && to >= 0) {
 		if from > to {
-			return nil, ErrInvalidRange(from, to)
+			return nil, 0, 0, ErrInvalidRange(from, to)
 		}
 	}
 	// undefined -> error
 	if from < 0 && to >= 0 {
-		return nil, ErrInvalidRange(from, to)
+		return nil, 0, 0, ErrInvalidRange(from, to)
 	}
 
 	// timeout context
@@ -131,7 +143,7 @@ func (cr *CacheResult) Rows(from, to int) ([]models.Row, error) {
 		}
 
 		if err := ctx.Err(); err != nil {
-			return nil, fmt.Errorf("cache flushing timeout exceeded: %s", err)
+			return nil, 0, 0, fmt.Errorf("cache flushing timeout exceeded: %s", err)
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -158,5 +170,5 @@ func (cr *CacheResult) Rows(from, to int) ([]models.Row, error) {
 		to = length
 	}
 
-	return cr.rows[from:to], nil
+	return cr.rows[from:to], from, to, nil
 }

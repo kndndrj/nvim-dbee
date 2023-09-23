@@ -20,7 +20,7 @@ func (jf *JSON) Name() string {
 	return "json"
 }
 
-func (jf *JSON) parseSchemaFul(header models.Header, rows []models.Row, meta *models.Meta) []map[string]any {
+func (jf *JSON) parseSchemaFul(header models.Header, rows []models.Row) []map[string]any {
 	var data []map[string]any
 
 	for _, row := range rows {
@@ -40,7 +40,7 @@ func (jf *JSON) parseSchemaFul(header models.Header, rows []models.Row, meta *mo
 	return data
 }
 
-func (jf *JSON) parseSchemaLess(header models.Header, rows []models.Row, meta *models.Meta) []any {
+func (jf *JSON) parseSchemaLess(header models.Header, rows []models.Row) []any {
 	var data []any
 
 	for _, row := range rows {
@@ -53,15 +53,15 @@ func (jf *JSON) parseSchemaLess(header models.Header, rows []models.Row, meta *m
 	return data
 }
 
-func (jf *JSON) Format(header models.Header, rows []models.Row, meta *models.Meta) ([]byte, error) {
+func (jf *JSON) Format(header models.Header, rows []models.Row, opts *models.FormatOpts) ([]byte, error) {
 	var data any
-	switch meta.SchemaType {
+	switch opts.SchemaType {
 	case models.SchemaLess:
-		data = jf.parseSchemaLess(header, rows, meta)
+		data = jf.parseSchemaLess(header, rows)
 	case models.SchemaFul:
 		fallthrough
 	default:
-		data = jf.parseSchemaFul(header, rows, meta)
+		data = jf.parseSchemaFul(header, rows)
 	}
 
 	out, err := json.MarshalIndent(data, "", "  ")

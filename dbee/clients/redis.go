@@ -19,7 +19,7 @@ func init() {
 	c := func(url string) (conn.Client, error) {
 		return NewRedis(url)
 	}
-	_ = Store.Register(c, "redis")
+	_ = register(c, "redis")
 
 	// register known types with gob
 	gob.Register(&redisResponse{})

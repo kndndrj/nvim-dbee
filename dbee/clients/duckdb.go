@@ -18,7 +18,7 @@ func init() {
 	c := func(url string) (conn.Client, error) {
 		return NewDuck(url)
 	}
-	_ = Store.Register(c, "duck", "duckdb")
+	_ = register(c, "duck", "duckdb")
 }
 
 type DuckClient struct {

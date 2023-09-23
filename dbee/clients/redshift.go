@@ -17,7 +17,7 @@ func init() {
 	c := func(url string) (conn.Client, error) {
 		return NewRedshift(url)
 	}
-	_ = Store.Register(c, "redshift")
+	_ = register(c, "redshift")
 }
 
 // RedshiftClient is a sql client for Redshift.

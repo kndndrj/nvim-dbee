@@ -1,7 +1,7 @@
 -- This package is used for triggering lua callbacks from go.
 -- It uses unique ids to register the callbacks and trigger them.
 
----@alias event_name "call_state_changed"|"current_conn_changed"
+---@alias event_name "call_state_changed"|"current_connection_changed"
 ---@alias event_listener fun(data: any)
 
 local M = {}

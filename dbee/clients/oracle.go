@@ -17,7 +17,7 @@ func init() {
 	c := func(url string) (conn.Client, error) {
 		return NewOracle(url)
 	}
-	_ = Store.Register(c, "oracle")
+	_ = register(c, "oracle")
 }
 
 type OracleClient struct {

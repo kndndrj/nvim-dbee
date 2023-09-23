@@ -7,23 +7,22 @@ import (
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
 )
 
+var (
+	errNoValidTypeAliases   = errors.New("no valid type aliases provided")
+	ErrUnsupportedTypeAlias = errors.New("no driver registered for provided type alias")
+)
+
+// creator creates a new driver instance
 type creator func(url string) (conn.Client, error)
 
-// storage holds implmented client types - specific clients register themselves in their init functions.
-// The main idea behind this is to compile the binary without unsupported clients for os or arch
-type storage struct {
-	creators map[string]creator
-}
+// registeredCreators holds implemented driver types - specific drivers register themselves in their init functions.
+// The main reason is to be able to compile the binary without unsupported os/arch of specific drivers
+var registeredCreators = make(map[string]creator)
 
-// Store is an instance of the storage, available for public use
-var Store = storage{creators: make(map[string]creator)}
-
-var ErrNoValidTypeAliases = errors.New("no valid type aliases provided")
-
-// registers a new client by submitting a creator ("new") function
-func (s *storage) Register(creator creator, aliases ...string) error {
+// register registers a new client by submitting a creator ("new") function
+func register(creator creator, aliases ...string) error {
 	if len(aliases) < 1 {
-		return ErrNoValidTypeAliases
+		return errNoValidTypeAliases
 	}
 
 	invalidCount := 0
@@ -32,29 +31,34 @@ func (s *storage) Register(creator creator, aliases ...string) error {
 			invalidCount++
 			continue
 		}
-		s.creators[al] = creator
+		registeredCreators[al] = creator
 	}
 
 	if invalidCount == len(aliases) {
-		return ErrNoValidTypeAliases
+		return errNoValidTypeAliases
 	}
 
 	return nil
 }
 
-func (s *storage) Get(alias string) (creator, error) {
-	c, ok := s.creators[alias]
-	if !ok {
-		return nil, fmt.Errorf("no client registered with type: %s", alias)
-	}
-	return c, nil
+var _ conn.Adapter = (*DefaultAdapter)(nil)
+
+type DefaultAdapter struct{}
+
+func Adapter() *DefaultAdapter {
+	return &DefaultAdapter{}
 }
 
-func NewFromType(url string, typ string) (conn.Client, error) {
-	new, err := Store.Get(typ)
-	if err != nil {
-		return nil, err
+func (*DefaultAdapter) Connect(typ string, url string) (conn.Client, error) {
+	creator, ok := registeredCreators[typ]
+	if !ok {
+		return nil, ErrUnsupportedTypeAlias
 	}
 
-	return new(url)
+	driver, err := creator(url)
+	if err != nil {
+		return nil, fmt.Errorf("creator: %w", err)
+	}
+
+	return driver, nil
 }

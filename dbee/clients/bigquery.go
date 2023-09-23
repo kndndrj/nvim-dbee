@@ -21,7 +21,7 @@ func init() {
 	c := func(url string) (conn.Client, error) {
 		return NewBigQuery(url)
 	}
-	_ = Store.Register(c, "bigquery")
+	_ = register(c, "bigquery")
 }
 
 type BigQueryClient struct {
