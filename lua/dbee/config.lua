@@ -4,12 +4,12 @@ local spinners = require("dbee.progress").spinners
 local M = {}
 local m = {}
 
----@alias mapping {key: string, mode: string}
+---@alias mapping { key: string, mode: string }|{ key: string, mode: string }[]
 ---@alias wincmd string|fun():integer
 
 ---@class UiConfig
----@field window_commands { editor: wincmd, drawer: wincmd, result: wincmd }
----@field window_open_order string[] example: { "result", "editor", "drawer" } - in which order are the windows open
+---@field window_commands { editor: wincmd, drawer: wincmd, result: wincmd, call_log: wincmd }
+---@field window_open_order string[] example: { "result", "editor", "drawer", "call_log" } - in which order are the windows open
 ---@field pre_open_hook fun() execute this before opening ui
 ---@field post_open_hook fun() execute this after opening ui
 ---@field pre_close_hook fun() execute this before closing ui
@@ -25,6 +25,7 @@ local m = {}
 ---@field drawer drawer_config
 ---@field editor editor_config
 ---@field result result_config
+---@field call_log call_log_config
 ---@field ui UiConfig
 
 -- default configuration
@@ -46,17 +47,6 @@ M.default = {
     --   ["List All"] = "select * from {table}",
     -- },
   },
-
-  -- number of rows in the results set to display per page
-  page_size = 100,
-
-  progress_bar = {
-    -- spinner to use, see lua/dbee/spinners.lua
-    spinner = spinners.dots,
-    -- prefix to display before the timer
-    text_prefix = "Executing...",
-  },
-
   -- drawer window config
   drawer = {
     -- show help or not
@@ -163,6 +153,17 @@ M.default = {
 
   -- results window config
   result = {
+    -- number of rows in the results set to display per page
+    page_size = 100,
+
+    -- progress (loading) screen options
+    progress = {
+      -- spinner to use, see lua/dbee/spinners.lua
+      spinner = spinners.dots,
+      -- prefix to display before the timer
+      text_prefix = "Executing...",
+    },
+
     -- mappings for the buffer
     mappings = {
       -- next/previous page
@@ -189,6 +190,63 @@ M.default = {
     },
   },
 
+  -- call log window config
+  call_log = {
+    -- mappings for the buffer
+    mappings = {
+      -- show the result of the currently selected call record
+      show_result = { key = "<CR>", mode = "" },
+      -- cancel the currently selected call (if its still executing)
+      cancel = { key = "d", mode = "" },
+    },
+
+    -- candies (icons and highlights)
+    disable_candies = false,
+    candies = {
+      -- all of these represent call states
+      unknown = {
+        icon = "", -- this or first letters of state
+        icon_highlight = "NonText", -- highlight of the state
+        text_highlight = "", -- highlight of the rest of the line
+      },
+      executing = {
+        icon = "󰑐",
+        icon_highlight = "Constant",
+        text_highlight = "Constant",
+      },
+      executing_failed = {
+        icon = "󰑐",
+        icon_highlight = "Error",
+        text_highlight = "",
+      },
+      retrieving = {
+        icon = "",
+        icon_highlight = "String",
+        text_highlight = "String",
+      },
+      retrieving_failed = {
+        icon = "",
+        icon_highlight = "Error",
+        text_highlight = "",
+      },
+      archived = {
+        icon = "",
+        icon_highlight = "Title",
+        text_highlight = "",
+      },
+      archive_failed = {
+        icon = "",
+        icon_highlight = "Error",
+        text_highlight = "",
+      },
+      canceled = {
+        icon = "",
+        icon_highlight = "Error",
+        text_highlight = "",
+      },
+    },
+  },
+
   -- general UI config
   -- Default configuration uses a "layout" helper to save the existing ui before opening any windows,
   -- then makes a new empty window for the editor and then opens result and drawer.
@@ -200,17 +258,22 @@ M.default = {
     -- commands that opens the window if the window is closed - for drawer/editor/result
     -- string or function
     window_commands = {
-      drawer = "to 40vsplit",
-      result = "bo 15split",
       editor = function()
         vim.cmd("new")
         layout.make_only(0)
         m.tmp_buf = vim.api.nvim_get_current_buf()
         return vim.api.nvim_get_current_win()
       end,
+      result = "bo 15split",
+      drawer = function()
+        vim.cmd("to 40vsplit")
+        m.drawer_win = vim.api.nvim_get_current_win()
+        return m.drawer_win
+      end,
+      call_log = "belowright 15split",
     },
     -- how to open windows in order (with specified "window_command"s -- see above)
-    window_open_order = { "editor", "result", "drawer" },
+    window_open_order = { "editor", "result", "drawer", "call_log" },
 
     -- hooks before/after dbee.open()/.close()
     pre_open_hook = function()
@@ -220,6 +283,8 @@ M.default = {
     post_open_hook = function()
       -- delete temporary editor buffer
       vim.cmd("bd " .. m.tmp_buf)
+      -- set cursor to drawer
+      vim.api.nvim_set_current_win(m.drawer_win)
     end,
     pre_close_hook = function() end,
     post_close_hook = function()

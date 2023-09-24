@@ -1,8 +1,6 @@
 -- this package contains various floating window utilities such as floating editor and an input prompt
 
-local M = {
-  call_log = require("dbee.floats.call_log").call_log,
-}
+local M = {}
 
 ---@alias prompt { name: string, default: string }[] list of lines with optional defaults to display as prompt
 
@@ -192,6 +190,82 @@ function M.editor(file, opts)
   vim.keymap.set("n", "q", function()
     vim.api.nvim_win_close(winid, true)
   end, { silent = true, buffer = bufnr })
+end
+
+---@param winid integer window to chech the neighbors of
+---@return boolean # true if window has a right neighbor
+local function has_neighbor_right(winid)
+  local right_winid = vim.fn.win_getid(vim.fn.winnr("l"))
+  if right_winid == 0 then
+    return false
+  end
+
+  return winid ~= right_winid
+end
+
+---@param winid integer window to chech the neighbors of
+---@return boolean # true if window has a left neighbor
+local function has_neighbor_left(winid)
+  local left_winid = vim.fn.win_getid(vim.fn.winnr("h"))
+  if left_winid == 0 then
+    return false
+  end
+
+  return winid ~= left_winid
+end
+
+-- hover window with custom content
+---@param relative_winid integer window to set the hover relative to
+---@param contents string[] file to edit
+---@return fun() # close handle
+function M.hover(relative_winid, contents)
+  if not contents or #contents < 1 or not vim.api.nvim_win_is_valid(relative_winid) then
+    return function() end
+  end
+
+  local win_width = 1
+  for _, line in ipairs(contents) do
+    if #line > win_width then
+      win_width = #line
+    end
+  end
+
+  local win_height = #contents
+
+  -- create new buffer with contents
+  local bufnr = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, contents)
+  vim.api.nvim_buf_set_option(bufnr, "bufhidden", "delete")
+
+  -- row is relative to cursor in the "parent" window
+  local cursor_row, _ = unpack(vim.api.nvim_win_get_cursor(relative_winid))
+
+  -- open to left/right based on window position
+  local col = 0
+  local anchor = "NW"
+  if has_neighbor_right(relative_winid) then
+    col = vim.api.nvim_win_get_width(relative_winid)
+  elseif has_neighbor_left(relative_winid) then
+    anchor = "NE"
+  end
+
+  -- open window
+  local winid = vim.api.nvim_open_win(bufnr, false, {
+    relative = "win",
+    win = relative_winid,
+    width = win_width,
+    height = win_height,
+    col = col,
+    row = cursor_row - 1,
+    anchor = anchor,
+    border = "rounded",
+    style = "minimal",
+  })
+
+  return function()
+    pcall(vim.api.nvim_win_close, winid, true)
+    pcall(vim.api.nvim_buf_delete, bufnr, {})
+  end
 end
 
 return M

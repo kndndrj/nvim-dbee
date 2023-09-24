@@ -1,6 +1,7 @@
 local Drawer = require("dbee.drawer")
 local Editor = require("dbee.editor")
 local Result = require("dbee.result")
+local CallLog = require("dbee.call_log")
 local Ui = require("dbee.ui")
 local Handler = require("dbee.handler")
 local install = require("dbee.install")
@@ -59,10 +60,29 @@ local function lazy_setup()
       m.close("drawer")
     end,
   }
+  local call_log_ui = Ui:new {
+    window_command = m.config.ui.window_commands.call_log,
+    buffer_options = {
+      buflisted = false,
+      bufhidden = "delete",
+      buftype = "nofile",
+      swapfile = false,
+    },
+    window_options = {
+      wrap = false,
+      winfixheight = true,
+      winfixwidth = true,
+      number = false,
+    },
+    quit_handle = function()
+      m.close("call_log")
+    end,
+  }
 
   -- set up modules
   m.handler = Handler:new(m.config.sources)
   m.result = Result:new(result_ui, m.handler, m.config.result)
+  m.call_log = CallLog:new(call_log_ui, m.handler, m.result, m.config.call_log)
   m.editor = Editor:new(editor_ui, m.handler, m.result, m.config.editor)
   m.drawer = Drawer:new(drawer_ui, m.handler, m.editor, m.result, m.config.drawer)
 
@@ -92,16 +112,21 @@ local function validate_config(opts)
     lazy = { opts.lazy, "boolean" },
     extra_helpers = { opts.extra_helpers, "table" },
     -- submodules
-    editor_mappings = { opts.editor.mappings, "table" },
     drawer_disable_candies = { opts.drawer.disable_candies, "boolean" },
     drawer_disable_help = { opts.drawer.disable_help, "boolean" },
     drawer_candies = { opts.drawer.candies, "table" },
     drawer_mappings = { opts.drawer.mappings, "table" },
+    result_page_size = { opts.result.page_size, "number" },
+    result_progress = { opts.result.progress, "table" },
+    result_mappings = { opts.result.mappings, "table" },
+    editor_mappings = { opts.editor.mappings, "table" },
+    call_log_mappings = { opts.call_log.mappings, "table" },
+
     -- ui
-    ui_window_commands = { opts.ui.window_commands, "table" },
     ui_window_commands_drawer = { opts.ui.window_commands.drawer, { "string", "function" } },
     ui_window_commands_result = { opts.ui.window_commands.result, { "string", "function" } },
     ui_window_commands_editor = { opts.ui.window_commands.editor, { "string", "function" } },
+    ui_window_commands_call_log = { opts.ui.window_commands.call_log, { "string", "function" } },
     ui_window_open_order = { opts.ui.window_open_order, "table" },
     ui_pre_open_hook = { opts.ui.pre_open_hook, "function" },
     ui_post_open_hook = { opts.ui.post_open_hook, "function" },
@@ -158,6 +183,7 @@ function M.open()
     drawer = m.drawer,
     result = m.result,
     editor = m.editor,
+    call_log = m.call_log,
   }
 
   for _, u in ipairs(m.config.ui.window_open_order) do
@@ -171,7 +197,7 @@ function M.open()
   m.open = true
 end
 
----@param exclude? "result"|"editor"|"drawer"
+---@param exclude? "result"|"editor"|"drawer"|"call_log"
 function m.close(exclude)
   if not m.open or not pcall_lazy_setup() then
     return
@@ -187,6 +213,9 @@ function m.close(exclude)
   end
   if exclude ~= "editor" then
     m.editor:close()
+  end
+  if exclude ~= "call_log" then
+    m.call_log:close()
   end
 
   m.config.ui.post_close_hook()

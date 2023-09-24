@@ -6,7 +6,7 @@ local event_bus = require("dbee.handler.__events")
 ---@alias call_stats { success: boolean, time_taken: duration }
 
 ---@alias conn_id string
----@alias connection_details { name: string, type: string, url: string, id: conn_id, page_size: integer }
+---@alias connection_details { name: string, type: string, url: string, id: conn_id }
 
 -- call details represent a single call to database
 ---@alias call_id string
@@ -177,7 +177,6 @@ end
 
 ---@param id conn_id
 function Handler:set_current_connection(id)
-  print(id)
   vim.fn.DbeeSetCurrentConnection { id = id }
 end
 

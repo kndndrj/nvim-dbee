@@ -89,8 +89,16 @@ function Ui:configure_mappings()
   local map_options = { noremap = true, nowait = true, buffer = self.bufnr }
 
   for _, m in ipairs(self.keymap) do
-    if m.action and type(m.action) == "function" and m.mapping and m.mapping.key and m.mapping.mode then
-      vim.keymap.set(m.mapping.mode, m.mapping.key, m.action, map_options)
+    if m.action and type(m.action) == "function" and m.mapping then
+      if not vim.tbl_islist(m.mapping) then
+        m.mapping = { m.mapping }
+      end
+
+      for _, map in ipairs(m.mapping) do
+        if map.key and map.mode then
+          vim.keymap.set(map.mode, map.key, m.action, map_options)
+        end
+      end
     end
   end
 

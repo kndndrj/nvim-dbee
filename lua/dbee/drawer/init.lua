@@ -31,7 +31,7 @@ local convert = require("dbee.drawer.convert")
 
 ---@class Drawer
 ---@field private ui Ui
----@field private tree table NuiTree
+---@field private tree NuiTree
 ---@field private handler Handler
 ---@field private editor Editor
 ---@field private result Result
@@ -93,7 +93,7 @@ function Drawer:new(ui, handler, editor, result, opts)
   return o
 end
 
--- event listener for new calls
+-- event listener for current connection change
 ---@private
 ---@param data { conn_id: conn_id }
 function Drawer:on_current_connection_changed(data)
@@ -105,7 +105,8 @@ function Drawer:on_current_connection_changed(data)
 end
 
 ---@private
----@return table tree
+---@param bufnr integer
+---@return NuiTree tree
 function Drawer:create_tree(bufnr)
   return NuiTree {
     bufnr = bufnr,
@@ -178,6 +179,9 @@ function Drawer:generate_keymap(mappings)
       local children = n:get_child_ids()
       if #children == 1 then
         local nested_node = self.tree:get_node(children[1])
+        if not nested_node then
+          return
+        end
         nested_node:expand()
         expand_all_single(nested_node)
       end

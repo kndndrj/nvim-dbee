@@ -58,35 +58,7 @@ local function connection_layout(handler, conn, result)
   -- recursively parse structure to drawer layout
   local layouts = to_layout(handler:connection_get_structure(conn.id), conn.id)
 
-  -- call history
-  local calls = handler:connection_get_calls(conn.id)
-  if #calls > 0 then
-    ---@type Layout
-    local ly = {
-      id = conn.id .. "_call_history__",
-      name = "log",
-      type = "history",
-      action_1 = function(cb)
-        floats.call_log(function()
-          return handler:connection_get_calls(conn.id)
-        end, {
-          on_select = function(call)
-            if call.state == "archived" or call.state == "retrieving" then
-              result:set_call(call)
-              result:page_current()
-            end
-            cb()
-          end,
-          on_cancel = function(call)
-            handler:call_cancel(call.id)
-            cb()
-          end,
-        })
-      end,
-    }
-    table.insert(layouts, 1, ly)
-  end
-
+  -- database switching
   local current_db, available_dbs = handler:connection_list_databases(conn.id)
   if current_db ~= "" and #available_dbs > 0 then
     ---@type Layout
@@ -189,7 +161,6 @@ local function handler_layout_real(handler, result)
             { name = "name", default = original_details.name },
             { name = "type", default = original_details.type },
             { name = "url", default = original_details.url },
-            { name = "page size", default = tostring(original_details.page_size or "") },
           }
           floats.prompt(prompt, {
             title = "Edit Connection",

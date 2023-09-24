@@ -27,7 +27,6 @@ type Handler struct {
 	lookupConnectionCall map[core.ConnectionID][]core.CallID
 
 	currentConnectionID core.ConnectionID
-	currentStatID       core.CallID
 }
 
 func NewHandler(vim *nvim.Nvim, logger *vim.Logger) *Handler {
@@ -78,6 +77,7 @@ func (h *Handler) CreateConnection(params *core.ConnectionParams) (core.Connecti
 	}
 
 	h.lookupConnection[c.GetID()] = c
+	_ = h.SetCurrentConnection(c.GetID())
 
 	return c.GetID(), nil
 }
@@ -141,7 +141,6 @@ func (h *Handler) ConnectionExecute(connID core.ConnectionID, query string) (*co
 	h.lookupConnectionCall[connID] = append(h.lookupConnectionCall[connID], id)
 
 	// update current call and conn
-	h.currentStatID = id
 	_ = h.SetCurrentConnection(connID)
 
 	return call, nil
