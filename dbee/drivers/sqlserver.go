@@ -3,9 +3,11 @@ package drivers
 import (
 	"context"
 	"database/sql"
+	"encoding/gob"
 	"fmt"
 	nurl "net/url"
 
+	"github.com/google/uuid"
 	_ "github.com/microsoft/go-mssqldb"
 	_ "github.com/microsoft/go-mssqldb/integratedauth/krb5"
 
@@ -19,6 +21,8 @@ func init() {
 		return NewSQLServer(url)
 	}
 	_ = register(c, "sqlserver", "mssql")
+
+	gob.Register(uuid.UUID{})
 }
 
 var _ core.Driver = (*SQLServer)(nil)
@@ -40,7 +44,23 @@ func NewSQLServer(url string) (*SQLServer, error) {
 	}
 
 	return &SQLServer{
-		c:   builders.NewClient(db),
+		c: builders.NewClient(db,
+			builders.WithCustomTypeProcessor(
+				"uniqueidentifier",
+				func(a any) any {
+					b, ok := a.([]byte)
+					if !ok {
+						return a
+					}
+
+					id, err := uuid.FromBytes(b)
+					if err != nil {
+						return a
+					}
+
+					return id
+				}),
+		),
 		url: u,
 	}, nil
 }

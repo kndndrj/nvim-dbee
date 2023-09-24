@@ -1,8 +1,11 @@
 package drivers
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	nurl "net/url"
 	"strings"
@@ -19,6 +22,9 @@ func init() {
 		return NewPostgres(url)
 	}
 	_ = register(c, "postgres", "postgresql", "pg")
+
+	// register special json response with gob
+	gob.Register(&postgresJSONResponse{})
 }
 
 var _ core.Driver = (*Postgres)(nil)
@@ -39,8 +45,20 @@ func NewPostgres(url string) (*Postgres, error) {
 		return nil, fmt.Errorf("unable to connect to postgres database: %w", err)
 	}
 
+	jsonProcessor := func(a any) any {
+		b, ok := a.([]byte)
+		if !ok {
+			return a
+		}
+
+		return newPostgresJSONResponse(b)
+	}
+
 	return &Postgres{
-		c:   builders.NewClient(db),
+		c: builders.NewClient(db,
+			builders.WithCustomTypeProcessor("json", jsonProcessor),
+			builders.WithCustomTypeProcessor("jsonb", jsonProcessor),
+		),
 		url: u,
 	}, nil
 }
@@ -183,4 +201,55 @@ func getPGStructureType(typ string) core.StructureType {
 	default:
 		return core.StructureTypeNone
 	}
+}
+
+// postgresJSONResponse serves as a wrapper around the json response
+// to pretty-print the return values
+type postgresJSONResponse struct {
+	value []byte
+}
+
+func newPostgresJSONResponse(val []byte) *postgresJSONResponse {
+	return &postgresJSONResponse{
+		value: val,
+	}
+}
+
+func (pj *postgresJSONResponse) String() string {
+	var parsed bytes.Buffer
+	err := json.Indent(&parsed, pj.value, "", "  ")
+	if err != nil {
+		return string(pj.value)
+	}
+	return parsed.String()
+}
+
+func (pj *postgresJSONResponse) MarshalJSON() ([]byte, error) {
+	if json.Valid(pj.value) {
+		return pj.value, nil
+	}
+
+	return json.Marshal(pj.value)
+}
+
+func (pj *postgresJSONResponse) GobEncode() ([]byte, error) {
+	var err error
+	w := new(bytes.Buffer)
+	encoder := gob.NewEncoder(w)
+	err = encoder.Encode(pj.value)
+	if err != nil {
+		return nil, err
+	}
+	return w.Bytes(), err
+}
+
+func (pj *postgresJSONResponse) GobDecode(buf []byte) error {
+	var err error
+	r := bytes.NewBuffer(buf)
+	decoder := gob.NewDecoder(r)
+	err = decoder.Decode(&pj.value)
+	if err != nil {
+		return err
+	}
+	return err
 }

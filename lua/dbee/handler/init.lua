@@ -1,6 +1,18 @@
 local Helpers = require("dbee.handler.helpers")
 local event_bus = require("dbee.handler.__events")
 
+---@alias duration integer duration (time period) in microseconds
+---@alias timestamp integer time in microseconds
+---@alias call_stats { success: boolean, time_taken: duration }
+
+---@alias conn_id string
+---@alias connection_details { name: string, type: string, url: string, id: conn_id, page_size: integer }
+
+-- call details represent a single call to database
+---@alias call_id string
+---@alias call_state "unknown"|"executing"|"executing_failed"|"retrieving"|"retrieving_failed"|"archived"|"archive_failed"|"canceled"
+---@alias call_details { id: call_id, time_taken_us: duration, query: string, state: call_state, timestamp_us: timestamp }
+
 -- structure of the database
 ---@class DBStructure
 ---@field name string display name
@@ -13,29 +25,20 @@ local event_bus = require("dbee.handler.__events")
 
 -- Handler is an aggregator of connections
 ---@class Handler
----@field private ui Ui ui for results
 ---@field private sources table<source_id, Source>
 ---@field private source_conn_lookup table<string, conn_id[]>
 ---@field private helpers Helpers query helpers
----@field private opts handler_config
 local Handler = {}
 
 ---@param ui Ui ui for displaying results
 ---@param sources? Source[]
----@param opts? handler_config
 ---@return Handler
-function Handler:new(ui, sources, opts)
-  if not ui then
-    error("no results Ui passed to Handler")
-  end
-
+function Handler:new(sources)
   -- class object
   local o = {
-    ui = ui,
     sources = {},
     source_conn_lookup = {},
     helpers = Helpers:new(),
-    opts = opts or {},
   }
   setmetatable(o, self)
   self.__index = self

@@ -106,7 +106,7 @@ func newCallFromExecutor(executor func(context.Context) (ResultStream, error), q
 		iter, err := executor(ctx)
 		if err != nil {
 			c.err = err
-			c.setState(CallStateFailed)
+			c.setState(CallStateExecutingFailed)
 			return
 		}
 
@@ -114,7 +114,7 @@ func newCallFromExecutor(executor func(context.Context) (ResultStream, error), q
 		err = c.result.setIter(iter, func() { c.setState(CallStateRetrieving) })
 		if err != nil {
 			c.err = err
-			c.setState(CallStateFailed)
+			c.setState(CallStateRetrievingFailed)
 			return
 		}
 
@@ -122,6 +122,7 @@ func newCallFromExecutor(executor func(context.Context) (ResultStream, error), q
 		err = c.archive.setResult(c.result)
 		if err != nil {
 			c.err = err
+			c.setState(CallStateArchiveFailed)
 			return
 		}
 
@@ -156,7 +157,9 @@ func (c *Call) Err() error {
 }
 
 func (c *Call) setState(state CallState) {
-	if c.state == CallStateFailed || c.state == CallStateCanceled {
+	if c.state == CallStateExecutingFailed ||
+		c.state == CallStateRetrievingFailed ||
+		c.state == CallStateCanceled {
 		return
 	}
 	c.state = state

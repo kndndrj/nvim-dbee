@@ -1,6 +1,7 @@
 package drivers
 
 import (
+	"bytes"
 	"context"
 	"encoding/gob"
 	"encoding/json"
@@ -122,7 +123,6 @@ func (c *Mongo) Query(ctx context.Context, query string) (core.ResultStream, err
 			for _, b := range cursor {
 				batch, ok := b.(bson.A)
 				if !ok {
-					fmt.Println(b)
 					continue
 				}
 				for _, item := range batch {
@@ -210,23 +210,45 @@ func (c *Mongo) SelectDatabase(name string) error {
 // mongoResponse serves as a wrapper around the mongo response
 // to stringify the return values
 type mongoResponse struct {
-	Value any
+	value any
 }
 
 func newMongoResponse(val any) *mongoResponse {
 	return &mongoResponse{
-		Value: val,
+		value: val,
 	}
 }
 
 func (mr *mongoResponse) String() string {
-	parsed, err := json.MarshalIndent(mr.Value, "", "  ")
+	parsed, err := json.MarshalIndent(mr.value, "", "  ")
 	if err != nil {
-		return fmt.Sprint(mr.Value)
+		return fmt.Sprint(mr.value)
 	}
 	return string(parsed)
 }
 
 func (mr *mongoResponse) MarshalJSON() ([]byte, error) {
-	return json.Marshal(mr.Value)
+	return json.Marshal(mr.value)
+}
+
+func (mr *mongoResponse) GobEncode() ([]byte, error) {
+	var err error
+	w := new(bytes.Buffer)
+	encoder := gob.NewEncoder(w)
+	err = encoder.Encode(mr.value)
+	if err != nil {
+		return nil, err
+	}
+	return w.Bytes(), err
+}
+
+func (mr *mongoResponse) GobDecode(buf []byte) error {
+	var err error
+	r := bytes.NewBuffer(buf)
+	decoder := gob.NewDecoder(r)
+	err = decoder.Decode(&mr.value)
+	if err != nil {
+		return err
+	}
+	return err
 }

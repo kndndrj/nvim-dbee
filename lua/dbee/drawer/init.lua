@@ -365,58 +365,21 @@ function Drawer:set_layout(layout, node_id)
   self.tree:set_nodes(to_node(layout), node_id)
 end
 
----@private
----@return Layout
-function Drawer:layout_help()
-  -- help node
-  local help_children = {}
-  for act, map in pairs(self.mappings) do
-    table.insert(help_children, {
-      id = "__help_action_" .. act,
-      name = act .. " = " .. map.key .. " (" .. map.mode .. ")",
-      type = "",
-    })
-  end
-
-  table.sort(help_children, function(k1, k2)
-    return k1.id < k2.id
-  end)
-
-  ---@type Layout
-  return {
-    id = "__help_layout__",
-    name = "help",
-    type = "help",
-    default_expand = utils.once:new("help_expand_once_id"),
-    children = help_children,
-  }
-end
-
 function Drawer:refresh()
-  -- whitespace between nodes
-  ---@return Layout
-  local separator = function()
-    return {
-      id = "__separator_layout__" .. tostring(math.random()),
-      name = "",
-      type = "",
-    }
-  end
-
   -- assemble tree layout
   ---@type Layout[]
   local layouts = {}
   for _, ly in ipairs(self.editor:layout()) do
     table.insert(layouts, ly)
   end
-  table.insert(layouts, separator())
+  table.insert(layouts, convert.separator())
   for _, ly in ipairs(convert.handler_layout(self.handler, self.result)) do
     table.insert(layouts, ly)
   end
 
   if not self.disable_help then
-    table.insert(layouts, separator())
-    table.insert(layouts, self:layout_help())
+    table.insert(layouts, convert.separator())
+    table.insert(layouts, convert.layout_help(self.mappings))
   end
 
   self:set_layout(layouts)

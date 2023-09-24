@@ -31,7 +31,7 @@ function M.display(bufnr, opts)
 
   local timer = vim.fn.timer_start(100, update, { ["repeat"] = -1 })
   return function()
-    vim.fn.timer_stop(timer)
+    pcall(vim.fn.timer_stop, timer)
   end
 end
 

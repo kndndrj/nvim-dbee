@@ -1,6 +1,7 @@
 local utils = require("dbee.utils")
+local progress = require("dbee.progress")
 
----@alias result_config { mappings: table<string, mapping>, page_size: integer }
+---@alias result_config { mappings: table<string, mapping>, page_size: integer, progress: progress_config }
 
 -- Result represents the part of ui with displayed results
 ---@class Result
@@ -10,6 +11,8 @@ local utils = require("dbee.utils")
 ---@field private page_size integer
 ---@field private page_index integer index of the current page
 ---@field private page_ammount integer number of pages in the current result set
+---@field private stop_progress fun() function that stops progress display
+---@field private progress_opts progress_config
 local Result = {}
 
 ---@param ui Ui
@@ -34,6 +37,8 @@ function Result:new(ui, handler, opts)
     page_size = opts.page_size or 100,
     page_index = 0,
     page_ammount = 0,
+    stop_progress = function() end,
+    progress_opts = opts.progress or {},
   }
   setmetatable(o, self)
   self.__index = self
@@ -64,19 +69,80 @@ function Result:on_call_state_changed(data)
 
   -- perform action based on the state
   if call.state == "executing" then
-    -- TODO: display progress
-    print("executing")
+    self.stop_progress()
+    self:display_progress()
   elseif call.state == "retrieving" then
+    self.stop_progress()
     self:page_current()
-  elseif call.state == "failed" then
-    -- TODO: stop progress
-    -- TODO: show status
-  elseif call.state == "canceled" then
-    -- TODO: stop progress
-    -- TODO: show status
+  elseif call.state == "executing_failed" or call.state == "retrieving_failed" or call.state == "canceled" then
+    self.stop_progress()
+    self:display_status()
   else
-    -- TODO: stop progress
+    self.stop_progress()
   end
+end
+
+---@private
+function Result:display_progress()
+  self.stop_progress = progress.display(self.ui:buffer(), self.progress_opts)
+end
+
+---@private
+function Result:display_status()
+  local state = self.current_call.state
+
+  local msg = ""
+  if state == "executing_failed" then
+    msg = "Call execution failed"
+  elseif state == "retrieving_failed" then
+    msg = "Failed retrieving results"
+  elseif state == "canceled" then
+    msg = "Call canceled"
+  end
+
+  local seconds = self.current_call.time_taken_us / 1000000
+  local line = string.format("%s after %.3f seconds", msg, seconds)
+  vim.api.nvim_buf_set_lines(self.ui:buffer(), 0, -1, false, { line })
+end
+
+--- Displays a page of the current result in the results buffer
+---@private
+---@param page integer zero based page index
+---@return integer # current page
+function Result:display_result(page)
+  -- calculate the ranges
+  if page < 0 then
+    page = 0
+  end
+  if page > self.page_ammount then
+    page = self.page_ammount
+  end
+  local from = self.page_size * page
+  local to = self.page_size * (page + 1)
+
+  -- open ui window
+  local winid, bufnr = self.ui:open()
+
+  -- call go function
+  local length = self.handler:call_display_result(self.current_call.id, bufnr, from, to)
+
+  -- adjust page ammount
+  self.page_ammount = math.floor(length / self.page_size)
+  if length % self.page_size == 0 and self.page_ammount ~= 0 then
+    self.page_ammount = self.page_ammount - 1
+  end
+
+  -- convert from microseconds to seconds
+  local seconds = self.current_call.time_taken_us / 1000000
+
+  -- set winbar status
+  vim.api.nvim_win_set_option(
+    winid,
+    "winbar",
+    string.format("%d/%d%%=Took %.3fs", page + 1, self.page_ammount + 1, seconds)
+  )
+
+  return page
 end
 
 ---@private
@@ -149,55 +215,15 @@ function Result:set_call(call)
 end
 
 function Result:page_current()
-  self.page_index = self:show_page(self.page_index)
+  self.page_index = self:display_result(self.page_index)
 end
 
 function Result:page_next()
-  self.page_index = self:show_page(self.page_index + 1)
+  self.page_index = self:display_result(self.page_index + 1)
 end
 
 function Result:page_prev()
-  self.page_index = self:show_page(self.page_index - 1)
-end
-
---- Displays a page of the current result in the results buffer
----@private
----@param page integer zero based page index
----@return integer # current page
-function Result:show_page(page)
-  -- calculate the ranges
-  if page < 0 then
-    page = 0
-  end
-  if page > self.page_ammount then
-    page = self.page_ammount
-  end
-  local from = self.page_size * page
-  local to = self.page_size * (page + 1)
-
-  -- open ui window
-  local winid, bufnr = self.ui:open()
-
-  -- call go function
-  local length = self.handler:call_display_result(self.current_call.id, bufnr, from, to)
-
-  -- adjust page ammount
-  self.page_ammount = math.floor(length / self.page_size)
-  if length % self.page_size == 0 and self.page_ammount ~= 0 then
-    self.page_ammount = self.page_ammount - 1
-  end
-
-  -- convert from microseconds to seconds
-  local seconds = self.current_call.time_taken_us / 1000000
-
-  -- set winbar status
-  vim.api.nvim_win_set_option(
-    winid,
-    "winbar",
-    string.format("%d/%d%%=Took %.3fs", page + 1, self.page_ammount + 1, seconds)
-  )
-
-  return page
+  self.page_index = self:display_result(self.page_index - 1)
 end
 
 -- wrapper for storing the current row

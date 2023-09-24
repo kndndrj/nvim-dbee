@@ -5,26 +5,37 @@ type CallState int
 const (
 	CallStateUnknown CallState = iota
 	CallStateExecuting
+	CallStateExecutingFailed
 	CallStateRetrieving
+	CallStateRetrievingFailed
 	CallStateArchived
-	CallStateFailed
+	CallStateArchiveFailed
 	CallStateCanceled
 )
 
 func CallStateFromString(s string) CallState {
 	switch s {
-	case "unknown":
+	case CallStateUnknown.String():
 		return CallStateUnknown
-	case "executing":
+
+	case CallStateExecuting.String():
 		return CallStateExecuting
-	case "retrieving":
+	case CallStateExecutingFailed.String():
+		return CallStateExecutingFailed
+
+	case CallStateRetrieving.String():
 		return CallStateRetrieving
-	case "archived":
+	case CallStateRetrievingFailed.String():
+		return CallStateRetrievingFailed
+
+	case CallStateArchived.String():
 		return CallStateArchived
-	case "failed":
-		return CallStateFailed
-	case "canceled":
+	case CallStateArchiveFailed.String():
+		return CallStateArchiveFailed
+
+	case CallStateCanceled.String():
 		return CallStateCanceled
+
 	default:
 		return CallStateUnknown
 	}
@@ -34,16 +45,25 @@ func (s CallState) String() string {
 	switch s {
 	case CallStateUnknown:
 		return "unknown"
+
 	case CallStateExecuting:
 		return "executing"
+	case CallStateExecutingFailed:
+		return "executing_failed"
+
 	case CallStateRetrieving:
 		return "retrieving"
+	case CallStateRetrievingFailed:
+		return "retrieving_failed"
+
 	case CallStateArchived:
 		return "archived"
-	case CallStateFailed:
-		return "failed"
+	case CallStateArchiveFailed:
+		return "archive_failed"
+
 	case CallStateCanceled:
 		return "canceled"
+
 	default:
 		return "unknown"
 	}

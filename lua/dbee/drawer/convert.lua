@@ -273,4 +273,41 @@ function M.handler_layout(handler, result)
   return handler_layout_real(handler, result)
 end
 
+-- whitespace between nodes
+---@return Layout
+function M.separator()
+  return {
+    id = "__separator_layout__" .. tostring(math.random()),
+    name = "",
+    type = "",
+  }
+end
+
+---@param mappings table<string, mapping>
+---@return Layout
+function M.help_layout(mappings)
+  -- help node
+  local help_children = {}
+  for act, map in pairs(mappings) do
+    table.insert(help_children, {
+      id = "__help_action_" .. act,
+      name = act .. " = " .. map.key .. " (" .. map.mode .. ")",
+      type = "",
+    })
+  end
+
+  table.sort(help_children, function(k1, k2)
+    return k1.id < k2.id
+  end)
+
+  ---@type Layout
+  return {
+    id = "__help_layout__",
+    name = "help",
+    type = "help",
+    default_expand = utils.once:new("help_expand_once_id"),
+    children = help_children,
+  }
+end
+
 return M

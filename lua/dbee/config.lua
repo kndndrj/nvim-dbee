@@ -52,7 +52,7 @@ M.default = {
 
   progress_bar = {
     -- spinner to use, see lua/dbee/spinners.lua
-    icon = spinners.dots,
+    spinner = spinners.dots,
     -- prefix to display before the timer
     text_prefix = "Executing...",
   },

@@ -4,18 +4,47 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 )
 
 // default sql client used by other specific implementations
 type Client struct {
-	db *sql.DB
+	db             *sql.DB
+	typeProcessors map[string]func(any) any
 }
 
-func NewClient(db *sql.DB) *Client {
+type clientConfig struct {
+	typeProcessors map[string]func(any) any
+}
+
+type clientOption func(*clientConfig)
+
+func WithCustomTypeProcessor(typ string, fn func(any) any) clientOption {
+	return func(cc *clientConfig) {
+		t := strings.ToLower(typ)
+		_, ok := cc.typeProcessors[t]
+		if ok {
+			// processor already registered for this type
+			return
+		}
+
+		cc.typeProcessors[t] = fn
+	}
+}
+
+func NewClient(db *sql.DB, opts ...clientOption) *Client {
+	config := clientConfig{
+		typeProcessors: make(map[string]func(any) any),
+	}
+	for _, opt := range opts {
+		opt(&config)
+	}
+
 	return &Client{
-		db: db,
+		db:             db,
+		typeProcessors: config.typeProcessors,
 	}
 }
 
@@ -23,7 +52,8 @@ func (c *Client) Conn(ctx context.Context) (*Conn, error) {
 	conn, err := c.db.Conn(ctx)
 
 	return &Conn{
-		conn: conn,
+		conn:           conn,
+		typeProcessors: c.typeProcessors,
 	}, err
 }
 
@@ -38,7 +68,8 @@ func (c *Client) Swap(db *sql.DB) {
 
 // connection to use for execution
 type Conn struct {
-	conn *sql.Conn
+	conn           *sql.Conn
+	typeProcessors map[string]func(any) any
 }
 
 func (c *Conn) Close() error {
@@ -79,6 +110,21 @@ func (c *Conn) Exec(ctx context.Context, query string) (*ResultStream, error) {
 	return rows, nil
 }
 
+func (c *Conn) getTypeProcessor(typ string) func(any) any {
+	proc, ok := c.typeProcessors[strings.ToLower(typ)]
+	if ok {
+		return proc
+	}
+
+	return func(val any) any {
+		valb, ok := val.([]byte)
+		if ok {
+			return string(valb)
+		}
+		return val
+	}
+}
+
 func (c *Conn) Query(ctx context.Context, query string) (*ResultStream, error) {
 	dbRows, err := c.conn.QueryContext(ctx, query)
 	if err != nil {
@@ -104,7 +150,7 @@ func (c *Conn) Query(ctx context.Context, query string) (*ResultStream, error) {
 	}
 
 	nextFunc := func() (core.Row, error) {
-		dbCols, err := dbRows.Columns()
+		dbCols, err := dbRows.ColumnTypes()
 		if err != nil {
 			return nil, err
 		}
@@ -122,14 +168,10 @@ func (c *Conn) Query(ctx context.Context, query string) (*ResultStream, error) {
 		row := make(core.Row, len(dbCols))
 		for i := range dbCols {
 			val := *columnPointers[i].(*any)
-			// TODO: this breaks some types with some drivers (namely sqlserver newid()):
-			// add a generic way of doing this with ResultBuilder
-			// fix for some strings being interpreted as bytes
-			valb, ok := val.([]byte)
-			if ok {
-				val = string(valb)
-			}
-			row[i] = val
+
+			proc := c.getTypeProcessor(dbCols[i].DatabaseTypeName())
+
+			row[i] = proc(val)
 		}
 
 		return row, nil
@@ -139,7 +181,7 @@ func (c *Conn) Query(ctx context.Context, query string) (*ResultStream, error) {
 		WithNextFunc(nextFunc, hasNextFunc).
 		WithHeader(header).
 		WithCloseFunc(func() {
-			dbRows.Close()
+			_ = dbRows.Close()
 		}).
 		Build()
 
