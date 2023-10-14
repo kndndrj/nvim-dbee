@@ -43,4 +43,5 @@ call remote#host#RegisterPlugin('nvim_dbee', '0', [
 \ {'type': 'function', 'name': 'Dbee_set_results_buf', 'sync': 1, 'opts': {}},
 \ {'type': 'function', 'name': 'Dbee_store', 'sync': 1, 'opts': {}},
 \ {'type': 'function', 'name': 'Dbee_switch_database', 'sync': 1, 'opts': {}},
+\ {'type': 'function', 'name': 'Dbee_cancel', 'sync': 1, 'opts': {}},
 \ ])

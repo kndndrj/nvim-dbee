@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -21,6 +22,15 @@ var deferFns []func()
 // use deferer to defer in main
 func deferer(fn func()) {
 	deferFns = append(deferFns, fn)
+}
+
+// Define a map to store active query contexts and cancel functions
+var queryContexts = make(map[string]*CancelConfig)
+
+type CancelConfig struct {
+	ctx      context.Context
+	cancelFn context.CancelFunc
+	timer    time.Time
 }
 
 func main() {
@@ -120,17 +130,26 @@ func main() {
 					return nil
 				}
 
-				// execute and open the first page
+				// Create a context for the query
+				queryContext, cancel := context.WithCancel(context.Background())
+
+				start := time.Now()
+
+				// Store the context and cancel function for potential cancellation
+				queryContexts[query] = &CancelConfig{
+					ctx:      queryContext,
+					cancelFn: cancel,
+					timer:    start,
+				}
+
 				go func() {
 					ok := true
-					start := time.Now()
-					err := c.Execute(query)
-					if err != nil {
+					if err := c.Execute(queryContext, query); err != nil {
 						ok = false
 						logger.Error(err.Error())
 					}
-					err = callbacker.TriggerCallback(callbackId, ok, time.Since(start))
-					if err != nil {
+
+					if err := callbacker.TriggerCallback(callbackId, ok, time.Since(start)); err != nil {
 						logger.Error(err.Error())
 						return
 					}
@@ -138,6 +157,33 @@ func main() {
 				}()
 
 				logger.Debugf("%q returned successfully", method)
+				return nil
+			})
+
+		p.HandleFunction(&plugin.FunctionOptions{Name: "Dbee_cancel"},
+			func(args []string) error {
+				if len(args) < 3 {
+					logger.Errorf("not enough arguments passed to Dbee_cancel")
+					return nil
+				}
+
+				id, query, callbackID := args[0], args[1], args[2]
+
+				// Check if there's an active query with this ID
+				if c, ok := queryContexts[query]; ok {
+					// Cancel the query
+					c.cancelFn()
+
+					// Clean up the context and cancel function
+					delete(queryContexts, query)
+
+					if err := callbacker.TriggerCallback(callbackID, ok, time.Since(c.timer)); err != nil {
+						logger.Error(err.Error())
+						return nil
+					}
+					logger.Debugf("Canceled query with ID: %q and query: %q", id, query)
+				}
+
 				return nil
 			})
 

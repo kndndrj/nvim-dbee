@@ -56,12 +56,30 @@ func New(driver Client, blockUntil int, history History, logger models.Logger) *
 	}
 }
 
+// Execute executes a query and adds it to the
+// history if it was successful.
 func (c *Conn) Execute(ctx context.Context, query string) error {
 	c.log.Debug("executing query: \"" + query + "\"")
+
+	// Check for cancellation before starting the query
+	select {
+	case <-ctx.Done():
+		return ctx.Err() // Canceled
+	default:
+	}
 
 	rows, err := c.driver.Query(ctx, query)
 	if err != nil {
 		return err
+	}
+
+	// Check for cancellation during query execution
+	select {
+	case <-ctx.Done():
+		// Cancel the query and return an error
+		rows.Close() // Close the result set
+		return ctx.Err()
+	default:
 	}
 
 	return c.setResultToCache(rows, true)
