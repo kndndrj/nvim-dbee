@@ -6,6 +6,8 @@ import (
 	"github.com/kndndrj/nvim-dbee/dbee/conn"
 )
 
+// creator is a function that creates a new client
+// based on the given url.
 type creator func(url string) (conn.Client, error)
 
 // storage holds implmented client types - specific clients register themselves in their init functions.
@@ -36,10 +38,10 @@ func (s *storage) Get(alias string) (creator, error) {
 }
 
 func NewFromType(url string, typ string) (conn.Client, error) {
-	new, err := Store.Get(typ)
+	newType, err := Store.Get(typ)
 	if err != nil {
 		return nil, err
 	}
 
-	return new(url)
+	return newType(url)
 }
