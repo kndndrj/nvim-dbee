@@ -111,14 +111,14 @@ func NewBigQuery(rawURL string) (*BigQueryClient, error) {
 	return client, nil
 }
 
-func (c *BigQueryClient) Query(queryStr string) (models.IterResult, error) {
+func (c *BigQueryClient) Query(ctx context.Context, queryStr string) (models.IterResult, error) {
 	query := c.c.Query(queryStr)
 	query.DisableQueryCache = c.disableQueryCache
 	query.MaxBytesBilled = c.maxBytesBilled
 	query.UseLegacySQL = c.useLegacySQL
 	query.Location = c.location
 
-	iter, err := query.Read(context.TODO())
+	iter, err := query.Read(ctx)
 	if err != nil {
 		return nil, err
 	}

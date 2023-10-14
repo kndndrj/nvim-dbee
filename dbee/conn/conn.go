@@ -1,18 +1,13 @@
 package conn
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
 type (
-	// Input requires implementaions to provide iterator from a
-	// given string input, which can be a query or some sort of id
-	Input interface {
-		Query(string) (models.IterResult, error)
-	}
-
 	// Output recieves a result and does whatever it wants with it
 	Output interface {
 		Write(result models.Result) error
@@ -21,13 +16,13 @@ type (
 	// History is required to act as an input, output and provide a List method
 	History interface {
 		Output
-		Input
+		Query(string) (models.IterResult, error)
 		Layout() ([]models.Layout, error)
 	}
 
 	// Client is a special kind of input with extra stuff
 	Client interface {
-		Input
+		Query(context.Context, string) (models.IterResult, error)
 		Close()
 		Layout() ([]models.Layout, error)
 	}
@@ -61,10 +56,10 @@ func New(driver Client, blockUntil int, history History, logger models.Logger) *
 	}
 }
 
-func (c *Conn) Execute(query string) error {
+func (c *Conn) Execute(ctx context.Context, query string) error {
 	c.log.Debug("executing query: \"" + query + "\"")
 
-	rows, err := c.driver.Query(query)
+	rows, err := c.driver.Query(ctx, query)
 	if err != nil {
 		return err
 	}

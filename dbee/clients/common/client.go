@@ -8,27 +8,24 @@ import (
 	"github.com/kndndrj/nvim-dbee/dbee/models"
 )
 
-// default sql client used by other specific implementations
+// connTimeOut is the timeout for a connection.
+const connTimeOut = 5 * time.Minute
+
+// Client represents the SQL client used by specific implementations.
 type Client struct {
 	db *sql.DB
 }
 
+// NewClient creates a new SQL client.
 func NewClient(db *sql.DB) *Client {
 	return &Client{
 		db: db,
 	}
 }
 
-func (c *Client) Conn() (*Conn, error) {
-	conn, err := c.db.Conn(context.TODO())
-
-	return &Conn{
-		conn: conn,
-	}, err
-}
-
-func (c *Client) Close() {
-	c.db.Close()
+// Close closes the client.
+func (c *Client) Close() error {
+	return c.db.Close()
 }
 
 func (c *Client) Swap(db *sql.DB) {
@@ -36,22 +33,38 @@ func (c *Client) Swap(db *sql.DB) {
 	c.db = db
 }
 
-// connection to use for execution
+// Conn represents a connection to use for execution.
 type Conn struct {
 	conn *sql.Conn
+}
+
+// NewConn creates a new connection to DB
+// unless the context is canceled or timed out after 5 min.
+func (c *Client) NewConn(ctx context.Context) (*Conn, error) {
+	ctx, cancel := context.WithTimeout(ctx, connTimeOut)
+	defer cancel()
+
+	conn, err := c.db.Conn(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &Conn{
+		conn: conn,
+	}, nil
 }
 
 func (c *Conn) Close() error {
 	return c.conn.Close()
 }
 
-func (c *Conn) Exec(query string) (*Result, error) {
-	res, err := c.conn.ExecContext(context.TODO(), query)
+// Exec executes a query and returns the result.
+func (c *Conn) Exec(ctx context.Context, query string) (*Result, error) {
+	res, err := c.conn.ExecContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	// create new rows
+	// Create new rows
 	first := true
 
 	rows := NewResultBuilder().
@@ -77,13 +90,14 @@ func (c *Conn) Exec(query string) (*Result, error) {
 	return rows, nil
 }
 
-func (c *Conn) Query(query string) (*Result, error) {
-	dbRows, err := c.conn.QueryContext(context.TODO(), query)
+// Query executes a query and returns the result.
+func (c *Conn) Query(ctx context.Context, query string) (*Result, error) {
+	dbRows, err := c.conn.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 
-	// create new rows
+	// Create new rows
 	header, err := dbRows.Columns()
 	if err != nil {
 		return nil, err
@@ -96,8 +110,8 @@ func (c *Conn) Query(query string) (*Result, error) {
 				return nil, err
 			}
 
-			// TODO: do we even support multiple result sets?
-			// if not next result, check for any new sets
+			// TODO: Do we even support multiple result sets?
+			// If not, check for any new sets.
 			if !dbRows.Next() {
 				if !dbRows.NextResultSet() {
 					return nil, nil
@@ -111,8 +125,8 @@ func (c *Conn) Query(query string) (*Result, error) {
 				}
 			}
 
-			columns := make([]any, len(dbCols))
-			columnPointers := make([]any, len(dbCols))
+			columns := make([]interface{}, len(dbCols))
+			columnPointers := make([]interface{}, len(dbCols))
 			for i := range columns {
 				columnPointers[i] = &columns[i]
 			}
@@ -123,10 +137,10 @@ func (c *Conn) Query(query string) (*Result, error) {
 
 			row := make(models.Row, len(dbCols))
 			for i := range dbCols {
-				val := *columnPointers[i].(*any)
-				// TODO: this breaks some types with some drivers (namely sqlserver newid()):
-				// add a generic way of doing this with ResultBuilder
-				// fix for some strings being interpreted as bytes
+				val := columns[i]
+				// TODO: This breaks some types with some drivers (namely SQL Server newid()).
+				// Add a generic way of doing this with ResultBuilder.
+				// Fix for some strings being interpreted as bytes.
 				valb, ok := val.([]byte)
 				if ok {
 					val = string(valb)
