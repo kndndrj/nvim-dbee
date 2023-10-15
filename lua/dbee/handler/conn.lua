@@ -125,11 +125,11 @@ function Conn:execute(query, cb)
   cb = cb or function() end
   self.on_exec()
 
-  local cancel = progress.display(self.ui:buffer(), self.progress_bar)
+  local cancel_fn = progress.display(self.ui:buffer(), self.progress_bar)
 
   local cb_id = tostring(math.random())
   callbacker.register(cb_id, function(stats)
-    cancel()
+    cancel_fn()
     self.stats = stats
     if stats.success then
       self:show_page(0)
@@ -141,6 +141,30 @@ function Conn:execute(query, cb)
   self.page_ammount = 0
 
   vim.fn.Dbee_execute(self.id, query, cb_id)
+end
+--
+---@param query string query to execute
+---@param cb? fun() callback to execute when finished
+function Conn:cancel(query, cb)
+  cb = cb or function() end
+  self.on_exec()
+
+  local cancel_fn = progress.display(self.ui:buffer(), self.progress_bar)
+
+  local cb_id = tostring(math.random())
+  callbacker.register(cb_id, function(stats)
+    cancel_fn()
+    self.stats = stats
+    if stats.success then
+      self:show_page(0)
+    end
+    cb()
+  end)
+
+  self.page_index = 0
+  self.page_ammount = 0
+
+  vim.fn.Dbee_cancel(self.id, query, cb_id)
 end
 
 ---@param history_id string history id

@@ -186,6 +186,8 @@ M.default = {
       run_selection = { key = "BB", mode = "v" },
       -- run the whole file on the active connection
       run_file = { key = "BB", mode = "n" },
+      -- cancel the current query
+      cancel_run = { key = "<C-c>", mode = "n" },
     },
   },
 

@@ -121,28 +121,28 @@ func main() {
 					return nil
 				}
 
-				id, query, callbackId := args[0], args[1], args[2]
+				connectionID, query, callbackId := args[0], args[1], args[2]
 
 				// Get the right connection
-				c, ok := connections[id]
+				c, ok := connections[connectionID]
 				if !ok {
-					logger.Errorf("connection with id %q not registered", id)
+					logger.Errorf("connection with id %q not registered", connectionID)
 					return nil
 				}
 
-				// Create a context for the query
-				queryContext, cancel := context.WithCancel(context.Background())
-
-				start := time.Now()
-
-				// Store the context and cancel function for potential cancellation
-				queryContexts[query] = &CancelConfig{
-					ctx:      queryContext,
-					cancelFn: cancel,
-					timer:    start,
-				}
-
 				go func() {
+					// Create a context for the query
+					queryContext, cancel := context.WithCancel(context.Background())
+
+					start := time.Now()
+
+					// Store the context and cancel function for potential cancellation
+					queryContexts[query] = &CancelConfig{
+						ctx:      queryContext,
+						cancelFn: cancel,
+						timer:    start,
+					}
+
 					ok := true
 					if err := c.Execute(queryContext, query); err != nil {
 						ok = false
@@ -167,9 +167,9 @@ func main() {
 					return nil
 				}
 
-				id, query, callbackID := args[0], args[1], args[2]
+				connectionID, query, callbackID := args[0], args[1], args[2]
 
-				// Check if there's an active query with this ID
+				// Check if there's an active query
 				if c, ok := queryContexts[query]; ok {
 					// Cancel the query
 					c.cancelFn()
@@ -177,11 +177,12 @@ func main() {
 					// Clean up the context and cancel function
 					delete(queryContexts, query)
 
-					if err := callbacker.TriggerCallback(callbackID, ok, time.Since(c.timer)); err != nil {
+					// callback to frontend
+					if err := callbacker.TriggerCallback(callbackID, true, time.Since(c.timer)); err != nil {
 						logger.Error(err.Error())
 						return nil
 					}
-					logger.Debugf("Canceled query with ID: %q and query: %q", id, query)
+					logger.Debugf("Canceled query with ID: %q and query: %q", connectionID, query)
 				}
 
 				return nil

@@ -18,6 +18,7 @@ m.loaded = false
 ---@type Config
 m.config = {}
 
+---  lazy_setup is called to lazy setup the result/editor/drwaer ui.
 local function lazy_setup()
   -- add install binary to path
   vim.env.PATH = install.path() .. ":" .. vim.env.PATH
@@ -65,8 +66,11 @@ local function lazy_setup()
     fallback_page_size = m.config.page_size,
     progress = m.config.progress_bar,
   })
+  ---@type Result
   m.result = Result:new(result_ui, m.handler, m.config.result)
+  ---@type Editor
   m.editor = Editor:new(editor_ui, m.handler, m.config.editor)
+  ---@type Drawer
   m.drawer = Drawer:new(drawer_ui, m.handler, m.editor, m.config.drawer)
 
   m.handler:add_helpers(m.config.extra_helpers)
@@ -88,6 +92,8 @@ local function pcall_lazy_setup()
   return true
 end
 
+--- validate_config validates the config object
+-- to check if it has all the required fields and its types.
 ---@param opts Config
 local function validate_config(opts)
   vim.validate {
@@ -220,6 +226,14 @@ function M.execute(query)
     return
   end
   m.handler:current_connection():execute(query)
+end
+--
+---@param query string query to execute on currently selected connection
+function M.cancel(query)
+  if not pcall_lazy_setup() then
+    return
+  end
+  m.handler:current_connection():cancel(query)
 end
 
 ---@param format "csv"|"json" format of the output

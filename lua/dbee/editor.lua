@@ -11,6 +11,7 @@ local SCRATCHES_DIR = vim.fn.stdpath("cache") .. "/dbee/scratches"
 ---@field private handler Handler
 ---@field private scratches table<scratch_id, scratch_details> id - scratch mapping
 ---@field private active_scratch scratch_id id of the current scratch
+---@field private query string the query to run
 local Editor = {}
 
 ---@param ui Ui
@@ -53,6 +54,7 @@ function Editor:new(ui, handler, opts)
     handler = handler,
     scratches = scratches,
     active_scratch = active or "",
+    query = nil,
   }
   setmetatable(o, self)
   self.__index = self
@@ -220,6 +222,7 @@ function Editor:generate_keymap(mappings)
         local bnr = self.scratches[self.active_scratch].bufnr
         local lines = vim.api.nvim_buf_get_lines(bnr, 0, -1, false)
         local query = table.concat(lines, "\n")
+        self.query = query
 
         self.handler:current_connection():execute(query)
       end,
@@ -231,10 +234,25 @@ function Editor:generate_keymap(mappings)
 
         local selection = vim.api.nvim_buf_get_text(0, srow, scol, erow, ecol, {})
         local query = table.concat(selection, "\n")
+        self.query = query
 
         self.handler:current_connection():execute(query)
       end,
       mapping = mappings["run_selection"],
+    },
+    {
+      action = function()
+        if not self.query then
+          return
+        end
+
+        -- NOTE: this only cancels the latest run query.
+        local query = self.query
+        self.query = nil
+
+        self.handler:current_connection():cancel(query)
+      end,
+      mapping = mappings["cancel_run"],
     },
   }
 end
