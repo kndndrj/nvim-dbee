@@ -90,7 +90,12 @@ function Ui:configure_mappings()
 
   for _, m in ipairs(self.keymap) do
     if m.action and type(m.action) == "function" and m.mapping and m.mapping.key and m.mapping.mode then
-      vim.keymap.set(m.mapping.mode, m.mapping.key, m.action, map_options)
+      vim.keymap.set(
+        m.mapping.mode,
+        m.mapping.key,
+        m.action,
+        vim.tbl_extend("force", map_options, m.mapping.opts or {})
+      )
     end
   end
 

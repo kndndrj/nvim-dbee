@@ -4,7 +4,7 @@ local spinners = require("dbee.progress").spinners
 local M = {}
 local m = {}
 
----@alias mapping {key: string, mode: string}
+---@alias mapping {key: string, mode: string, opts?: table<string, any>}
 ---@alias wincmd string|fun():integer
 
 ---@class UiConfig
