@@ -19,7 +19,6 @@ local event_bus = require("dbee.handler.__events")
 ---@field type ""|"table"|"history"|"database_switch"|"view" type of layout -> this infers action
 ---@field schema? string parent schema
 ---@field children? DBStructure[] child layout nodes
----@field pick_items?  string[] pick items
 
 ---@alias handler_config { fallback_page_size: integer, progress: progress_config }
 
@@ -30,7 +29,6 @@ local event_bus = require("dbee.handler.__events")
 ---@field private helpers Helpers query helpers
 local Handler = {}
 
----@param ui Ui ui for displaying results
 ---@param sources? Source[]
 ---@return Handler
 function Handler:new(sources)
@@ -188,7 +186,7 @@ function Handler:connection_execute(id, query)
 end
 
 ---@param id conn_id
----@return Layout[]
+---@return DBStructure[]
 function Handler:connection_get_structure(id)
   local ret = vim.fn.DbeeConnectionGetStructure { id = id }
   if not ret or ret == vim.NIL then

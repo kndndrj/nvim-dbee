@@ -1,32 +1,27 @@
 local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
-local utils = require("dbee.utils")
 local ui_helper = require("dbee.ui_helper")
 local menu = require("dbee.drawer.menu")
 local convert = require("dbee.drawer.convert")
+local expansion = require("dbee.drawer.expansion")
 
 ---@class Candy
 ---@field icon string
 ---@field icon_highlight string
 ---@field text_highlight string
 
----@class Layout
+-- action function of drawer nodes
+---@alias drawer_node_action fun(cb: fun(), pick: fun(opts?: { title: string, items: string[], on_select: fun(selection: string) }))
+
+-- A single line in drawer tree
+---@class DrawerNode: NuiTree.Node
 ---@field id string unique identifier
 ---@field name string display name
----@field type ""|"table"|"history"|"note"|"connection"|"database_switch"|"add"|"edit"|"remove"|"help"|"source"|"view" type of layout
----@field schema? string parent schema
----@field database? string parent database
----@field pick_title? string if present, it's used as a title for pick list
----@field pick_items? string[]|fun():string[] if present, this is used as a selection list, the selection is passed to the action functions if supported
----@field action_1? fun(cb: fun(), selection?: string) primary action if function takes a second selection parameter, pick_items get picked before the call
----@field action_2? fun(cb: fun(), selection?: string) secondary action if function takes a second selection parameter, pick_items get picked before the call
----@field action_3? fun(cb: fun(), selection?: string) tertiary action if function takes a second selection parameter, pick_items get picked before the call
----@field children? Layout[]|fun():Layout[] child layout nodes
----@field default_expand? Once expand on startup? - basically a bool
-
--- node is Layout converted to NuiTreeNode
----@class Node: Layout
----@field getter fun():Layout
+---@field type ""|"table"|"history"|"note"|"connection"|"database_switch"|"add"|"edit"|"remove"|"help"|"source"|"view" type of node
+---@field action_1? drawer_node_action primary action if function takes a second selection parameter, pick_items get picked before the call
+---@field action_2? drawer_node_action secondary action if function takes a second selection parameter, pick_items get picked before the call
+---@field action_3? drawer_node_action tertiary action if function takes a second selection parameter, pick_items get picked before the call
+---@field lazy_children? fun():DrawerNode[] lazy loaded child nodes
 
 ---@alias drawer_config { disable_candies: boolean, candies: table<string, Candy>, mappings: table<string, mapping>, disable_help: boolean }
 
@@ -145,7 +140,7 @@ function Drawer:create_tree(bufnr)
 
       line:append(string.rep("  ", node:get_depth() - 1))
 
-      if node:has_children() or node.getter then
+      if node:has_children() or node.lazy_children then
         local candy = self.candies["node_closed"] or { icon = ">", icon_highlight = "NonText" }
         if node:is_expanded() then
           candy = self.candies["node_expanded"] or { icon = "v", icon_highlight = "NonText" }
@@ -175,9 +170,9 @@ function Drawer:create_tree(bufnr)
 
       -- apply a special highlight for active connection and active note
       if node.id == self.current_conn_id or self.current_note_id == node.id then
-        line:append(node.name, candy.icon_highlight)
+        line:append(string.gsub(node.name, "\n", " "), candy.icon_highlight)
       else
-        line:append(node.name, candy.text_highlight)
+        line:append(string.gsub(node.name, "\n", " "), candy.text_highlight)
       end
 
       return line
@@ -222,8 +217,8 @@ function Drawer:generate_keymap(mappings)
     expand_all_single(node)
 
     -- if function for getting layout exist, call it
-    if not expanded and type(node.getter) == "function" then
-      node.getter()
+    if not expanded and type(node.lazy_children) == "function" then
+      self.tree:set_nodes(node.lazy_children(), node.id)
     end
 
     node:expand()
@@ -232,31 +227,18 @@ function Drawer:generate_keymap(mappings)
   end
 
   -- wrapper for actions (e.g. action_1, action_2, action_3)
-  ---@param node Node
-  ---@param func fun(cb: fun(), selection?: string)
-  local function perform_action(node, func)
-    if type(func) ~= "function" then
+  ---@param action drawer_node_action
+  local function perform_action(action)
+    if type(action) ~= "function" then
       return
     end
 
-    -- if pick_items field is present, and the function takes an extra arg,
-    -- show the menu and then trigger the function with it
-    if node.pick_items and utils.get_function_param_number(func) > 1 then
-      local pick_items = node.pick_items
-      if type(node.pick_items) == "function" then
-        pick_items = node.pick_items()
-      end
-
-      menu.open(self.winid, pick_items --[[@as string[] ]], function(selection)
-        func(function()
-          self:refresh()
-        end, selection)
-      end, node.pick_title)
-    else
-      func(function()
-        self:refresh()
-      end)
-    end
+    action(function()
+      self:refresh()
+    end, function(opts)
+      opts = opts or {}
+      menu.open(self.winid, opts.items or {}, opts.on_select or function() end, opts.title or "")
+    end)
   end
 
   return {
@@ -272,31 +254,31 @@ function Drawer:generate_keymap(mappings)
     },
     {
       action = function()
-        local node = self.tree:get_node()
+        local node = self.tree:get_node() --[[@as DrawerNode]]
         if not node then
           return
         end
-        perform_action(node, node.action_1)
+        perform_action(node.action_1)
       end,
       mapping = mappings["action_1"],
     },
     {
       action = function()
-        local node = self.tree:get_node()
+        local node = self.tree:get_node() --[[@as DrawerNode]]
         if not node then
           return
         end
-        perform_action(node, node.action_2)
+        perform_action(node.action_2)
       end,
       mapping = mappings["action_2"],
     },
     {
       action = function()
-        local node = self.tree:get_node()
+        local node = self.tree:get_node() --[[@as DrawerNode]]
         if not node then
           return
         end
-        perform_action(node, node.action_3)
+        perform_action(node.action_3)
       end,
       mapping = mappings["action_3"],
     },
@@ -337,87 +319,29 @@ function Drawer:generate_keymap(mappings)
   }
 end
 
--- sets layout to tree
----@private
----@param layout Layout[] layout to add to tree
----@param node_id? string layout is set as children to this id or root
-function Drawer:set_layout(layout, node_id)
-  --- recursed over Layout[] and sets it to the tree
-  ---@param layouts Layout[]
-  ---@return Node[] nodes list of NuiTreeNodes
-  local function to_node(layouts)
-    if not layouts then
-      return {}
-    end
-
-    local nodes = {}
-    for _, l in ipairs(layouts) do
-      -- get children or set getter
-      local getter
-      local children
-      if type(l.children) == "function" then
-        getter = function()
-          local exists = self.tree:get_node(l.id)
-          if exists then
-            self.tree:set_nodes(to_node(l.children()), l.id)
-          end
-        end
-      else
-        children = l.children
-      end
-
-      -- all other fields stay the same
-      local n = vim.fn.copy(l)
-      n.name = string.gsub(l.name, "\n", " ")
-      n.getter = getter
-
-      -- get existing node from the current tree and check if it is expanded
-      local expanded = false
-      local ex_node = self.tree:get_node(l.id)
-      if (ex_node and ex_node:is_expanded()) or (l.default_expand and l.default_expand:poke()) then
-        expanded = true
-        -- if getter exists, and node is expanded, we call it
-        if getter then
-          children = l.children()
-        end
-      end
-      -- recurse children
-      local node = NuiTree.Node(n, to_node(children --[[@as Layout[] ]]))
-      if expanded then
-        node:expand()
-      end
-
-      table.insert(nodes, node)
-    end
-
-    return nodes
-  end
-
-  -- recurse layout
-  self.tree:set_nodes(to_node(layout), node_id)
-end
-
 function Drawer:refresh()
   -- assemble tree layout
-  ---@type Layout[]
-  local layouts = {}
-  local editor_layout = convert.editor_layout(self.editor, self.current_conn_id, function()
+  ---@type DrawerNode[]
+  local nodes = {}
+  local editor_nodes = convert.editor_nodes(self.editor, self.current_conn_id, function()
     self:refresh()
   end)
-  for _, ly in ipairs(editor_layout) do
-    table.insert(layouts, ly)
+  for _, ly in ipairs(editor_nodes) do
+    table.insert(nodes, ly)
   end
-  table.insert(layouts, convert.separator())
-  for _, ly in ipairs(convert.handler_layout(self.handler, self.result)) do
-    table.insert(layouts, ly)
+  table.insert(nodes, convert.separator_node())
+  for _, ly in ipairs(convert.handler_nodes(self.handler, self.result)) do
+    table.insert(nodes, ly)
   end
 
   if not self.disable_help then
-    table.insert(layouts, convert.separator())
-    table.insert(layouts, convert.help_layout(self.mappings))
+    table.insert(nodes, convert.separator_node())
+    table.insert(nodes, convert.help_node(self.mappings))
   end
 
-  self:set_layout(layouts)
+  local exp = expansion.get(self.tree)
+  self.tree:set_nodes(nodes)
+  expansion.set(self.tree, exp)
 
   self.tree:render()
 end

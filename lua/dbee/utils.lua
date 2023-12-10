@@ -1,7 +1,22 @@
 local M = {}
 
--- submodules exposed through here
-M.once = require("dbee.utils.once")
+-- private variable with registered onces
+---@type table<string, boolean>
+local used_onces = {}
+
+---@param id string unique id of this singleton bool
+---@return boolean
+function M.once(id)
+  id = id or ""
+
+  if used_onces[id] then
+    return false
+  end
+
+  used_onces[id] = true
+
+  return true
+end
 
 -- Get random key from table
 ---@param tbl table key-value table
@@ -83,18 +98,6 @@ function M.sorted_keys(obj)
   end
   table.sort(keys)
   return keys
-end
-
--- Get number of parameters that a function takes
----@param fun fun(...):any function to get the number of parameters of
----@return integer # number of parameters
-function M.get_function_param_number(fun)
-  local info = debug.getinfo(fun)
-  if info == nil then
-    return 0
-  end
-
-  return info.nparams or 0
 end
 
 -- create an autocmd that is associated with a window rather than a buffer.
