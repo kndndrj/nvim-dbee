@@ -87,9 +87,6 @@ function M.configure_buffer_mappings(bufnr, keymap, opts)
   end
 end
 
----@type table<integer, boolean> which windows have mapping autocmds already configured
-local configured_window_mappings = {}
-
 -- Sets mappings to the window.
 ---@param winid integer
 ---@param keymap keymap[]
@@ -98,24 +95,22 @@ function M.configure_window_mappings(winid, keymap)
     return
   end
 
-  if configured_window_mappings[winid] then
-    -- autocommands already configured
-    return
-  end
-
   -- add mappings when buffer enters the window
-  utils.create_window_autocmd({ "BufWinEnter" }, winid, function(event)
-    M.configure_buffer_mappings(event.buf, keymap)
-  end)
+  utils.create_singleton_autocmd({ "BufWinEnter" }, {
+    window = winid,
+    callback = function(event)
+      M.configure_buffer_mappings(event.buf, keymap)
+    end,
+  })
 
   -- remove mappings when buffer leaves the window
-  utils.create_window_autocmd({ "BufWinLeave" }, winid, function(event)
-    pcall(M.configure_buffer_mappings, event.buf, keymap, { delete = true })
-  end)
+  utils.create_singleton_autocmd({ "BufWinLeave" }, {
+    window = winid,
+    callback = function(event)
+      pcall(M.configure_buffer_mappings, event.buf, keymap, { delete = true })
+    end,
+  })
 end
-
----@type table<integer, boolean> which buffers have quit autocmds already configured
-local configured_quit_buffers = {}
 
 -- Configures quit handle for buffer
 ---@param bufnr integer
@@ -126,22 +121,11 @@ function M.configure_buffer_quit_handle(bufnr, handle)
   end
   handle = handle or function() end
 
-  if configured_quit_buffers[bufnr] then
-    -- autocommands already configured
-    return
-  end
-
-  vim.api.nvim_create_autocmd({ "QuitPre" }, {
+  utils.create_singleton_autocmd({ "QuitPre" }, {
     buffer = bufnr,
     callback = handle,
   })
-
-  -- set buffers which have already been mapped
-  configured_quit_buffers[bufnr] = true
 end
-
----@type table<integer, boolean> which windows have quit autocmds already configured
-local configured_quit_windows = {}
 
 -- Configured quit handle for window.
 ---@param winid integer
@@ -152,15 +136,10 @@ function M.configure_window_quit_handle(winid, handle)
   end
   handle = handle or function() end
 
-  if configured_quit_windows[winid] then
-    -- autocommands already configured
-    return
-  end
-
-  utils.create_window_autocmd({ "QuitPre" }, winid, handle)
-
-  -- set windows which have already been mapped
-  configured_quit_windows[winid] = true
+  utils.create_singleton_autocmd({ "QuitPre" }, {
+    window = winid,
+    callback = handle,
+  })
 end
 
 return M

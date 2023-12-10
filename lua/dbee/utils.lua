@@ -103,28 +103,68 @@ end
 -- create an autocmd that is associated with a window rather than a buffer.
 ---@param events string[]
 ---@param winid integer
----@param callback fun(e: table)
-function M.create_window_autocmd(events, winid, callback)
-  if not events or not winid then
+---@param opts table<string, any>
+local function create_window_autocmd(events, winid, opts)
+  opts = opts or {}
+  if not events or not winid or not opts.callback then
     return
   end
-  callback = callback or function() end
 
-  vim.api.nvim_create_autocmd(events, {
-    callback = function(event)
-      -- remove autocmd if window is closed
-      if not vim.api.nvim_win_is_valid(winid) then
-        vim.api.nvim_del_autocmd(event.id)
-        return
-      end
+  local cb = opts.callback
 
-      local wid = vim.fn.bufwinid(event.buf or -1)
-      if wid ~= winid then
-        return
-      end
-      callback(event)
-    end,
-  })
+  opts.callback = function(event)
+    -- remove autocmd if window is closed
+    if not vim.api.nvim_win_is_valid(winid) then
+      vim.api.nvim_del_autocmd(event.id)
+      return
+    end
+
+    local wid = vim.fn.bufwinid(event.buf or -1)
+    if wid ~= winid then
+      return
+    end
+    cb(event)
+  end
+
+  vim.api.nvim_create_autocmd(events, opts)
+end
+
+-- create an autocmd just once in a single place in code.
+-- If opts hold a "window" key, autocmd is defined per window rather than a buffer.
+-- If window and buffer are provided, this results in an error.
+---@param events string[] events list as defined in nvim api
+---@param opts table<string, any> options as in api
+function M.create_singleton_autocmd(events, opts)
+  if opts.window and opts.buffer then
+    error("cannot register autocmd for buffer and window at the same time")
+  end
+
+  local caller_info = debug.getinfo(2)
+  if not caller_info or not caller_info.name or not caller_info.currentline then
+    error("could not determine function caller")
+  end
+
+  if
+    not M.once(
+      "autocmd_singleton_"
+        .. caller_info.name
+        .. caller_info.currentline
+        .. tostring(opts.window)
+        .. tostring(opts.buffer)
+    )
+  then
+    -- already configured
+    return
+  end
+
+  if opts.window then
+    local window = opts.window
+    opts.window = nil
+    create_window_autocmd(events, window, opts)
+    return
+  end
+
+  vim.api.nvim_create_autocmd(events, opts)
 end
 
 return M

@@ -121,7 +121,6 @@ local function handler_real_nodes(handler, result)
                   name = res.name,
                   url = res.url,
                   type = res.type,
-                  page_size = tonumber(res["page size"]),
                 }
                 pcall(handler.source_add_connections, handler, source_id, { spec })
                 cb()
@@ -191,8 +190,6 @@ local function handler_real_nodes(handler, result)
             end,
           })
         end,
-        pick_title = "Confirm Deletion",
-        pick_items = { "Yes", "No" },
         -- remove connection
         action_3 = function(cb, pick)
           pick {
@@ -315,9 +312,6 @@ function M.help_node(mappings)
   return node
 end
 
----@type table<integer, boolean>
-local registered_modified_set_buffers = {}
-
 ---@param bufnr integer
 ---@param refresh fun() function that refreshes the tree
 ---@return string suffix
@@ -331,16 +325,10 @@ local function modified_suffix(bufnr, refresh)
     suffix = " - o"
   end
 
-  if registered_modified_set_buffers[bufnr] then
-    return suffix
-  end
-
-  vim.api.nvim_create_autocmd("BufModifiedSet", {
+  utils.create_singleton_autocmd({ "BufModifiedSet" }, {
     buffer = bufnr,
     callback = refresh,
   })
-
-  registered_modified_set_buffers[bufnr] = true
 
   return suffix
 end

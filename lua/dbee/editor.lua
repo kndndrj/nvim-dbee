@@ -22,7 +22,6 @@ local ui_helper = require("dbee.ui_helper")
 ---@field private current_note_id? note_id
 ---@field private directory string directory where notes are stored
 ---@field private event_callbacks table<editor_event_name, editor_event_listener[]> callbacks for events
----@field private configured_autocmd_windows table<integer, boolean> windows that had autocommands configured.
 local Editor = {}
 
 ---@param handler Handler
@@ -50,7 +49,6 @@ function Editor:new(handler, result, quit_handle, opts)
     event_callbacks = {},
     directory = opts.directory or vim.fn.stdpath("cache") .. "/dbee/notes",
     mappings = opts.mappings,
-    configured_autocmd_windows = {},
   }
   setmetatable(o, self)
   self.__index = self
@@ -383,37 +381,34 @@ end
 ---@private
 ---@param winid integer
 function Editor:configure_autocommands(winid)
-  if self.configured_autocmd_windows[winid] then
-    return
-  end
-
   -- remove current note if another buffer is opened in the window
   -- and set current note if any known note is opened in the window.
-  utils.create_window_autocmd({ "BufWinEnter" }, winid, function(event)
-    if not self.current_note_id then
-      local note, _ = self:get_note_by_buf(event.buf)
-      if note then
-        self.current_note_id = note.id
-        self:trigger_event("current_note_changed", { note_id = note.id })
+  utils.create_singleton_autocmd({ "BufWinEnter" }, {
+    window = winid,
+    callback = function(event)
+      if not self.current_note_id then
+        local note, _ = self:get_note_by_buf(event.buf)
+        if note then
+          self.current_note_id = note.id
+          self:trigger_event("current_note_changed", { note_id = note.id })
+        end
+        return
       end
-      return
-    end
 
-    local note, _ = self:get_note(self.current_note_id)
-    if not note then
-      self.current_note_id = nil
-      self:trigger_event("current_note_changed", { note_id = nil })
-      return
-    end
+      local note, _ = self:get_note(self.current_note_id)
+      if not note then
+        self.current_note_id = nil
+        self:trigger_event("current_note_changed", { note_id = nil })
+        return
+      end
 
-    if not note.bufnr or note.bufnr ~= event.buf then
-      self.current_note_id = nil
-      self:trigger_event("current_note_changed", { note_id = nil })
-      return
-    end
-  end)
-
-  self.configured_autocmd_windows[winid] = true
+      if not note.bufnr or note.bufnr ~= event.buf then
+        self.current_note_id = nil
+        self:trigger_event("current_note_changed", { note_id = nil })
+        return
+      end
+    end,
+  })
 end
 
 ---@private

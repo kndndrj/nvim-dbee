@@ -1,6 +1,7 @@
 local NuiLine = require("nui.line")
 local NuiTree = require("nui.tree")
 local floats = require("dbee.floats")
+local utils = require("dbee.utils")
 local ui_helper = require("dbee.ui_helper")
 
 -- CallLog is a call history
@@ -13,7 +14,6 @@ local ui_helper = require("dbee.ui_helper")
 ---@field private candies table<string, Candy> map of eye-candy stuff (icons, highlight)
 ---@field private current_connection_id? conn_id
 ---@field private hover_close? fun() function that closes the hover window
----@field private configured_preview_buffers? table<integer, boolean> which buffers have preview already configured
 local CallLog = {}
 
 ---@alias call_log_config { mappings: table<string, mapping>, disable_candies: boolean, candies: table<string, Candy> }
@@ -45,7 +45,6 @@ function CallLog:new(handler, result, quit_handle, opts)
     result = result,
     candies = candies,
     hover_close = function() end,
-    configured_preview_buffers = {},
   }
   setmetatable(o, self)
   self.__index = self
@@ -236,11 +235,7 @@ end
 ---@private
 ---@param bufnr integer
 function CallLog:configure_preview(bufnr)
-  if self.configured_preview_buffers[bufnr] then
-    return
-  end
-
-  vim.api.nvim_create_autocmd({ "CursorMoved", "BufEnter" }, {
+  utils.create_singleton_autocmd({ "CursorMoved", "BufEnter" }, {
     buffer = bufnr,
     callback = function()
       self.hover_close()
@@ -267,14 +262,12 @@ function CallLog:configure_preview(bufnr)
     end,
   })
 
-  vim.api.nvim_create_autocmd({ "BufLeave", "QuitPre" }, {
+  utils.create_singleton_autocmd({ "BufLeave", "QuitPre" }, {
     buffer = bufnr,
     callback = function()
       self.hover_close()
     end,
   })
-
-  self.configured_preview_buffers[bufnr] = true
 end
 
 ---@param winid integer
