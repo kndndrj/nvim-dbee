@@ -102,7 +102,6 @@ local function handler_layout_real(handler, result)
             { name = "name" },
             { name = "type" },
             { name = "url" },
-            { name = "page size" },
           }
           floats.prompt(prompt, {
             title = "Add Connection",
@@ -278,6 +277,112 @@ function M.help_layout(mappings)
     type = "help",
     default_expand = utils.once:new("help_expand_once_id"),
     children = help_children,
+  }
+end
+
+---@type table<integer, boolean>
+local registered_modified_set_buffers = {}
+
+---@param bufnr integer
+---@param refresh fun() function that refreshes the tree
+---@return string suffix
+local function modified_suffix(bufnr, refresh)
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+    return ""
+  end
+
+  local suffix = ""
+  if vim.api.nvim_buf_get_option(bufnr, "modified") then
+    suffix = " - o"
+  end
+
+  if registered_modified_set_buffers[bufnr] then
+    return suffix
+  end
+
+  vim.api.nvim_create_autocmd("BufModifiedSet", {
+    buffer = bufnr,
+    callback = refresh,
+  })
+
+  registered_modified_set_buffers[bufnr] = true
+
+  return suffix
+end
+
+---@param editor Editor
+---@param namespace namespace_id
+---@param refresh fun() function that refreshes the tree
+---@return Layout[]
+local function editor_namespace_layout(editor, namespace, refresh)
+  ---@type Layout[]
+  local layout = {
+    {
+      id = "__new_" .. namespace .. "_note__",
+      name = "new",
+      type = "add",
+      action_1 = function(cb)
+        -- TODO: name
+        local id = editor:namespace_create_note(namespace, "note_" .. tostring(os.clock()))
+        editor:set_current_note(id)
+        cb()
+      end,
+    },
+  }
+
+  -- global notes
+  for _, note in ipairs(editor:namespace_get_notes(namespace)) do
+    ---@type Layout
+    local ly = {
+      id = note.id,
+      name = note.name .. modified_suffix(note.bufnr, refresh),
+      type = "note",
+      action_1 = function(cb)
+        editor:set_current_note(note.id)
+        cb()
+      end,
+      action_2 = function(cb)
+        vim.ui.input({ prompt = "new name: ", default = note.name }, function(input)
+          if not input or input == "" then
+            return
+          end
+          editor:note_rename(note.id, input)
+          cb()
+        end)
+      end,
+      pick_title = "Confirm Deletion",
+      pick_items = { "Yes", "No" },
+      action_3 = function(cb, selection)
+        if selection == "Yes" then
+          editor:namespace_remove_note(namespace, note.id)
+        end
+        cb()
+      end,
+    }
+    table.insert(layout, ly)
+  end
+
+  return layout
+end
+
+---@param editor Editor
+---@param current_connection_id conn_id
+---@param refresh fun() function that refreshes the tree
+---@return Layout[]
+function M.editor_layout(editor, current_connection_id, refresh)
+  return {
+    {
+      id = "__master_note_global__",
+      name = "global notes",
+      type = "note",
+      children = editor_namespace_layout(editor, "global", refresh),
+    },
+    {
+      id = "__master_note_local__",
+      name = "local notes",
+      type = "note",
+      children = editor_namespace_layout(editor, current_connection_id, refresh),
+    },
   }
 end
 

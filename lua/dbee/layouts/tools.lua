@@ -2,7 +2,7 @@
 
 ---@alias _layout { type: string, winid: integer, bufnr: integer, win_opts: { string: any}, children: _layout[] }
 
----@alias layoutEgg { layout: _layout, restore: string }
+---@alias layout_egg { layout: _layout, restore: string }
 
 -- vim.fn.winlayout() example structure:
 -- { "row", { { "leaf", winid }, { "col", { { "leaf", winid }, { "leaf", winid } } } } }
@@ -85,7 +85,7 @@ local function add_details(layout)
   end
 end
 
----@return layoutEgg layout egg (use with restore())
+---@return layout_egg layout egg (use with restore())
 function M.save()
   local layout = vim.fn.winlayout()
   local restore_cmd = winrestcmd()
@@ -132,7 +132,7 @@ local function apply_layout(layout)
   end
 end
 
----@param egg layoutEgg layout to restore
+---@param egg layout_egg layout to restore
 function M.restore(egg)
   egg = egg or {}
 

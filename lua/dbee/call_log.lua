@@ -1,27 +1,31 @@
 local NuiLine = require("nui.line")
 local NuiTree = require("nui.tree")
 local floats = require("dbee.floats")
+local ui_helper = require("dbee.ui_helper")
 
 -- CallLog is a call history
 ---@class CallLog
----@field private ui Ui
 ---@field private result Result
 ---@field private handler Handler
----@field private tree? NuiTree
+---@field private tree NuiTree
+---@field private winid? integer
+---@field private bufnr integer
 ---@field private candies table<string, Candy> map of eye-candy stuff (icons, highlight)
 ---@field private current_connection_id? conn_id
 ---@field private hover_close? fun() function that closes the hover window
+---@field private configured_preview_buffers? table<integer, boolean> which buffers have preview already configured
 local CallLog = {}
 
 ---@alias call_log_config { mappings: table<string, mapping>, disable_candies: boolean, candies: table<string, Candy> }
 
----@param ui Ui
 ---@param handler Handler
 ---@param result Result
+---@param quit_handle? fun()
 ---@param opts call_log_config
----@return Result
-function CallLog:new(ui, handler, result, opts)
+---@return CallLog
+function CallLog:new(handler, result, quit_handle, opts)
   opts = opts or {}
+  quit_handle = quit_handle or function() end
 
   if not handler then
     error("no Handler passed to CallLog")
@@ -29,28 +33,35 @@ function CallLog:new(ui, handler, result, opts)
   if not result then
     error("no Result passed to CallLog")
   end
-  if not ui then
-    error("no Ui passed to CallLog")
-  end
 
   local candies = {}
   if not opts.disable_candies then
     candies = opts.candies or {}
   end
 
-  -- class object
+  ---@type CallLog
   local o = {
-    ui = ui,
     handler = handler,
     result = result,
     candies = candies,
     hover_close = function() end,
+    configured_preview_buffers = {},
   }
   setmetatable(o, self)
   self.__index = self
 
-  -- set keymaps
-  o.ui:set_keymap(o:generate_keymap(opts.mappings))
+  -- create a buffer for drawer and configure it
+  o.bufnr = ui_helper.create_blank_buffer("dbee-call-log", {
+    buflisted = false,
+    bufhidden = "delete",
+    buftype = "nofile",
+    swapfile = false,
+  })
+  ui_helper.configure_buffer_mappings(o.bufnr, o:generate_keymap(opts.mappings))
+  ui_helper.configure_buffer_quit_handle(o.bufnr, quit_handle)
+
+  -- create the tree
+  o.tree = o:create_tree(o.bufnr)
 
   handler:register_event_listener("call_state_changed", function(data)
     o:on_call_state_changed(data)
@@ -122,6 +133,12 @@ function CallLog:create_tree(bufnr)
       ---@type call_details
       local call = node.call
       local line = NuiLine()
+      if not call then
+        if node.text then
+          line:append(node.text, "NonText")
+        end
+        return line
+      end
 
       local candy = self.candies[call.state]
         or { icon = call_state_initials(call.state), icon_highlight = "", text_highlight = "" }
@@ -133,7 +150,7 @@ function CallLog:create_tree(bufnr)
 
       line:append(make_length(state_preview, 3), candy.icon_highlight)
       line:append(" ┃ ", "NonText")
-      line:append(make_length(call.query, 40), candy.text_highlight)
+      line:append(make_length(string.gsub(call.query, "\n", " "), 40), candy.text_highlight)
 
       return line
     end,
@@ -196,6 +213,13 @@ function CallLog:refresh()
   end
   local calls = self.handler:connection_get_calls(self.current_connection_id)
 
+  -- dummy node if no calls
+  if vim.tbl_isempty(calls) then
+    self.tree:set_nodes { NuiTree.Node { id = tostring(math.random()), text = "Call log will be displayed here!" } }
+    self.tree:render()
+    return
+  end
+
   table.sort(calls, function(k1, k2)
     return k1.timestamp_us > k2.timestamp_us
   end)
@@ -212,6 +236,10 @@ end
 ---@private
 ---@param bufnr integer
 function CallLog:configure_preview(bufnr)
+  if self.configured_preview_buffers[bufnr] then
+    return
+  end
+
   vim.api.nvim_create_autocmd({ "CursorMoved", "BufEnter" }, {
     buffer = bufnr,
     callback = function()
@@ -229,13 +257,13 @@ function CallLog:configure_preview(bufnr)
 
       local call_summary = {
         string.format("id:                   %s", call.id),
-        string.format("query:                %s", call.query),
+        string.format("query:                %s", string.gsub(call.query, "\n", " ")),
         string.format("state:                %s", call.state),
         string.format("time_taken [seconds]: %.3f", (call.time_taken_us or 0) / 1000000),
         string.format("timestamp:            %s", tostring(os.date("%c", (call.timestamp_us or 0) / 1000000))),
       }
 
-      self.hover_close = floats.hover(self.ui:window(), call_summary)
+      self.hover_close = floats.hover(self.winid, call_summary)
     end,
   })
 
@@ -245,25 +273,29 @@ function CallLog:configure_preview(bufnr)
       self.hover_close()
     end,
   })
+
+  self.configured_preview_buffers[bufnr] = true
 end
 
--- Show drawer on screen
-function CallLog:open()
-  local _, bufnr = self.ui:open()
+---@param winid integer
+function CallLog:show(winid)
+  self.winid = winid
 
-  -- tree
-  if not self.tree then
-    self.tree = self:create_tree(bufnr)
-  end
-  self.tree.bufnr = bufnr
+  -- configure window options
+  ui_helper.configure_window_options(self.winid, {
+    wrap = false,
+    winfixheight = true,
+    winfixwidth = true,
+    number = false,
+  })
 
-  self:configure_preview(bufnr)
+  -- configure auto preview
+  self:configure_preview(self.bufnr)
+
+  -- set buffer to window
+  vim.api.nvim_win_set_buf(self.winid, self.bufnr)
 
   self:refresh()
-end
-
-function CallLog:close()
-  self.ui:close()
 end
 
 return CallLog

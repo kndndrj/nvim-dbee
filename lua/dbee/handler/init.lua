@@ -52,8 +52,8 @@ function Handler:new(sources)
   return o
 end
 
----@param event event_name
----@param listener event_listener
+---@param event handler_event_name
+---@param listener handler_event_listener
 function Handler:register_event_listener(event, listener)
   event_bus.register(event, listener)
 end

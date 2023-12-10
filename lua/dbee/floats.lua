@@ -215,11 +215,11 @@ local function has_neighbor_left(winid)
 end
 
 -- hover window with custom content
----@param relative_winid integer window to set the hover relative to
+---@param relative_winid? integer window to set the hover relative to
 ---@param contents string[] file to edit
 ---@return fun() # close handle
 function M.hover(relative_winid, contents)
-  if not contents or #contents < 1 or not vim.api.nvim_win_is_valid(relative_winid) then
+  if not contents or #contents < 1 or not relative_winid or not vim.api.nvim_win_is_valid(relative_winid) then
     return function() end
   end
 

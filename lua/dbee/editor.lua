@@ -1,30 +1,38 @@
 local utils = require("dbee.utils")
+local ui_helper = require("dbee.ui_helper")
 
-local SCRATCHES_DIR = vim.fn.stdpath("cache") .. "/dbee/scratches"
+-- events:
+---@alias editor_event_name "note_state_changed"|"note_removed"|"note_created"|"current_note_changed"
+---@alias editor_event_listener fun(data: any)
 
----@alias scratch_id string
----@alias scratch_details { file: string, bufnr: integer, type: "file"|"buffer", id: scratch_id }
----@alias editor_config { mappings: table<string, mapping> }
+---@alias namespace_id "global"|string
+
+---@alias note_id string
+---@alias note_details { id: note_id, name: string, file: string, bufnr: integer? }
+
+---@alias editor_config { directory: string, mappings: table<string, mapping> }
 
 ---@class Editor
----@field private ui Ui
 ---@field private handler Handler
 ---@field private result Result
----@field private scratches table<scratch_id, scratch_details> id - scratch mapping
----@field private active_scratch scratch_id id of the current scratch
+---@field private quit_handle fun()
+---@field private winid? integer
+---@field private mappings table<string, mapping>
+---@field private notes table<namespace_id, table<note_id, note_details>> namespace: { id: note_details } mapping
+---@field private current_note_id? note_id
+---@field private directory string directory where notes are stored
+---@field private event_callbacks table<editor_event_name, editor_event_listener[]> callbacks for events
+---@field private configured_autocmd_windows table<integer, boolean> windows that had autocommands configured.
 local Editor = {}
 
----@param ui Ui
 ---@param handler Handler
 ---@param result Result
+---@param quit_handle? fun()
 ---@param opts? editor_config
 ---@return Editor
-function Editor:new(ui, handler, result, opts)
+function Editor:new(handler, result, quit_handle, opts)
   opts = opts or {}
 
-  if not ui then
-    error("no Ui provided to Editor")
-  end
   if not handler then
     error("no Handler provided to Editor")
   end
@@ -32,187 +40,48 @@ function Editor:new(ui, handler, result, opts)
     error("no Result provided to Editor")
   end
 
-  -- check for any existing scratches
-  vim.fn.mkdir(SCRATCHES_DIR, "p")
-  local scratches = {}
-  local active
-  for _, file in pairs(vim.split(vim.fn.glob(SCRATCHES_DIR .. "/*"), "\n")) do
-    if file ~= "" then
-      local id = file .. tostring(os.clock())
-      scratches[id] = { id = id, file = file, type = "file", bufnr = nil }
-      active = active or id
-    end
-  end
-
-  -- create a blank scratchpad if none of the existing scratchpads were found
-  if vim.tbl_isempty(scratches) then
-    local file = SCRATCHES_DIR .. "/scratch." .. tostring(os.clock()) .. ".sql"
-    local id = file .. tostring(os.clock())
-    scratches[id] = { id = id, file = file, type = "file", bufnr = nil }
-    active = id
-  end
-
   -- class object
+  ---@type Editor
   local o = {
-    ui = ui,
     handler = handler,
     result = result,
-    scratches = scratches,
-    active_scratch = active or "",
+    quit_handle = quit_handle or function() end,
+    notes = {},
+    event_callbacks = {},
+    directory = opts.directory or vim.fn.stdpath("cache") .. "/dbee/notes",
+    mappings = opts.mappings,
+    configured_autocmd_windows = {},
   }
   setmetatable(o, self)
   self.__index = self
 
-  -- set keymaps
-  o.ui:set_keymap(o:generate_keymap(opts.mappings))
+  -- search for existing notes
+  o:search_existing_namespaces()
 
   return o
 end
 
-function Editor:new_scratch()
-  local file = SCRATCHES_DIR .. "/scratch." .. tostring(os.clock()) .. ".sql"
-  local id = file .. tostring(os.clock())
-  ---@type scratch_details
-  local s = {
-    file = file,
-    id = id,
-    type = "buffer",
-  }
-  self.scratches[id] = s
-  self.active_scratch = id
-end
+-- Look for existing namespaces and their notes on disk.
+---@private
+function Editor:search_existing_namespaces()
+  -- search all directories (namespaces) and their notes
+  for _, dir in pairs(vim.split(vim.fn.glob(self.directory .. "/*"), "\n")) do
+    if vim.fn.isdirectory(dir) == 1 then
+      for _, file in pairs(vim.split(vim.fn.glob(dir .. "/*"), "\n")) do
+        if vim.fn.filereadable(file) == 1 then
+          local namespace = vim.fs.basename(dir)
+          local id = file .. tostring(os.clock())
 
----@param id scratch_id scratch id
----@param name string new name
-function Editor:rename_scratch(id, name)
-  if not id or not self.scratches[id] then
-    error("invalid id to rename")
-  end
-  if not name or name == "" then
-    error("invalid name")
-  end
-
-  local s = self.scratches[id]
-  local bufnr = s.bufnr
-  local file = s.file
-
-  -- rename file
-  if vim.fn.filereadable(file) then
-    vim.fn.rename(file, name)
-  end
-  self.scratches[id].file = name
-
-  -- rename buffer
-  if bufnr then
-    if vim.api.nvim_buf_get_name(bufnr) == file then
-      vim.api.nvim_buf_set_name(bufnr, name)
-    elseif vim.api.nvim_buf_get_name(bufnr) == vim.fs.basename(file) then
-      vim.api.nvim_buf_set_name(bufnr, vim.fs.basename(name))
+          self.notes[namespace] = self.notes[namespace] or {}
+          self.notes[namespace][id] = {
+            id = id,
+            name = vim.fs.basename(file),
+            file = file,
+          }
+        end
+      end
     end
   end
-end
-
----@param id scratch_id scratch id
-function Editor:delete_scratch(id)
-  if not id or not self.scratches[id] then
-    error("invalid id to delete")
-  end
-
-  local file = self.scratches[id].file
-
-  -- delete file
-  if vim.fn.filereadable(file) then
-    vim.fn.delete(file)
-  end
-  -- delete record
-  self.scratches[id] = nil
-
-  -- open a different scratchpad
-  local id_other = utils.random_key(self.scratches)
-  if not id_other then
-    self:new_scratch()
-    self:open()
-    return
-  end
-  self:set_active_scratch(id_other)
-  self:open()
-end
-
--- get layout of scratchpads
----@return Layout[]
-function Editor:layout()
-  ---@type Layout[]
-  local scratches = {
-    {
-      id = "__new_scratchpad__",
-      name = "new",
-      type = "add",
-      action_1 = function(cb)
-        self:new_scratch()
-        self:open()
-        cb()
-      end,
-    },
-  }
-
-  for _, s in pairs(self.scratches) do
-    ---@type Layout
-    local sch = {
-      id = s.id,
-      name = vim.fs.basename(s.file),
-      type = "scratch",
-      action_1 = function(cb)
-        self:set_active_scratch(s.id)
-        self:open()
-        cb()
-      end,
-      action_2 = function(cb)
-        local file = self.scratches[s.id].file
-        vim.ui.input({ prompt = "new name: ", default = file }, function(input)
-          if not input or input == "" then
-            return
-          end
-          self:rename_scratch(s.id, input)
-          cb()
-        end)
-      end,
-      pick_title = "Confirm Deletion",
-      pick_items = { "Yes", "No" },
-      action_3 = function(cb, selection)
-        if selection == "Yes" then
-          self:delete_scratch(s.id)
-        end
-        cb()
-      end,
-    }
-    table.insert(scratches, sch)
-  end
-
-  table.sort(scratches, function(k1, k2)
-    return k1.name < k2.name
-  end)
-
-  return {
-    {
-      id = "__master_scratchpad__",
-      name = "scratchpads",
-      type = "scratch",
-      children = scratches,
-    },
-  }
-end
-
----@param id scratch_id scratch id - name
-function Editor:set_active_scratch(id)
-  if not id or not self.scratches[id] then
-    error("no id specified!")
-  end
-  self.active_scratch = id
-end
-
----@return scratch_id # scratch id
-function Editor:get_active_scratch()
-  return self.active_scratch
 end
 
 ---@private
@@ -223,8 +92,11 @@ function Editor:generate_keymap(mappings)
   return {
     {
       action = function()
-        local bnr = self.scratches[self.active_scratch].bufnr
-        local lines = vim.api.nvim_buf_get_lines(bnr, 0, -1, false)
+        if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
+          return
+        end
+        local bufnr = vim.api.nvim_win_get_buf(self.winid)
+        local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
         local query = table.concat(lines, "\n")
 
         local conn = self.handler:get_current_connection()
@@ -255,72 +127,357 @@ function Editor:generate_keymap(mappings)
   }
 end
 
-function Editor:open()
-  -- each scratchpad is it's own buffer, so we can ignore ui's bufnr
-  local winid, _ = self.ui:open()
-
-  vim.api.nvim_set_current_win(winid)
-
-  -- get current scratch details
-  local id = self.active_scratch
-  local s = self.scratches[id]
-  if not s then
-    error("no scratchpad selected")
-  end
-
-  local bufnr
-  -- if file doesn't exist, open new buffer and update list on save
-  if vim.fn.filereadable(s.file) ~= 1 then
-    bufnr = s.bufnr or vim.api.nvim_create_buf(true, false)
-    vim.api.nvim_win_set_buf(winid, bufnr)
-
-    -- automatically fill the name of the file when saving for the first time
-    vim.keymap.set("c", "w", function()
-      return "w " .. self.scratches[id].file
-    end, { noremap = true, nowait = true, buffer = bufnr, expr = true })
-    vim.api.nvim_create_autocmd("BufWritePost", {
-      once = true,
-      callback = function()
-        -- remove mapping and update filename on write
-        pcall(vim.keymap.del, "c", "w", { buffer = bufnr })
-
-        -- it's possible that multiple autocmds get registered
-        if not self.scratches[id] then
-          return
-        end
-        local n = vim.api.nvim_buf_get_name(bufnr)
-        if n and n ~= "" then
-          self.scratches[id].file = vim.api.nvim_buf_get_name(bufnr)
-          self.scratches[id].type = "file"
-        end
-      end,
-    })
-  else
-    -- just open the file
-    bufnr = s.bufnr or vim.api.nvim_create_buf(true, false)
-    vim.api.nvim_win_set_buf(winid, bufnr)
-    vim.cmd("e " .. s.file)
-  end
-
-  -- set keymaps ui's keymaps
-  self.ui:set_buffer(bufnr)
-  self.ui:configure_mappings()
-
-  self.scratches[self.active_scratch].bufnr = bufnr
-
-  -- set options
-  local buf_opts = {
-    buflisted = false,
-    swapfile = false,
-    filetype = "sql",
-  }
-  for opt, val in pairs(buf_opts) do
-    vim.api.nvim_buf_set_option(bufnr, opt, val)
+---@private
+---@param event editor_event_name
+---@param data any
+function Editor:trigger_event(event, data)
+  local cbs = self.event_callbacks[event] or {}
+  for _, cb in ipairs(cbs) do
+    cb(data)
   end
 end
 
-function Editor:close()
-  self.ui:close()
+---@param event editor_event_name
+---@param listener editor_event_listener
+function Editor:register_event_listener(event, listener)
+  self.event_callbacks[event] = self.event_callbacks[event] or {}
+  table.insert(self.event_callbacks[event], listener)
+end
+
+---@private
+---@param namespace string
+---@return string
+function Editor:dir(namespace)
+  return self.directory .. "/" .. namespace
+end
+
+---@private
+---@param id namespace_id
+---@param name string name to check
+---@return boolean # true - conflict, false - no conflict
+function Editor:namespace_check_conflict(id, name)
+  local notes = self.notes[id] or {}
+  for _, note in pairs(notes) do
+    if note.name == name then
+      return true
+    end
+  end
+  return false
+end
+
+---@private
+---@param id note_id
+---@return note_details?
+---@return namespace_id namespace
+function Editor:get_note(id)
+  for namespace, per_namespace in pairs(self.notes) do
+    for _, note in pairs(per_namespace) do
+      if note.id == id then
+        return note, namespace
+      end
+    end
+  end
+  return nil, ""
+end
+
+---@private
+---@param bufnr integer
+---@return note_details?
+---@return namespace_id namespace
+function Editor:get_note_by_buf(bufnr)
+  for namespace, per_namespace in pairs(self.notes) do
+    for _, note in pairs(per_namespace) do
+      if note.bufnr and note.bufnr == bufnr then
+        return note, namespace
+      end
+    end
+  end
+  return nil, ""
+end
+
+-- Creates a new note in namespace.
+-- Errors if id or name is nil or there is a note with the same
+-- name in namespace already.
+---@param id namespace_id
+---@param name string
+---@return note_id
+function Editor:namespace_create_note(id, name)
+  local namespace = id
+  if not namespace or namespace == "" then
+    error("invalid namespace id")
+  end
+  if not name or name == "" then
+    error("no name for global note")
+  end
+
+  if not vim.endswith(name, ".sql") then
+    name = name .. ".sql"
+  end
+
+  -- create namespace directory
+  vim.fn.mkdir(self:dir(namespace), "p")
+
+  if self:namespace_check_conflict(namespace, name) then
+    error('note with this name already exists in "' .. namespace .. '" namespace')
+  end
+
+  local file = self:dir(namespace) .. "/" .. name
+  local note_id = file .. tostring(os.clock())
+  ---@type note_details
+  local s = {
+    id = note_id,
+    name = name,
+    file = file,
+  }
+
+  self.notes[namespace] = self.notes[namespace] or {}
+  self.notes[namespace][note_id] = s
+
+  self:trigger_event("note_created", { note = s })
+
+  return note_id
+end
+
+---@param id namespace_id
+---@return note_details[]
+function Editor:namespace_get_notes(id)
+  local namespace = id
+  if not namespace or namespace == "" then
+    error("invalid namespace id")
+  end
+
+  local notes = vim.tbl_values(self.notes[namespace] or {})
+
+  table.sort(notes, function(k1, k2)
+    return k1.name < k2.name
+  end)
+  return notes
+end
+
+-- Removes an existing note.
+-- Errors if there is no note with provided id in namespace.
+---@param id namespace_id
+---@param note_id note_id
+function Editor:namespace_remove_note(id, note_id)
+  local namespace = id
+  if not self.notes[namespace] then
+    error("invalid namespace id to remove the note from")
+  end
+
+  local note = self.notes[namespace][note_id]
+  if not note then
+    error("invalid note id to remove")
+  end
+
+  -- delete file
+  vim.fn.delete(note.file)
+
+  -- delete record
+  self.notes[namespace][note_id] = nil
+
+  self:trigger_event("note_removed", { note_id = note_id })
+end
+
+-- Renames an existing note.
+-- Errors if no name or id provided, there is no note with provided id or
+-- there is already an existing note with the same name in the same namespace.
+---@param id note_id
+---@param name string new name
+function Editor:note_rename(id, name)
+  local note, namespace = self:get_note(id)
+  if not note then
+    error("invalid note id to rename")
+  end
+  if not name or name == "" then
+    error("invalid name")
+  end
+
+  if not vim.endswith(name, ".sql") then
+    name = name .. ".sql"
+  end
+
+  if self:namespace_check_conflict(namespace, name) then
+    error('note with this name already exists in "' .. namespace .. '" namespace')
+  end
+
+  local new_file = self:dir(namespace) .. "/" .. name
+
+  -- rename file
+  if vim.fn.filereadable(note.file) == 1 then
+    vim.fn.rename(note.file, new_file)
+  end
+
+  -- rename buffer
+  if note.bufnr and vim.api.nvim_buf_get_name(note.bufnr) == note.file then
+    vim.api.nvim_buf_set_name(note.bufnr, new_file)
+  end
+
+  -- save changes
+  self.notes[namespace][id].file = new_file
+  self.notes[namespace][id].name = name
+
+  self:trigger_event("note_state_changed", { note = self.notes[namespace][id] })
+end
+
+---@return note_details?
+function Editor:get_current_note()
+  local note, _ = self:get_note(self.current_note_id)
+  return note
+end
+
+-- Sets note with id as the current note
+-- and opens it in the window
+---@param id note_id
+function Editor:set_current_note(id)
+  if id and self.current_note_id == id then
+    self:display_note(id)
+    return
+  end
+
+  local note, _ = self:get_note(id)
+  if not note then
+    error("invalid note set as current")
+  end
+
+  self.current_note_id = id
+
+  self:display_note(id)
+
+  self:trigger_event("current_note_changed", { note_id = id })
+end
+
+---@private
+---@param id note_id
+function Editor:display_note(id)
+  if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
+    return
+  end
+
+  local note, namespace = self:get_note(id)
+  if not note then
+    return
+  end
+
+  -- if buffer is configured, just open it
+  if note.bufnr and vim.api.nvim_buf_is_valid(note.bufnr) then
+    vim.api.nvim_win_set_buf(self.winid, note.bufnr)
+    vim.api.nvim_set_current_win(self.winid)
+    return
+  end
+
+  -- otherwise open a file and update note's buffer
+  vim.api.nvim_set_current_win(self.winid)
+  vim.cmd("e " .. note.file)
+
+  local bufnr = vim.api.nvim_get_current_buf()
+  self.notes[namespace][id].bufnr = bufnr
+
+  -- configure options on new buffer
+  ui_helper.configure_buffer_options(bufnr, {
+    buflisted = false,
+    swapfile = false,
+    filetype = "sql",
+  })
+end
+
+---@private
+---@param winid integer
+function Editor:configure_autocommands(winid)
+  if self.configured_autocmd_windows[winid] then
+    return
+  end
+
+  -- remove current note if another buffer is opened in the window
+  -- and set current note if any known note is opened in the window.
+  utils.create_window_autocmd({ "BufWinEnter" }, winid, function(event)
+    if not self.current_note_id then
+      local note, _ = self:get_note_by_buf(event.buf)
+      if note then
+        self.current_note_id = note.id
+        self:trigger_event("current_note_changed", { note_id = note.id })
+      end
+      return
+    end
+
+    local note, _ = self:get_note(self.current_note_id)
+    if not note then
+      self.current_note_id = nil
+      self:trigger_event("current_note_changed", { note_id = nil })
+      return
+    end
+
+    if not note.bufnr or note.bufnr ~= event.buf then
+      self.current_note_id = nil
+      self:trigger_event("current_note_changed", { note_id = nil })
+      return
+    end
+  end)
+
+  self.configured_autocmd_windows[winid] = true
+end
+
+---@private
+---@return note_id
+function Editor:create_welcome_note()
+  local note_id = self:namespace_create_note("global", "welcome")
+  local note = self:get_note(note_id)
+  if not note then
+    error("failed creating welcome note")
+  end
+
+  -- TODO: nicer text
+  local text = {
+    "",
+    "",
+    "",
+    "Welcome to DBee!",
+  }
+
+  -- create note buffer with contents
+  local bufnr = vim.api.nvim_create_buf(false, false)
+  vim.api.nvim_buf_set_name(bufnr, note.file)
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, text)
+  vim.api.nvim_buf_set_option(bufnr, "modified", false)
+
+  self.notes["global"][note_id].bufnr = bufnr
+
+  -- remove all text when first change happens to text
+  vim.api.nvim_create_autocmd({ "InsertEnter" }, {
+    once = true,
+    buffer = bufnr,
+    callback = function()
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, {})
+      vim.api.nvim_buf_set_option(bufnr, "modified", false)
+    end,
+  })
+
+  return note_id
+end
+
+---@param winid integer
+function Editor:show(winid)
+  self.winid = winid
+  self:configure_autocommands(winid)
+
+  ui_helper.configure_window_mappings(winid, self:generate_keymap(self.mappings))
+  ui_helper.configure_window_quit_handle(winid, self.quit_handle)
+
+  -- open current note if configured
+  if self.current_note_id then
+    self:display_note(self.current_note_id)
+    return
+  end
+
+  -- else show the first global note
+  local notes = self:namespace_get_notes("global")
+  if not vim.tbl_isempty(notes) then
+    self:set_current_note(notes[1].id)
+    return
+  end
+
+  -- otherwise create a welcome note in global namespace
+  local note_id = self:create_welcome_note()
+  self:set_current_note(note_id)
 end
 
 return Editor

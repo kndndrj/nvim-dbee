@@ -1,6 +1,7 @@
 local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
 local utils = require("dbee.utils")
+local ui_helper = require("dbee.ui_helper")
 local menu = require("dbee.drawer.menu")
 local convert = require("dbee.drawer.convert")
 
@@ -12,7 +13,7 @@ local convert = require("dbee.drawer.convert")
 ---@class Layout
 ---@field id string unique identifier
 ---@field name string display name
----@field type ""|"table"|"history"|"scratch"|"connection"|"database_switch"|"add"|"edit"|"remove"|"help"|"source"|"view" type of layout
+---@field type ""|"table"|"history"|"note"|"connection"|"database_switch"|"add"|"edit"|"remove"|"help"|"source"|"view" type of layout
 ---@field schema? string parent schema
 ---@field database? string parent database
 ---@field pick_title? string if present, it's used as a title for pick list
@@ -30,7 +31,6 @@ local convert = require("dbee.drawer.convert")
 ---@alias drawer_config { disable_candies: boolean, candies: table<string, Candy>, mappings: table<string, mapping>, disable_help: boolean }
 
 ---@class Drawer
----@field private ui Ui
 ---@field private tree NuiTree
 ---@field private handler Handler
 ---@field private editor Editor
@@ -38,21 +38,22 @@ local convert = require("dbee.drawer.convert")
 ---@field private mappings table<string, mapping>
 ---@field private candies table<string, Candy> map of eye-candy stuff (icons, highlight)
 ---@field private disable_help boolean show help or not
----@field private current_conn_id conn_id current active connection
+---@field private winid? integer
+---@field private bufnr integer
+---@field private quit_handle fun() function that closes the whole ui
+---@field private current_conn_id? conn_id current active connection
+---@field private current_note_id? note_id current active note
 local Drawer = {}
 
----@param ui Ui
 ---@param handler Handler
 ---@param editor Editor
 ---@param result Result
+---@param quit_handle? fun()
 ---@param opts? drawer_config
 ---@return Drawer
-function Drawer:new(ui, handler, editor, result, opts)
+function Drawer:new(handler, editor, result, quit_handle, opts)
   opts = opts or {}
 
-  if not ui then
-    error("no Ui provided to Drawer")
-  end
   if not handler then
     error("no Handler provided to Drawer")
   end
@@ -68,26 +69,44 @@ function Drawer:new(ui, handler, editor, result, opts)
     candies = opts.candies or {}
   end
 
+  local current_conn = handler:get_current_connection() or {}
+  local current_note = editor:get_current_note() or {}
+
   -- class object
   local o = {
-    ui = ui,
-    tree = nil,
     handler = handler,
     editor = editor,
     result = result,
     mappings = opts.mappings or {},
     candies = candies,
     disable_help = opts.disable_help or false,
-    current_conn_id = "",
+    quit_handle = quit_handle or function() end,
+    current_conn_id = current_conn.id,
+    current_note_id = current_note.id,
   }
   setmetatable(o, self)
   self.__index = self
 
-  -- set keymaps
-  o.ui:set_keymap(o:generate_keymap(opts.mappings))
+  -- create a buffer for drawer and configure it
+  o.bufnr = ui_helper.create_blank_buffer("dbee-drawer", {
+    buflisted = false,
+    bufhidden = "delete",
+    buftype = "nofile",
+    swapfile = false,
+  })
+  ui_helper.configure_buffer_mappings(o.bufnr, o:generate_keymap(opts.mappings))
+  ui_helper.configure_buffer_quit_handle(o.bufnr, o.quit_handle)
 
+  -- create tree
+  o.tree = o:create_tree(o.bufnr)
+
+  -- listen to events
   handler:register_event_listener("current_connection_changed", function(data)
     o:on_current_connection_changed(data)
+  end)
+
+  editor:register_event_listener("current_note_changed", function(data)
+    o:on_current_note_changed(data)
   end)
 
   return o
@@ -101,6 +120,17 @@ function Drawer:on_current_connection_changed(data)
     return
   end
   self.current_conn_id = data.conn_id
+  self:refresh()
+end
+
+-- event listener for current note change
+---@private
+---@param data { note_id: note_id }
+function Drawer:on_current_note_changed(data)
+  if self.current_note_id == data.note_id then
+    return
+  end
+  self.current_note_id = data.note_id
   self:refresh()
 end
 
@@ -143,8 +173,8 @@ function Drawer:create_tree(bufnr)
         line:append(" " .. candy.icon .. " ", candy.icon_highlight)
       end
 
-      -- apply a special highlight for active connection and active scratchpad
-      if node.id == self.current_conn_id or self.editor:get_active_scratch() == node.id then
+      -- apply a special highlight for active connection and active note
+      if node.id == self.current_conn_id or self.current_note_id == node.id then
         line:append(node.name, candy.icon_highlight)
       else
         line:append(node.name, candy.text_highlight)
@@ -217,7 +247,7 @@ function Drawer:generate_keymap(mappings)
         pick_items = node.pick_items()
       end
 
-      menu.open(self.ui:window(), pick_items --[[@as string[] ]], function(selection)
+      menu.open(self.winid, pick_items --[[@as string[] ]], function(selection)
         func(function()
           self:refresh()
         end, selection)
@@ -231,9 +261,7 @@ function Drawer:generate_keymap(mappings)
 
   return {
     {
-      action = function()
-        self.ui:quit_all()
-      end,
+      action = self.quit_handle,
       mapping = mappings["quit"],
     },
     {
@@ -373,7 +401,10 @@ function Drawer:refresh()
   -- assemble tree layout
   ---@type Layout[]
   local layouts = {}
-  for _, ly in ipairs(self.editor:layout()) do
+  local editor_layout = convert.editor_layout(self.editor, self.current_conn_id, function()
+    self:refresh()
+  end)
+  for _, ly in ipairs(editor_layout) do
     table.insert(layouts, ly)
   end
   table.insert(layouts, convert.separator())
@@ -383,7 +414,7 @@ function Drawer:refresh()
 
   if not self.disable_help then
     table.insert(layouts, convert.separator())
-    table.insert(layouts, convert.layout_help(self.mappings))
+    table.insert(layouts, convert.help_layout(self.mappings))
   end
 
   self:set_layout(layouts)
@@ -391,23 +422,22 @@ function Drawer:refresh()
   self.tree:render()
 end
 
--- Show drawer on screen
-function Drawer:open()
-  local _, bufnr = self.ui:open()
+---@param winid integer
+function Drawer:show(winid)
+  self.winid = winid
 
-  -- tree
-  if not self.tree then
-    self.tree = self:create_tree(bufnr)
-    self:refresh()
-  end
+  -- configure window options
+  ui_helper.configure_window_options(self.winid, {
+    wrap = false,
+    winfixheight = true,
+    winfixwidth = true,
+    number = false,
+  })
 
-  self.tree.bufnr = bufnr
+  -- set buffer to window
+  vim.api.nvim_win_set_buf(self.winid, self.bufnr)
 
-  self.tree:render()
-end
-
-function Drawer:close()
-  self.ui:close()
+  self:refresh()
 end
 
 return Drawer

@@ -1,40 +1,26 @@
-local layout = require("dbee.utils").layout
 local spinners = require("dbee.progress").spinners
 
 local M = {}
-local m = {}
 
----@alias mapping { key: string, mode: string }|{ key: string, mode: string }[]
----@alias wincmd string|fun():integer
-
----@class UiConfig
----@field window_commands { editor: wincmd, drawer: wincmd, result: wincmd, call_log: wincmd }
----@field window_open_order string[] example: { "result", "editor", "drawer", "call_log" } - in which order are the windows open
----@field pre_open_hook fun() execute this before opening ui
----@field post_open_hook fun() execute this after opening ui
----@field pre_close_hook fun() execute this before closing ui
----@field post_close_hook fun() execute this after closing ui
+---@alias mapping { key: string, mode: string, opts: table }|{ key: string, mode: string, opts: table }[]
+---@alias keymap { action: fun(), mapping: mapping }
 
 -- configuration object
 ---@class Config
 ---@field sources Source[] list of connection sources
 ---@field extra_helpers table<string, table_helpers> extra table helpers to provide besides built-ins. example: { postgres = { List = "select..." }
----@field lazy boolean lazy load the plugin or not?
 ---@field page_size integer
 ---@field progress_bar progress_config
 ---@field drawer drawer_config
 ---@field editor editor_config
 ---@field result result_config
 ---@field call_log call_log_config
----@field ui UiConfig
+---@field window_layout WindowLayout
 
 -- default configuration
 ---@type Config
 -- DOCGEN_START
 M.default = {
-  -- lazy load the plugin or not?
-  lazy = false,
-
   -- loads connections from files and environment variables
   sources = {
     require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
@@ -58,11 +44,11 @@ M.default = {
       -- manually refresh drawer
       refresh = { key = "r", mode = "n" },
       -- actions perform different stuff depending on the node:
-      -- action_1 opens a scratchpad or executes a helper
+      -- action_1 opens a note or executes a helper
       action_1 = { key = "<CR>", mode = "n" },
-      -- action_2 renames a scratchpad or sets the connection as active manually
+      -- action_2 renames a note or sets the connection as active manually
       action_2 = { key = "cw", mode = "n" },
-      -- action_3 deletes a scratchpad or connection (removes connection from the file if you configured it like so)
+      -- action_3 deletes a note or connection (removes connection from the file if you configured it like so)
       action_3 = { key = "dd", mode = "n" },
       -- these are self-explanatory:
       -- collapse = { key = "c", mode = "n" },
@@ -78,7 +64,7 @@ M.default = {
         icon_highlight = "Constant",
         text_highlight = "",
       },
-      scratch = {
+      note = {
         icon = "",
         icon_highlight = "Character",
         text_highlight = "",
@@ -247,52 +233,32 @@ M.default = {
     },
   },
 
-  -- general UI config
-  -- Default configuration uses a "layout" helper to save the existing ui before opening any windows,
-  -- then makes a new empty window for the editor and then opens result and drawer.
-  -- When later calling dbee.close(), the previously saved layout is restored.
-  -- NOTE: "m" is just a global object - nothing special about it - you might as well just use global vars.
-  --
-  -- You can probably do anything you imagine with this - for example all floating windows, tiled/floating mix etc.
-  ui = {
-    -- commands that opens the window if the window is closed - for drawer/editor/result
-    -- string or function
-    window_commands = {
-      editor = function()
-        vim.cmd("new")
-        layout.make_only(0)
-        m.tmp_buf = vim.api.nvim_get_current_buf()
-        return vim.api.nvim_get_current_win()
-      end,
-      result = "bo 15split",
-      drawer = function()
-        vim.cmd("to 40vsplit")
-        m.drawer_win = vim.api.nvim_get_current_win()
-        return m.drawer_win
-      end,
-      call_log = "belowright 15split",
-    },
-    -- how to open windows in order (with specified "window_command"s -- see above)
-    window_open_order = { "editor", "result", "drawer", "call_log" },
-
-    -- hooks before/after dbee.open()/.close()
-    pre_open_hook = function()
-      -- save layout before opening ui
-      m.egg = layout.save()
-    end,
-    post_open_hook = function()
-      -- delete temporary editor buffer
-      vim.cmd("bd " .. m.tmp_buf)
-      -- set cursor to drawer
-      vim.api.nvim_set_current_win(m.drawer_win)
-    end,
-    pre_close_hook = function() end,
-    post_close_hook = function()
-      layout.restore(m.egg)
-      m.egg = nil
-    end,
-  },
+  -- window layout
+  window_layout = require("dbee.layouts").Default:new(),
 }
 -- DOCGEN_END
+
+-- Validates provided input config
+---@param cfg Config
+function M.validate(cfg)
+  vim.validate {
+    sources = { cfg.sources, "table" },
+    extra_helpers = { cfg.extra_helpers, "table" },
+
+    drawer_disable_candies = { cfg.drawer.disable_candies, "boolean" },
+    drawer_disable_help = { cfg.drawer.disable_help, "boolean" },
+    drawer_candies = { cfg.drawer.candies, "table" },
+    drawer_mappings = { cfg.drawer.mappings, "table" },
+    result_page_size = { cfg.result.page_size, "number" },
+    result_progress = { cfg.result.progress, "table" },
+    result_mappings = { cfg.result.mappings, "table" },
+    editor_mappings = { cfg.editor.mappings, "table" },
+    call_log_mappings = { cfg.call_log.mappings, "table" },
+
+    window_layout = { cfg.window_layout, "table" },
+    window_layout_open = { cfg.window_layout.open, "function" },
+    window_layout_close = { cfg.window_layout.close, "function" },
+  }
+end
 
 return M

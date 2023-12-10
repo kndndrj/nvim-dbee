@@ -1,7 +1,6 @@
 local M = {}
 
 -- submodules exposed through here
-M.layout = require("dbee.utils.layout")
 M.once = require("dbee.utils.once")
 
 -- Get random key from table
@@ -96,6 +95,33 @@ function M.get_function_param_number(fun)
   end
 
   return info.nparams or 0
+end
+
+-- create an autocmd that is associated with a window rather than a buffer.
+---@param events string[]
+---@param winid integer
+---@param callback fun(e: table)
+function M.create_window_autocmd(events, winid, callback)
+  if not events or not winid then
+    return
+  end
+  callback = callback or function() end
+
+  vim.api.nvim_create_autocmd(events, {
+    callback = function(event)
+      -- remove autocmd if window is closed
+      if not vim.api.nvim_win_is_valid(winid) then
+        vim.api.nvim_del_autocmd(event.id)
+        return
+      end
+
+      local wid = vim.fn.bufwinid(event.buf or -1)
+      if wid ~= winid then
+        return
+      end
+      callback(event)
+    end,
+  })
 end
 
 return M

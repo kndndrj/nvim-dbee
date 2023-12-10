@@ -1,12 +1,14 @@
 local utils = require("dbee.utils")
 local progress = require("dbee.progress")
+local ui_helper = require("dbee.ui_helper")
 
 ---@alias result_config { mappings: table<string, mapping>, page_size: integer, progress: progress_config }
 
 -- Result represents the part of ui with displayed results
 ---@class Result
----@field private ui Ui
 ---@field private handler Handler
+---@field private winid? integer
+---@field private bufnr integer
 ---@field private current_call call_details
 ---@field private page_size integer
 ---@field private page_index integer index of the current page
@@ -15,23 +17,20 @@ local progress = require("dbee.progress")
 ---@field private progress_opts progress_config
 local Result = {}
 
----@param ui Ui
 ---@param handler Handler
+---@param quit_handle? fun()
 ---@param opts? result_config
 ---@return Result
-function Result:new(ui, handler, opts)
+function Result:new(handler, quit_handle, opts)
   opts = opts or {}
+  quit_handle = quit_handle or function() end
 
   if not handler then
     error("no Handler passed to Result")
   end
-  if not ui then
-    error("no Ui passed to Result")
-  end
 
   -- class object
   local o = {
-    ui = ui,
     handler = handler,
     current_call = {},
     page_size = opts.page_size or 100,
@@ -43,8 +42,15 @@ function Result:new(ui, handler, opts)
   setmetatable(o, self)
   self.__index = self
 
-  -- set keymaps
-  o.ui:set_keymap(o:generate_keymap(opts.mappings))
+  -- create a buffer for drawer and configure it
+  o.bufnr = ui_helper.create_blank_buffer("dbee-result", {
+    buflisted = false,
+    bufhidden = "delete",
+    buftype = "nofile",
+    swapfile = false,
+  })
+  ui_helper.configure_buffer_mappings(o.bufnr, o:generate_keymap(opts.mappings))
+  ui_helper.configure_buffer_quit_handle(o.bufnr, quit_handle)
 
   handler:register_event_listener("call_state_changed", function(data)
     o:on_call_state_changed(data)
@@ -84,7 +90,7 @@ end
 
 ---@private
 function Result:display_progress()
-  self.stop_progress = progress.display(self.ui:buffer(), self.progress_opts)
+  self.stop_progress = progress.display(self.bufnr, self.progress_opts)
 end
 
 ---@private
@@ -102,7 +108,7 @@ function Result:display_status()
 
   local seconds = self.current_call.time_taken_us / 1000000
   local line = string.format("%s after %.3f seconds", msg, seconds)
-  vim.api.nvim_buf_set_lines(self.ui:buffer(), 0, -1, false, { line })
+  vim.api.nvim_buf_set_lines(self.bufnr, 0, -1, false, { line })
 end
 
 --- Displays a page of the current result in the results buffer
@@ -120,11 +126,8 @@ function Result:display_result(page)
   local from = self.page_size * page
   local to = self.page_size * (page + 1)
 
-  -- open ui window
-  local winid, bufnr = self.ui:open()
-
   -- call go function
-  local length = self.handler:call_display_result(self.current_call.id, bufnr, from, to)
+  local length = self.handler:call_display_result(self.current_call.id, self.bufnr, from, to)
 
   -- adjust page ammount
   self.page_ammount = math.floor(length / self.page_size)
@@ -136,11 +139,13 @@ function Result:display_result(page)
   local seconds = self.current_call.time_taken_us / 1000000
 
   -- set winbar status
-  vim.api.nvim_win_set_option(
-    winid,
-    "winbar",
-    string.format("%d/%d%%=Took %.3fs", page + 1, self.page_ammount + 1, seconds)
-  )
+  if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
+    vim.api.nvim_win_set_option(
+      self.winid,
+      "winbar",
+      string.format("%d/%d%%=Took %.3fs", page + 1, self.page_ammount + 1, seconds)
+    )
+  end
 
   return page
 end
@@ -211,7 +216,7 @@ function Result:set_call(call)
   self.page_ammount = 0
   self.current_call = call
 
-  -- TODO: stop progress
+  self.stop_progress()
 end
 
 function Result:page_current()
@@ -276,6 +281,7 @@ function Result:store_all_wrapper(format, output, arg)
   self.handler:call_store_result(self.current_call.id, format, output, { extra_arg = arg })
 end
 
+---@private
 ---@return number # index of the current row
 function Result:current_row_index()
   -- get position of the current line identifier
@@ -285,7 +291,7 @@ function Result:current_row_index()
   end
 
   -- get the line and extract the line number
-  local line = vim.api.nvim_buf_get_lines(self.ui:buffer(), row - 1, row, true)[1] or ""
+  local line = vim.api.nvim_buf_get_lines(self.bufnr, row - 1, row, true)[1] or ""
 
   local index = line:match("%d+")
   if not index then
@@ -294,9 +300,13 @@ function Result:current_row_index()
   return index
 end
 
+---@private
 ---@return number # number of the first row
 ---@return number # number of the last row
 function Result:current_row_range()
+  if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
+    error("result cannot operate without a valid window")
+  end
   -- get current selection
   local srow, _, erow, _ = utils.visual_selection()
 
@@ -304,7 +314,7 @@ function Result:current_row_range()
   erow = erow + 1
 
   -- save cursor position
-  local cursor_position = vim.fn.getcurpos(self.ui:window())
+  local cursor_position = vim.fn.getcurpos(self.winid)
 
   -- reposition the cursor
   vim.fn.cursor(srow, 1)
@@ -315,7 +325,7 @@ function Result:current_row_range()
   end
 
   -- get the selected line and extract the line number
-  local line = vim.api.nvim_buf_get_lines(self.ui:buffer(), row - 1, row, true)[1] or ""
+  local line = vim.api.nvim_buf_get_lines(self.bufnr, row - 1, row, true)[1] or ""
 
   local index_start = line:match("%d+")
   if not index_start then
@@ -330,7 +340,7 @@ function Result:current_row_range()
     error("couldn't retrieve end row number: row = 0")
   end
   -- get the selected line and extract the line number
-  line = vim.api.nvim_buf_get_lines(self.ui:buffer(), row - 1, row, true)[1] or ""
+  line = vim.api.nvim_buf_get_lines(self.bufnr, row - 1, row, true)[1] or ""
 
   local index_end = tonumber(line:match("%d+"))
   if not index_end then
@@ -343,12 +353,19 @@ function Result:current_row_range()
   return index_start, index_end
 end
 
-function Result:open()
-  self.ui:open()
-end
+---@param winid integer
+function Result:show(winid)
+  self.winid = winid
 
-function Result:close()
-  self.ui:close()
+  -- configure window options
+  ui_helper.configure_window_options(self.winid, {
+    wrap = false,
+    winfixheight = true,
+    winfixwidth = true,
+    number = false,
+  })
+
+  vim.api.nvim_win_set_buf(self.winid, self.bufnr)
 end
 
 return Result

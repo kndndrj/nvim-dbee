@@ -2,18 +2,22 @@ local NuiMenu = require("nui.menu")
 
 local M = {}
 
----@param winid integer window id
+---@param relative_winid integer window id
 ---@param items string[] items to select from
 ---@param on_select fun(item: string) selection callback
 ---@param title string
-function M.open(winid, items, on_select, title)
-  local width = vim.api.nvim_win_get_width(winid)
-  local row, _ = unpack(vim.api.nvim_win_get_cursor(winid))
+function M.open(relative_winid, items, on_select, title)
+  if not relative_winid or not vim.api.nvim_win_is_valid(relative_winid) then
+    error("no window id provided")
+  end
+
+  local width = vim.api.nvim_win_get_width(relative_winid)
+  local row, _ = unpack(vim.api.nvim_win_get_cursor(relative_winid))
 
   local popup_options = {
     relative = {
       type = "win",
-      winid = winid,
+      winid = relative_winid,
     },
     position = {
       row = row + 1,
