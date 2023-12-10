@@ -14,19 +14,14 @@ import (
 
 // Register client
 func init() {
-	c := func(url string) (core.Driver, error) {
-		return NewMysql(url)
-	}
-	_ = register(c, "mysql")
+	_ = register(&MySQL{}, "mysql")
 }
 
-var _ core.Driver = (*MySQL)(nil)
+var _ core.Adapter = (*MySQL)(nil)
 
-type MySQL struct {
-	sql *builders.Client
-}
+type MySQL struct{}
 
-func NewMysql(url string) (*MySQL, error) {
+func (m *MySQL) Connect(url string) (core.Driver, error) {
 	// add multiple statements support parameter
 	match, err := regexp.MatchString(`[\?][\w]+=[\w-]+`, url)
 	if err != nil {
@@ -42,12 +37,18 @@ func NewMysql(url string) (*MySQL, error) {
 		return nil, fmt.Errorf("unable to connect to mysql database: %v", err)
 	}
 
-	return &MySQL{
+	return &mySQLDriver{
 		sql: builders.NewClient(db),
 	}, nil
 }
 
-func (c *MySQL) Query(ctx context.Context, query string) (core.ResultStream, error) {
+var _ core.Driver = (*mySQLDriver)(nil)
+
+type mySQLDriver struct {
+	sql *builders.Client
+}
+
+func (c *mySQLDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	con, err := c.sql.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -78,7 +79,7 @@ func (c *MySQL) Query(ctx context.Context, query string) (core.ResultStream, err
 	return rows, err
 }
 
-func (c *MySQL) Structure() ([]*core.Structure, error) {
+func (c *mySQLDriver) Structure() ([]*core.Structure, error) {
 	query := `SELECT table_schema, table_name FROM information_schema.tables`
 
 	rows, err := c.Query(context.TODO(), query)
@@ -120,6 +121,6 @@ func (c *MySQL) Structure() ([]*core.Structure, error) {
 	return structure, nil
 }
 
-func (c *MySQL) Close() {
+func (c *mySQLDriver) Close() {
 	c.sql.Close()
 }

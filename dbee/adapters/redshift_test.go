@@ -13,7 +13,7 @@ func TestNewRedshift(t *testing.T) {
 		rawURL string
 	}
 	tests := []struct {
-		want    *Redshift
+		want    *redshiftDriver
 		name    string
 		args    args
 		wantErr bool
@@ -23,14 +23,14 @@ func TestNewRedshift(t *testing.T) {
 			args: args{
 				rawURL: "postgres://user:password@localhost:5432/dbname?sslmode=disable",
 			},
-			want: &Redshift{
+			want: &redshiftDriver{
 				c: &builders.Client{},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewRedshift(tt.args.rawURL)
+			got, err := new(Redshift).Connect(tt.args.rawURL)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("NewRedshift() error = %v, wantErr %v", err, tt.wantErr)
 				return

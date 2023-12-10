@@ -18,26 +18,17 @@ import (
 
 // Register client
 func init() {
-	c := func(url string) (core.Driver, error) {
-		return NewPostgres(url)
-	}
-	_ = register(c, "postgres", "postgresql", "pg")
+	_ = register(&Postgres{}, "postgres", "postgresql", "pg")
 
 	// register special json response with gob
 	gob.Register(&postgresJSONResponse{})
 }
 
-var (
-	_ core.Driver           = (*Postgres)(nil)
-	_ core.DatabaseSwitcher = (*Postgres)(nil)
-)
+var _ core.Adapter = (*Postgres)(nil)
 
-type Postgres struct {
-	c   *builders.Client
-	url *nurl.URL
-}
+type Postgres struct{}
 
-func NewPostgres(url string) (*Postgres, error) {
+func (p *Postgres) Connect(url string) (core.Driver, error) {
 	u, err := nurl.Parse(url)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse db connection string: %w: ", err)
@@ -57,7 +48,7 @@ func NewPostgres(url string) (*Postgres, error) {
 		return newPostgresJSONResponse(b)
 	}
 
-	return &Postgres{
+	return &postgresDriver{
 		c: builders.NewClient(db,
 			builders.WithCustomTypeProcessor("json", jsonProcessor),
 			builders.WithCustomTypeProcessor("jsonb", jsonProcessor),
@@ -66,7 +57,17 @@ func NewPostgres(url string) (*Postgres, error) {
 	}, nil
 }
 
-func (c *Postgres) Query(ctx context.Context, query string) (core.ResultStream, error) {
+var (
+	_ core.Driver           = (*postgresDriver)(nil)
+	_ core.DatabaseSwitcher = (*postgresDriver)(nil)
+)
+
+type postgresDriver struct {
+	c   *builders.Client
+	url *nurl.URL
+}
+
+func (c *postgresDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -104,7 +105,7 @@ func (c *Postgres) Query(ctx context.Context, query string) (core.ResultStream, 
 	return rows, nil
 }
 
-func (c *Postgres) Structure() ([]*core.Structure, error) {
+func (c *postgresDriver) Structure() ([]*core.Structure, error) {
 	query := `
 		SELECT table_schema, table_name, table_type FROM information_schema.tables UNION ALL
 		SELECT schemaname, matviewname, 'VIEW' FROM pg_matviews;
@@ -118,11 +119,11 @@ func (c *Postgres) Structure() ([]*core.Structure, error) {
 	return getPGStructure(rows)
 }
 
-func (c *Postgres) Close() {
+func (c *postgresDriver) Close() {
 	c.c.Close()
 }
 
-func (c *Postgres) ListDatabases() (current string, available []string, err error) {
+func (c *postgresDriver) ListDatabases() (current string, available []string, err error) {
 	query := `
 		SELECT current_database(), datname FROM pg_database
 		WHERE datistemplate = false
@@ -148,7 +149,7 @@ func (c *Postgres) ListDatabases() (current string, available []string, err erro
 	return current, available, nil
 }
 
-func (c *Postgres) SelectDatabase(name string) error {
+func (c *postgresDriver) SelectDatabase(name string) error {
 	c.url.Path = fmt.Sprintf("/%s", name)
 	db, err := sql.Open("postgres", c.url.String())
 	if err != nil {

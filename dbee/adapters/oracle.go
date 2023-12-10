@@ -14,30 +14,31 @@ import (
 
 // Register client
 func init() {
-	c := func(url string) (core.Driver, error) {
-		return NewOracle(url)
-	}
-	_ = register(c, "oracle")
+	_ = register(&Oracle{}, "oracle")
 }
 
-var _ core.Driver = (*Oracle)(nil)
+var _ core.Adapter = (*Oracle)(nil)
 
-type Oracle struct {
-	c *builders.Client
-}
+type Oracle struct{}
 
-func NewOracle(url string) (*Oracle, error) {
+func (o *Oracle) Connect(url string) (core.Driver, error) {
 	db, err := sql.Open("oracle", url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to oracle database: %v", err)
 	}
 
-	return &Oracle{
+	return &oracleDriver{
 		c: builders.NewClient(db),
 	}, nil
 }
 
-func (c *Oracle) Query(ctx context.Context, query string) (core.ResultStream, error) {
+var _ core.Driver = (*oracleDriver)(nil)
+
+type oracleDriver struct {
+	c *builders.Client
+}
+
+func (c *oracleDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -78,7 +79,7 @@ func (c *Oracle) Query(ctx context.Context, query string) (core.ResultStream, er
 	return rows, nil
 }
 
-func (c *Oracle) Structure() ([]*core.Structure, error) {
+func (c *oracleDriver) Structure() ([]*core.Structure, error) {
 	query := `
 		SELECT T.owner, T.table_name
 		FROM (
@@ -131,6 +132,6 @@ func (c *Oracle) Structure() ([]*core.Structure, error) {
 	return structure, nil
 }
 
-func (c *Oracle) Close() {
+func (c *oracleDriver) Close() {
 	c.c.Close()
 }

@@ -66,7 +66,7 @@ func (h *Handler) Close() {
 }
 
 func (h *Handler) CreateConnection(params *core.ConnectionParams) (core.ConnectionID, error) {
-	c, err := core.NewConnection(params, adapters.Adapter())
+	c, err := adapters.NewConnection(params)
 	if err != nil {
 		return "", fmt.Errorf("core.New: %w", err)
 	}

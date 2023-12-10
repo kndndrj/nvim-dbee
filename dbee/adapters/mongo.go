@@ -20,10 +20,7 @@ import (
 
 // Register client
 func init() {
-	c := func(url string) (core.Driver, error) {
-		return NewMongo(url)
-	}
-	_ = register(c, "mongo", "mongodb")
+	_ = register(&Mongo{}, "mongo", "mongodb")
 
 	// register known types with gob
 	// full list available in go.mongodb.org/.../bson godoc
@@ -46,17 +43,11 @@ func init() {
 	// gob.Register(primitive.Symbol)
 }
 
-var (
-	_ core.Driver           = (*Mongo)(nil)
-	_ core.DatabaseSwitcher = (*Mongo)(nil)
-)
+var _ core.Adapter = (*Mongo)(nil)
 
-type Mongo struct {
-	c      *mongo.Client
-	dbName string
-}
+type Mongo struct{}
 
-func NewMongo(rawURL string) (*Mongo, error) {
+func (m *Mongo) Connect(rawURL string) (core.Driver, error) {
 	// get database name from url
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -69,13 +60,23 @@ func NewMongo(rawURL string) (*Mongo, error) {
 		return nil, err
 	}
 
-	return &Mongo{
+	return &mongoDriver{
 		c:      client,
 		dbName: u.Path[1:],
 	}, nil
 }
 
-func (c *Mongo) getCurrentDatabase(ctx context.Context) (string, error) {
+var (
+	_ core.Driver           = (*mongoDriver)(nil)
+	_ core.DatabaseSwitcher = (*mongoDriver)(nil)
+)
+
+type mongoDriver struct {
+	c      *mongo.Client
+	dbName string
+}
+
+func (c *mongoDriver) getCurrentDatabase(ctx context.Context) (string, error) {
 	if c.dbName != "" {
 		return c.dbName, nil
 	}
@@ -92,7 +93,7 @@ func (c *Mongo) getCurrentDatabase(ctx context.Context) (string, error) {
 	return c.dbName, nil
 }
 
-func (c *Mongo) Query(ctx context.Context, query string) (core.ResultStream, error) {
+func (c *mongoDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	dbName, err := c.getCurrentDatabase(ctx)
 	if err != nil {
 		return nil, err
@@ -150,7 +151,7 @@ func (c *Mongo) Query(ctx context.Context, query string) (core.ResultStream, err
 	return result, nil
 }
 
-func (c *Mongo) Structure() ([]*core.Structure, error) {
+func (c *mongoDriver) Structure() ([]*core.Structure, error) {
 	ctx := context.Background()
 
 	dbName, err := c.getCurrentDatabase(ctx)
@@ -176,11 +177,11 @@ func (c *Mongo) Structure() ([]*core.Structure, error) {
 	return structure, nil
 }
 
-func (c *Mongo) Close() {
+func (c *mongoDriver) Close() {
 	_ = c.c.Disconnect(context.TODO())
 }
 
-func (c *Mongo) ListDatabases() (current string, available []string, err error) {
+func (c *mongoDriver) ListDatabases() (current string, available []string, err error) {
 	ctx := context.Background()
 
 	dbName, err := c.getCurrentDatabase(ctx)
@@ -205,7 +206,7 @@ func (c *Mongo) ListDatabases() (current string, available []string, err error) 
 	return dbName, all, nil
 }
 
-func (c *Mongo) SelectDatabase(name string) error {
+func (c *mongoDriver) SelectDatabase(name string) error {
 	c.dbName = name
 	return nil
 }

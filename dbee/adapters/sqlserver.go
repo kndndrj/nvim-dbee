@@ -17,25 +17,16 @@ import (
 
 // Register client
 func init() {
-	c := func(url string) (core.Driver, error) {
-		return NewSQLServer(url)
-	}
-	_ = register(c, "sqlserver", "mssql")
+	_ = register(&SQLServer{}, "sqlserver", "mssql")
 
 	gob.Register(uuid.UUID{})
 }
 
-var (
-	_ core.Driver           = (*SQLServer)(nil)
-	_ core.DatabaseSwitcher = (*SQLServer)(nil)
-)
+var _ core.Adapter = (*SQLServer)(nil)
 
-type SQLServer struct {
-	c   *builders.Client
-	url *nurl.URL
-}
+type SQLServer struct{}
 
-func NewSQLServer(url string) (*SQLServer, error) {
+func (s *SQLServer) Connect(url string) (core.Driver, error) {
 	u, err := nurl.Parse(url)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse db connection string: %w: ", err)
@@ -46,7 +37,7 @@ func NewSQLServer(url string) (*SQLServer, error) {
 		return nil, fmt.Errorf("unable to connect to sqlserver database: %v", err)
 	}
 
-	return &SQLServer{
+	return &sqlServerDriver{
 		c: builders.NewClient(db,
 			builders.WithCustomTypeProcessor(
 				"uniqueidentifier",
@@ -68,7 +59,17 @@ func NewSQLServer(url string) (*SQLServer, error) {
 	}, nil
 }
 
-func (c *SQLServer) Query(ctx context.Context, query string) (core.ResultStream, error) {
+var (
+	_ core.Driver           = (*sqlServerDriver)(nil)
+	_ core.DatabaseSwitcher = (*sqlServerDriver)(nil)
+)
+
+type sqlServerDriver struct {
+	c   *builders.Client
+	url *nurl.URL
+}
+
+func (c *sqlServerDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -99,7 +100,7 @@ func (c *SQLServer) Query(ctx context.Context, query string) (core.ResultStream,
 	return rows, err
 }
 
-func (c *SQLServer) Structure() ([]*core.Structure, error) {
+func (c *sqlServerDriver) Structure() ([]*core.Structure, error) {
 	query := `SELECT table_schema, table_name FROM INFORMATION_SCHEMA.TABLES`
 
 	rows, err := c.Query(context.TODO(), query)
@@ -141,11 +142,11 @@ func (c *SQLServer) Structure() ([]*core.Structure, error) {
 	return layout, nil
 }
 
-func (c *SQLServer) Close() {
+func (c *sqlServerDriver) Close() {
 	c.c.Close()
 }
 
-func (c *SQLServer) ListDatabases() (current string, available []string, err error) {
+func (c *sqlServerDriver) ListDatabases() (current string, available []string, err error) {
 	query := `
 		SELECT DB_NAME(), name
 		FROM sys.databases
@@ -171,7 +172,7 @@ func (c *SQLServer) ListDatabases() (current string, available []string, err err
 	return current, available, nil
 }
 
-func (c *SQLServer) SelectDatabase(name string) error {
+func (c *sqlServerDriver) SelectDatabase(name string) error {
 	q := c.url.Query()
 	q.Set("database", name)
 	c.url.RawQuery = q.Encode()

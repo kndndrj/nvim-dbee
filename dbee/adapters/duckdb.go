@@ -15,30 +15,31 @@ import (
 
 // Register client
 func init() {
-	c := func(url string) (core.Driver, error) {
-		return NewDuck(url)
-	}
-	_ = register(c, "duck", "duckdb")
+	_ = register(&Duck{}, "duck", "duckdb")
 }
 
-var _ core.Driver = (*Duck)(nil)
+var _ core.Adapter = (*Duck)(nil)
 
-type Duck struct {
-	c *builders.Client
-}
+type Duck struct{}
 
-func NewDuck(url string) (*Duck, error) {
+func (d *Duck) Connect(url string) (core.Driver, error) {
 	db, err := sql.Open("duckdb", url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to duckdb database: %v", err)
 	}
 
-	return &Duck{
+	return &duckDriver{
 		c: builders.NewClient(db),
 	}, nil
 }
 
-func (c *Duck) Query(ctx context.Context, query string) (core.ResultStream, error) {
+var _ core.Driver = (*duckDriver)(nil)
+
+type duckDriver struct {
+	c *builders.Client
+}
+
+func (c *duckDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -60,7 +61,7 @@ func (c *Duck) Query(ctx context.Context, query string) (core.ResultStream, erro
 	return rows, nil
 }
 
-func (c *Duck) Structure() ([]*core.Structure, error) {
+func (c *duckDriver) Structure() ([]*core.Structure, error) {
 	query := `SHOW TABLES;`
 
 	rows, err := c.Query(context.TODO(), query)
@@ -87,6 +88,6 @@ func (c *Duck) Structure() ([]*core.Structure, error) {
 	return schema, nil
 }
 
-func (c *Duck) Close() {
+func (c *duckDriver) Close() {
 	c.c.Close()
 }

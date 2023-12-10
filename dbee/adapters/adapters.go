@@ -12,26 +12,35 @@ var (
 	ErrUnsupportedTypeAlias = errors.New("no driver registered for provided type alias")
 )
 
-// creator creates a new driver instance
-type creator func(url string) (core.Driver, error)
+var _ core.Adapter = (*wrappedAdapter)(nil)
 
-// registeredCreators holds implemented driver types - specific drivers register themselves in their init functions.
-// The main reason is to be able to compile the binary without unsupported os/arch of specific drivers
-var registeredCreators = make(map[string]creator)
+// wrappedAdapter is returned from Mux and adds extra helpers to internal adapter.
+type wrappedAdapter struct {
+	adapter      core.Adapter
+	extraHelpers map[string]string
+}
 
-// register registers a new client by submitting a creator ("new") function
-func register(creator creator, aliases ...string) error {
+// registeredAdapters holds implemented adapters - specific adapters register themselves in their init functions.
+// The main reason is to be able to compile the binary without unsupported os/arch of specific drivers.
+var registeredAdapters = make(map[string]*wrappedAdapter)
+
+// register registers a new adapter for specific database
+func register(adapter core.Adapter, aliases ...string) error {
 	if len(aliases) < 1 {
 		return errNoValidTypeAliases
 	}
 
+	value := &wrappedAdapter{
+		adapter: adapter,
+	}
+
 	invalidCount := 0
-	for _, al := range aliases {
-		if al == "" {
+	for _, alias := range aliases {
+		if alias == "" {
 			invalidCount++
 			continue
 		}
-		registeredCreators[al] = creator
+		registeredAdapters[alias] = value
 	}
 
 	if invalidCount == len(aliases) {
@@ -41,24 +50,66 @@ func register(creator creator, aliases ...string) error {
 	return nil
 }
 
-var _ core.Adapter = (*DefaultAdapter)(nil)
+// Mux is an interface to all internal adapters.
+type Mux struct{}
 
-type DefaultAdapter struct{}
-
-func Adapter() *DefaultAdapter {
-	return &DefaultAdapter{}
-}
-
-func (*DefaultAdapter) Connect(typ string, url string) (core.Driver, error) {
-	creator, ok := registeredCreators[typ]
+func (*Mux) GetAdapter(typ string) (core.Adapter, error) {
+	value, ok := registeredAdapters[typ]
 	if !ok {
 		return nil, ErrUnsupportedTypeAlias
 	}
 
-	driver, err := creator(url)
-	if err != nil {
-		return nil, fmt.Errorf("creator: %w", err)
+	return value, nil
+}
+
+func (*Mux) AddAdapter(typ string, adapter core.Adapter) error {
+	return register(adapter, typ)
+}
+
+func (*Mux) AddHelpers(typ string, helpers map[string]string) error {
+	value, ok := registeredAdapters[typ]
+	if !ok {
+		return ErrUnsupportedTypeAlias
 	}
 
-	return driver, nil
+	// new helpers have priority
+	for k, v := range helpers {
+		value.extraHelpers[k] = v
+	}
+
+	return nil
+}
+
+func (wa *wrappedAdapter) Connect(url string) (core.Driver, error) {
+	return wa.adapter.Connect(url)
+}
+
+func (wa *wrappedAdapter) GetHelpers(opts *core.HelperOptions) map[string]string {
+	helpers := wa.adapter.GetHelpers(opts)
+	if helpers == nil {
+		helpers = make(map[string]string)
+	}
+
+	// extra helpers have priority
+	for k, v := range wa.extraHelpers {
+		helpers[k] = v
+	}
+
+	return helpers
+}
+
+// NewConnection is a wrapper around core.NewConnection that uses the internal mux for
+// adapter registration.
+func NewConnection(params *core.ConnectionParams) (*core.Connection, error) {
+	adapter, err := new(Mux).GetAdapter(params.Expand().Type)
+	if err != nil {
+		return nil, fmt.Errorf("Mux.GetAdapters: %w", err)
+	}
+
+	c, err := core.NewConnection(params, adapter)
+	if err != nil {
+		return nil, fmt.Errorf("core.NewConnection: %w", err)
+	}
+
+	return c, nil
 }

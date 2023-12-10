@@ -13,23 +13,14 @@ import (
 // init registers the RedshiftClient to the store,
 // i.e. to lua frontend.
 func init() {
-	c := func(url string) (core.Driver, error) {
-		return NewRedshift(url)
-	}
-	_ = register(c, "redshift")
+	_ = register(&Redshift{}, "redshift")
 }
 
-var _ core.Driver = (*Redshift)(nil)
+var _ core.Adapter = (*Redshift)(nil)
 
-// Redshift is a sql client for Redshift.
-// Mainly uses the postgres driver under the hood but with
-// custom Layout function to get the table and view names correctly.
-type Redshift struct {
-	c *builders.Client
-}
+type Redshift struct{}
 
-// NewRedshift creates a new RedshiftClient.
-func NewRedshift(rawURL string) (*Redshift, error) {
+func (r *Redshift) Connect(rawURL string) (core.Driver, error) {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse db connection string: %w: ", err)
@@ -40,13 +31,22 @@ func NewRedshift(rawURL string) (*Redshift, error) {
 		return nil, fmt.Errorf("unable to connect to postgres database: %w", err)
 	}
 
-	return &Redshift{
+	return &redshiftDriver{
 		c: builders.NewClient(db),
 	}, nil
 }
 
+var _ core.Driver = (*redshiftDriver)(nil)
+
+// redshiftDriver is a sql client for redshiftDriver.
+// Mainly uses the postgres driver under the hood but with
+// custom Layout function to get the table and view names correctly.
+type redshiftDriver struct {
+	c *builders.Client
+}
+
 // Query executes a query and returns the result as an IterResult.
-func (c *Redshift) Query(ctx context.Context, query string) (core.ResultStream, error) {
+func (c *redshiftDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (c *Redshift) Query(ctx context.Context, query string) (core.ResultStream, 
 }
 
 // Close closes the underlying sql.DB connection.
-func (c *Redshift) Close() {
+func (c *redshiftDriver) Close() {
 	// TODO: perhaps worth check err return statement here.
 	c.c.Close()
 }
@@ -77,7 +77,7 @@ func (c *Redshift) Close() {
 // Structure returns the layout of the database. This represents the
 // "schema" with all the tables and views. Note that ordering is not
 // done here. The ordering is done in the lua frontend.
-func (c *Redshift) Structure() ([]*core.Structure, error) {
+func (c *redshiftDriver) Structure() ([]*core.Structure, error) {
 	query := `
 		SELECT
 		trim(n.nspname) AS schema_name

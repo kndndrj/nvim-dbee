@@ -17,23 +17,14 @@ import (
 
 // Register client
 func init() {
-	c := func(url string) (core.Driver, error) {
-		return NewBigQuery(url)
-	}
-	_ = register(c, "bigquery")
+	_ = register(&BigQuery{}, "bigquery")
 }
 
-var _ core.Driver = (*BigQuery)(nil)
+var _ core.Adapter = (*BigQuery)(nil)
 
-type BigQuery struct {
-	c                 *bigquery.Client
-	location          string
-	maxBytesBilled    int64
-	disableQueryCache bool
-	useLegacySQL      bool
-}
+type BigQuery struct{}
 
-// NewBigQuery creates a [BigQuery] client connected to the project specified
+// Connect creates a [BigQuery] client connected to the project specified
 // in the url. The format of the url is as follows:
 //
 //	bigquery://[project][?options]
@@ -53,7 +44,7 @@ type BigQuery struct {
 //
 // If credentials are not explicitly specified, credentials will attempt
 // to be located according to the Google Default Credentials process.
-func NewBigQuery(rawURL string) (*BigQuery, error) {
+func (bq *BigQuery) Connect(rawURL string) (core.Driver, error) {
 	ctx := context.TODO()
 
 	u, err := url.Parse(rawURL)
@@ -84,7 +75,7 @@ func NewBigQuery(rawURL string) (*BigQuery, error) {
 		return nil, err
 	}
 
-	client := &BigQuery{
+	client := &bigQueryDriver{
 		c: bqc,
 	}
 
@@ -111,7 +102,17 @@ func NewBigQuery(rawURL string) (*BigQuery, error) {
 	return client, nil
 }
 
-func (c *BigQuery) Query(ctx context.Context, queryStr string) (core.ResultStream, error) {
+var _ core.Driver = (*bigQueryDriver)(nil)
+
+type bigQueryDriver struct {
+	c                 *bigquery.Client
+	location          string
+	maxBytesBilled    int64
+	disableQueryCache bool
+	useLegacySQL      bool
+}
+
+func (c *bigQueryDriver) Query(ctx context.Context, queryStr string) (core.ResultStream, error) {
 	query := c.c.Query(queryStr)
 	query.DisableQueryCache = c.disableQueryCache
 	query.MaxBytesBilled = c.maxBytesBilled
@@ -162,7 +163,7 @@ func (c *BigQuery) Query(ctx context.Context, queryStr string) (core.ResultStrea
 	return result, nil
 }
 
-func (c *BigQuery) Structure() (layouts []*core.Structure, err error) {
+func (c *bigQueryDriver) Structure() (layouts []*core.Structure, err error) {
 	ctx := context.TODO()
 
 	datasetsIter := c.c.Datasets(ctx)
@@ -208,11 +209,11 @@ func (c *BigQuery) Structure() (layouts []*core.Structure, err error) {
 	return layouts, nil
 }
 
-func (c *BigQuery) Close() {
+func (c *bigQueryDriver) Close() {
 	_ = c.c.Close()
 }
 
-func (c *BigQuery) buildHeader(parentName string, schema bigquery.Schema) (columns core.Header) {
+func (c *bigQueryDriver) buildHeader(parentName string, schema bigquery.Schema) (columns core.Header) {
 	for _, field := range schema {
 		if field.Type == bigquery.RecordFieldType {
 			nestedName := field.Name

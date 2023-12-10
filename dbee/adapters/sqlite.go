@@ -15,30 +15,31 @@ import (
 
 // Register client
 func init() {
-	c := func(url string) (core.Driver, error) {
-		return NewSqlite(url)
-	}
-	_ = register(c, "sqlite", "sqlite3")
+	_ = register(&SQLite{}, "sqlite", "sqlite3")
 }
 
-var _ core.Driver = (*SQLite)(nil)
+var _ core.Adapter = (*SQLite)(nil)
 
-type SQLite struct {
-	c *builders.Client
-}
+type SQLite struct{}
 
-func NewSqlite(url string) (*SQLite, error) {
+func (s *SQLite) Connect(url string) (core.Driver, error) {
 	db, err := sql.Open("sqlite", url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to sqlite database: %v", err)
 	}
 
-	return &SQLite{
+	return &sqliteDriver{
 		c: builders.NewClient(db),
 	}, nil
 }
 
-func (c *SQLite) Query(ctx context.Context, query string) (core.ResultStream, error) {
+var _ core.Driver = (*sqliteDriver)(nil)
+
+type sqliteDriver struct {
+	c *builders.Client
+}
+
+func (c *sqliteDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -69,7 +70,7 @@ func (c *SQLite) Query(ctx context.Context, query string) (core.ResultStream, er
 	return rows, err
 }
 
-func (c *SQLite) Structure() ([]*core.Structure, error) {
+func (c *sqliteDriver) Structure() ([]*core.Structure, error) {
 	query := `SELECT name FROM sqlite_schema WHERE type ='table'`
 
 	rows, err := c.Query(context.TODO(), query)
@@ -96,6 +97,6 @@ func (c *SQLite) Structure() ([]*core.Structure, error) {
 	return schema, nil
 }
 
-func (c *SQLite) Close() {
+func (c *sqliteDriver) Close() {
 	c.c.Close()
 }

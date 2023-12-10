@@ -15,10 +15,7 @@ import (
 
 // Register client
 func init() {
-	c := func(url string) (core.Driver, error) {
-		return NewRedis(url)
-	}
-	_ = register(c, "redis")
+	_ = register(&Redis{}, "redis")
 
 	// register known types with gob
 	gob.Register(&redisResponse{})
@@ -26,22 +23,26 @@ func init() {
 	gob.Register(map[any]any{})
 }
 
-var _ core.Driver = (*Redis)(nil)
+var _ core.Adapter = (*Redis)(nil)
 
-type Redis struct {
-	redis *redis.Client
-}
+type Redis struct{}
 
-func NewRedis(url string) (*Redis, error) {
+func (r *Redis) Connect(url string) (core.Driver, error) {
 	c := redis.NewClient(&redis.Options{
 		Addr:     url,
 		Password: "",
 		DB:       0,
 	})
 
-	return &Redis{
+	return &redisDriver{
 		redis: c,
 	}, nil
+}
+
+var _ core.Driver = (*redisDriver)(nil)
+
+type redisDriver struct {
+	redis *redis.Client
 }
 
 func redisResponseToNext(response any) (func() (core.Row, error), func() bool) {
@@ -56,7 +57,7 @@ func redisResponseToNext(response any) (func() (core.Row, error), func() bool) {
 	}
 }
 
-func (c *Redis) Query(ctx context.Context, query string) (core.ResultStream, error) {
+func (c *redisDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	cmd, err := parseRedisCmd(query)
 	if err != nil {
 		return nil, err
@@ -81,7 +82,7 @@ func (c *Redis) Query(ctx context.Context, query string) (core.ResultStream, err
 	return result, err
 }
 
-func (c *Redis) Structure() ([]*core.Structure, error) {
+func (c *redisDriver) Structure() ([]*core.Structure, error) {
 	return []*core.Structure{
 		{
 			Name:   "Storage",
@@ -91,7 +92,7 @@ func (c *Redis) Structure() ([]*core.Structure, error) {
 	}, nil
 }
 
-func (c *Redis) Close() {
+func (c *redisDriver) Close() {
 	c.redis.Close()
 }
 

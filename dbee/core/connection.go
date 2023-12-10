@@ -11,20 +11,30 @@ import (
 
 var ErrDatabaseSwitchingNotSupported = errors.New("database switching not supported")
 
+// HelperOptions contain options to be passed to helper methods.
+type HelperOptions struct {
+	Table           string
+	Schema          string
+	Materialization StructureType
+}
+
 type (
-	// adapter is an object which allows to connect to database via type and url
+	// Adapter is an object which allows to connect to database using a url.
+	// It also has the GetHelpers method, which returns a list of operations for
+	// a given type.
 	Adapter interface {
-		Connect(typ string, url string) (Driver, error)
+		Connect(url string) (Driver, error)
+		GetHelpers(opts *HelperOptions) map[string]string
 	}
 
-	// Driver is an interface for a specific database driver
+	// Driver is an interface for a specific database driver.
 	Driver interface {
 		Query(context.Context, string) (ResultStream, error)
 		Structure() ([]*Structure, error)
 		Close()
 	}
 
-	// DatabaseSwitcher is an optional interface for drivers that have database switching capabilities
+	// DatabaseSwitcher is an optional interface for drivers that have database switching capabilities.
 	DatabaseSwitcher interface {
 		SelectDatabase(string) error
 		ListDatabases() (current string, available []string, err error)
@@ -51,7 +61,7 @@ func NewConnection(params *ConnectionParams, adapter Adapter) (*Connection, erro
 		expanded.ID = ConnectionID(uuid.New().String())
 	}
 
-	driver, err := adapter.Connect(expanded.Type, expanded.URL)
+	driver, err := adapter.Connect(expanded.URL)
 	if err != nil {
 		return nil, fmt.Errorf("adapter.Connect: %w", err)
 	}
