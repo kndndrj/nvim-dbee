@@ -36,14 +36,14 @@ local function connection_nodes(handler, conn, result)
       -- table helpers
       if struct.type == "table" or struct.type == "view" then
         local helper_opts = { table = struct.name, schema = struct.schema, materialization = struct.type }
-        node.action_1 = function(cb, pick)
+        node.action_1 = function(cb, select)
           local items = vim.tbl_keys(handler:helpers_get(conn.type, helper_opts))
           table.sort(items)
 
-          pick {
+          select {
             title = "Select a Query",
             items = items,
-            on_select = function(selection)
+            callback = function(selection)
               local helpers = handler:helpers_get(conn.type, helper_opts)
               local call = handler:connection_execute(conn.id, helpers[selection])
               result:set_call(call)
@@ -69,11 +69,11 @@ local function connection_nodes(handler, conn, result)
       id = conn.id .. "_database_switch__",
       name = current_db,
       type = "database_switch",
-      action_1 = function(cb, pick)
-        pick {
+      action_1 = function(cb, select)
+        select {
           title = "Select a Database",
           items = available_dbs,
-          on_select = function(selection)
+          callback = function(selection)
             handler:connection_select_database(conn.id, selection)
             cb()
           end,
@@ -191,11 +191,11 @@ local function handler_real_nodes(handler, result)
           })
         end,
         -- remove connection
-        action_3 = function(cb, pick)
-          pick {
+        action_3 = function(cb, select)
+          select {
             title = "Confirm Deletion",
             items = { "Yes", "No" },
-            on_select = function(selection)
+            callback = function(selection)
               if selection == "Yes" then
                 handler:source_remove_connections(source_id, conn)
               end
@@ -322,7 +322,7 @@ local function modified_suffix(bufnr, refresh)
 
   local suffix = ""
   if vim.api.nvim_buf_get_option(bufnr, "modified") then
-    suffix = " - o"
+    suffix = " ●"
   end
 
   utils.create_singleton_autocmd({ "BufModifiedSet" }, {
@@ -347,11 +347,19 @@ local function editor_namespace_nodes(editor, namespace, refresh)
       id = "__new_" .. namespace .. "_note__",
       name = "new",
       type = "add",
-      action_1 = function(cb)
-        -- TODO: name
-        local id = editor:namespace_create_note(namespace, "note_" .. tostring(os.clock()))
-        editor:set_current_note(id)
-        cb()
+      action_1 = function(cb, _, input)
+        input {
+          title = "Enter Note Name",
+          default = "note_" .. tostring(os.clock()) .. ".sql",
+          callback = function(value)
+            if not value or value == "" then
+              return
+            end
+            local id = editor:namespace_create_note(namespace, value)
+            editor:set_current_note(id)
+            cb()
+          end,
+        }
       end,
     } --[[@as DrawerNode]]
   )
@@ -366,20 +374,24 @@ local function editor_namespace_nodes(editor, namespace, refresh)
         editor:set_current_note(note.id)
         cb()
       end,
-      action_2 = function(cb)
-        vim.ui.input({ prompt = "new name: ", default = note.name }, function(input)
-          if not input or input == "" then
-            return
-          end
-          editor:note_rename(note.id, input)
-          cb()
-        end)
+      action_2 = function(cb, _, input)
+        input {
+          title = "New Name",
+          default = note.name,
+          callback = function(value)
+            if not value or value == "" then
+              return
+            end
+            editor:note_rename(note.id, value)
+            cb()
+          end,
+        }
       end,
-      action_3 = function(cb, pick)
-        pick {
+      action_3 = function(cb, select)
+        select {
           title = "Confirm Deletion",
           items = { "Yes", "No" },
-          on_select = function(selection)
+          callback = function(selection)
             if selection == "Yes" then
               editor:namespace_remove_note(namespace, note.id)
             end

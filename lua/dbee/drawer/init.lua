@@ -11,7 +11,7 @@ local expansion = require("dbee.drawer.expansion")
 ---@field text_highlight string
 
 -- action function of drawer nodes
----@alias drawer_node_action fun(cb: fun(), pick: fun(opts?: { title: string, items: string[], on_select: fun(selection: string) }))
+---@alias drawer_node_action fun(cb: fun(), select: menu_select, input: menu_input)
 
 -- A single line in drawer tree
 ---@class DrawerNode: NuiTree.Node
@@ -237,7 +237,9 @@ function Drawer:generate_keymap(mappings)
       self:refresh()
     end, function(opts)
       opts = opts or {}
-      menu.open(self.winid, opts.items or {}, opts.on_select or function() end, opts.title or "")
+      menu.select(self.winid, opts.items or {}, opts.callback or function() end, opts.title or "")
+    end, function(opts)
+      menu.input(self.winid, opts.default or "", opts.callback or function() end, opts.title or "")
     end)
   end
 
