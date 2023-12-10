@@ -12,6 +12,11 @@ import (
 var ErrDatabaseSwitchingNotSupported = errors.New("database switching not supported")
 
 type (
+	// adapter is an object which allows to connect to database via type and url
+	Adapter interface {
+		Connect(typ string, url string) (Driver, error)
+	}
+
 	// Driver is an interface for a specific database driver
 	Driver interface {
 		Query(context.Context, string) (ResultStream, error)
@@ -23,11 +28,6 @@ type (
 	DatabaseSwitcher interface {
 		SelectDatabase(string) error
 		ListDatabases() (current string, available []string, err error)
-	}
-
-	// adapter is an object which allows to connect to database via type and url
-	Adapter interface {
-		Connect(typ string, url string) (Driver, error)
 	}
 )
 

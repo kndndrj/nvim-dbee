@@ -1,4 +1,4 @@
-package drivers
+package adapters
 
 import (
 	"bytes"
@@ -46,7 +46,10 @@ func init() {
 	// gob.Register(primitive.Symbol)
 }
 
-var _ core.Driver = (*Mongo)(nil)
+var (
+	_ core.Driver           = (*Mongo)(nil)
+	_ core.DatabaseSwitcher = (*Mongo)(nil)
+)
 
 type Mongo struct {
 	c      *mongo.Client

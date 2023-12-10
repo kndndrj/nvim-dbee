@@ -9,9 +9,9 @@ import (
 
 	"github.com/neovim/go-client/nvim"
 
+	"github.com/kndndrj/nvim-dbee/dbee/adapters"
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"github.com/kndndrj/nvim-dbee/dbee/core/format"
-	"github.com/kndndrj/nvim-dbee/dbee/drivers"
 	"github.com/kndndrj/nvim-dbee/dbee/vim"
 )
 
@@ -66,7 +66,7 @@ func (h *Handler) Close() {
 }
 
 func (h *Handler) CreateConnection(params *core.ConnectionParams) (core.ConnectionID, error) {
-	c, err := core.NewConnection(params, drivers.Adapter())
+	c, err := core.NewConnection(params, adapters.Adapter())
 	if err != nil {
 		return "", fmt.Errorf("core.New: %w", err)
 	}

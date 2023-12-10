@@ -1,4 +1,4 @@
-package drivers
+package adapters
 
 import (
 	"context"
@@ -25,7 +25,10 @@ func init() {
 	gob.Register(uuid.UUID{})
 }
 
-var _ core.Driver = (*SQLServer)(nil)
+var (
+	_ core.Driver           = (*SQLServer)(nil)
+	_ core.DatabaseSwitcher = (*SQLServer)(nil)
+)
 
 type SQLServer struct {
 	c   *builders.Client

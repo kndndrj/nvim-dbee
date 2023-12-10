@@ -1,6 +1,6 @@
 //go:build cgo && ((darwin && (amd64 || arm64)) || (linux && (amd64 || arm64 || riscv64)))
 
-package drivers
+package adapters
 
 import (
 	"context"

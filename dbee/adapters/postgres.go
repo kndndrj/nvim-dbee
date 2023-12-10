@@ -1,4 +1,4 @@
-package drivers
+package adapters
 
 import (
 	"bytes"
@@ -27,7 +27,10 @@ func init() {
 	gob.Register(&postgresJSONResponse{})
 }
 
-var _ core.Driver = (*Postgres)(nil)
+var (
+	_ core.Driver           = (*Postgres)(nil)
+	_ core.DatabaseSwitcher = (*Postgres)(nil)
+)
 
 type Postgres struct {
 	c   *builders.Client
