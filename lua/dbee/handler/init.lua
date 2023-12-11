@@ -24,8 +24,6 @@ local event_bus = require("dbee.handler.__events")
 ---@field schema? string parent schema
 ---@field children? DBStructure[] child layout nodes
 
----@alias handler_config { fallback_page_size: integer, progress: progress_config }
-
 -- Handler is an aggregator of connections
 ---@class Handler
 ---@field private sources table<source_id, Source>

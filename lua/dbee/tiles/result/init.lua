@@ -1,11 +1,11 @@
 local utils = require("dbee.utils")
-local progress = require("dbee.progress")
-local ui_helper = require("dbee.ui_helper")
+local progress = require("dbee.tiles.result.progress")
+local common = require("dbee.tiles.common")
 
 ---@alias result_config { mappings: table<string, mapping>, page_size: integer, progress: progress_config }
 
--- Result represents the part of ui with displayed results
----@class Result
+-- ResultTile represents the part of ui with displayed results
+---@class ResultTile
 ---@field private handler Handler
 ---@field private winid? integer
 ---@field private bufnr integer
@@ -15,18 +15,18 @@ local ui_helper = require("dbee.ui_helper")
 ---@field private page_ammount integer number of pages in the current result set
 ---@field private stop_progress fun() function that stops progress display
 ---@field private progress_opts progress_config
-local Result = {}
+local ResultTile = {}
 
 ---@param handler Handler
 ---@param quit_handle? fun()
 ---@param opts? result_config
----@return Result
-function Result:new(handler, quit_handle, opts)
+---@return ResultTile
+function ResultTile:new(handler, quit_handle, opts)
   opts = opts or {}
   quit_handle = quit_handle or function() end
 
   if not handler then
-    error("no Handler passed to Result")
+    error("no Handler passed to ResultTile")
   end
 
   -- class object
@@ -42,15 +42,15 @@ function Result:new(handler, quit_handle, opts)
   self.__index = self
 
   -- create a buffer for drawer and configure it
-  o.bufnr = ui_helper.create_blank_buffer("dbee-result", {
+  o.bufnr = common.create_blank_buffer("dbee-result", {
     buflisted = false,
     bufhidden = "delete",
     buftype = "nofile",
     swapfile = false,
     modifiable = false,
   })
-  ui_helper.configure_buffer_mappings(o.bufnr, o:generate_keymap(opts.mappings))
-  ui_helper.configure_buffer_quit_handle(o.bufnr, quit_handle)
+  common.configure_buffer_mappings(o.bufnr, o:generate_keymap(opts.mappings))
+  common.configure_buffer_quit_handle(o.bufnr, quit_handle)
 
   handler:register_event_listener("call_state_changed", function(data)
     o:on_call_state_changed(data)
@@ -62,7 +62,7 @@ end
 -- event listener for new calls
 ---@private
 ---@param data { call: call_details }
-function Result:on_call_state_changed(data)
+function ResultTile:on_call_state_changed(data)
   local call = data.call
 
   -- we only care about the current call
@@ -89,12 +89,12 @@ function Result:on_call_state_changed(data)
 end
 
 ---@private
-function Result:display_progress()
+function ResultTile:display_progress()
   self.stop_progress = progress.display(self.bufnr, self.progress_opts)
 end
 
 ---@private
-function Result:display_status()
+function ResultTile:display_status()
   if not self.current_call then
     error("no call set to result")
   end
@@ -120,13 +120,16 @@ function Result:display_status()
 
   -- set winbar
   vim.api.nvim_win_set_option(self.winid, "winbar", "Results")
+
+  -- reset modified flag
+  vim.api.nvim_buf_set_option(self.bufnr, "modified", false)
 end
 
 --- Displays a page of the current result in the results buffer
 ---@private
 ---@param page integer zero based page index
 ---@return integer # current page
-function Result:display_result(page)
+function ResultTile:display_result(page)
   if not self.current_call then
     error("no call set to result")
   end
@@ -161,13 +164,17 @@ function Result:display_result(page)
     )
   end
 
+  -- reset modified flag and set focus
+  vim.api.nvim_buf_set_option(self.bufnr, "modified", false)
+  vim.api.nvim_set_current_win(self.winid)
+
   return page
 end
 
 ---@private
 ---@param mappings table<string, mapping>
 ---@return keymap[]
-function Result:generate_keymap(mappings)
+function ResultTile:generate_keymap(mappings)
   mappings = mappings or {}
   return {
     {
@@ -225,7 +232,7 @@ end
 
 -- sets call's result to Result's buffer
 ---@param call call_details
-function Result:set_call(call)
+function ResultTile:set_call(call)
   self.page_index = 0
   self.page_ammount = 0
   self.current_call = call
@@ -233,15 +240,15 @@ function Result:set_call(call)
   self.stop_progress()
 end
 
-function Result:page_current()
+function ResultTile:page_current()
   self.page_index = self:display_result(self.page_index)
 end
 
-function Result:page_next()
+function ResultTile:page_next()
   self.page_index = self:display_result(self.page_index + 1)
 end
 
-function Result:page_prev()
+function ResultTile:page_prev()
   self.page_index = self:display_result(self.page_index - 1)
 end
 
@@ -250,7 +257,7 @@ end
 ---@param format string
 ---@param output string
 ---@param arg any
-function Result:store_current_wrapper(format, output, arg)
+function ResultTile:store_current_wrapper(format, output, arg)
   if not self.current_call then
     error("no call set to result")
   end
@@ -277,7 +284,7 @@ end
 ---@param format string
 ---@param output string
 ---@param arg any
-function Result:store_selection_wrapper(format, output, arg)
+function ResultTile:store_selection_wrapper(format, output, arg)
   if not self.current_call then
     error("no call set to result")
   end
@@ -297,7 +304,7 @@ end
 ---@param format string
 ---@param output string
 ---@param arg any
-function Result:store_all_wrapper(format, output, arg)
+function ResultTile:store_all_wrapper(format, output, arg)
   if not self.current_call then
     error("no call set to result")
   end
@@ -306,7 +313,7 @@ end
 
 ---@private
 ---@return number # index of the current row
-function Result:current_row_index()
+function ResultTile:current_row_index()
   -- get position of the current line identifier
   local row = vim.fn.search([[^\s*[0-9]\+]], "bnc", 1)
   if row == 0 then
@@ -326,7 +333,7 @@ end
 ---@private
 ---@return number # number of the first row
 ---@return number # number of the last row
-function Result:current_row_range()
+function ResultTile:current_row_range()
   if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
     error("result cannot operate without a valid window")
   end
@@ -377,11 +384,11 @@ function Result:current_row_range()
 end
 
 ---@param winid integer
-function Result:show(winid)
+function ResultTile:show(winid)
   self.winid = winid
 
   -- configure window options
-  ui_helper.configure_window_options(self.winid, {
+  common.configure_window_options(self.winid, {
     wrap = false,
     winfixheight = true,
     winfixwidth = true,
@@ -397,4 +404,4 @@ function Result:show(winid)
   end
 end
 
-return Result
+return ResultTile

@@ -1,24 +1,24 @@
 local tools = require("dbee.layouts.tools")
 
----@alias window_layout_tiles { drawer: Drawer, editor: Editor, result: Result, call_log: CallLog }
+---@alias layout_tiles { drawer: DrawerTile, editor: EditorTile, result: ResultTile, call_log: CallLogTile }
 
 -- Window layout defines how windows are opened.
----@class WindowLayout
----@field open fun(self: WindowLayout, tiles: window_layout_tiles) function to open ui.
----@field close fun(self: WindowLayout) function to close ui.
+---@class TileLayout
+---@field open fun(self: TileLayout, tiles: layout_tiles) function to open ui.
+---@field close fun(self: TileLayout) function to close ui.
 
 local M = {}
 
 -- Default layout uses a helper to save the existing window layout before opening any windows,
 -- then makes a new empty window for the editor and then opens result and drawer.
 -- When later calling close(), the previously saved layout is restored.
----@class DefaultWindowLayout: WindowLayout
+---@class DefaultTileLayout: TileLayout
 ---@field private egg? layout_egg
 ---@field private windows integer[]
 M.Default = {}
 
 --- Loads connections from json file
----@return WindowLayout
+---@return TileLayout
 function M.Default:new()
   local o = {
     egg = nil,
@@ -29,7 +29,7 @@ function M.Default:new()
   return o
 end
 
----@param tiles window_layout_tiles
+---@param tiles layout_tiles
 function M.Default:open(tiles)
   -- save layout before opening ui
   self.egg = tools.save()

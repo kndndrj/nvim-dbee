@@ -1,7 +1,7 @@
-local Drawer = require("dbee.drawer")
-local Editor = require("dbee.editor")
-local Result = require("dbee.result")
-local CallLog = require("dbee.call_log")
+local DrawerTile = require("dbee.tiles.drawer")
+local EditorTile = require("dbee.tiles.editor")
+local ResultTile = require("dbee.tiles.result")
+local CallLogTile = require("dbee.tiles.call_log")
 local Handler = require("dbee.handler")
 local install = require("dbee.install")
 local utils = require("dbee.utils")
@@ -59,10 +59,10 @@ local function setup_ui()
     return
   end
 
-  m.result = Result:new(m.handler, M.close_ui, m.config.result)
-  m.call_log = CallLog:new(m.handler, m.result, M.close_ui, m.config.call_log)
-  m.editor = Editor:new(m.handler, m.result, M.close_ui, m.config.editor)
-  m.drawer = Drawer:new(m.handler, m.editor, m.result, M.close_ui, m.config.drawer)
+  m.result = ResultTile:new(m.handler, M.close_ui, m.config.result)
+  m.call_log = CallLogTile:new(m.handler, m.result, M.close_ui, m.config.call_log)
+  m.editor = EditorTile:new(m.handler, m.result, M.close_ui, m.config.editor)
+  m.drawer = DrawerTile:new(m.handler, m.editor, m.result, M.close_ui, m.config.drawer)
 end
 
 ---@return boolean ok was setup successful?

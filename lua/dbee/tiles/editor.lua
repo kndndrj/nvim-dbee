@@ -1,5 +1,5 @@
 local utils = require("dbee.utils")
-local ui_helper = require("dbee.ui_helper")
+local common = require("dbee.tiles.common")
 
 -- events:
 ---@alias editor_event_name "note_state_changed"|"note_removed"|"note_created"|"current_note_changed"
@@ -12,9 +12,9 @@ local ui_helper = require("dbee.ui_helper")
 
 ---@alias editor_config { directory: string, mappings: table<string, mapping> }
 
----@class Editor
+---@class EditorTile
 ---@field private handler Handler
----@field private result Result
+---@field private result ResultTile
 ---@field private quit_handle fun()
 ---@field private winid? integer
 ---@field private mappings table<string, mapping>
@@ -22,14 +22,14 @@ local ui_helper = require("dbee.ui_helper")
 ---@field private current_note_id? note_id
 ---@field private directory string directory where notes are stored
 ---@field private event_callbacks table<editor_event_name, editor_event_listener[]> callbacks for events
-local Editor = {}
+local EditorTile = {}
 
 ---@param handler Handler
----@param result Result
+---@param result ResultTile
 ---@param quit_handle? fun()
 ---@param opts? editor_config
----@return Editor
-function Editor:new(handler, result, quit_handle, opts)
+---@return EditorTile
+function EditorTile:new(handler, result, quit_handle, opts)
   opts = opts or {}
 
   if not handler then
@@ -40,7 +40,7 @@ function Editor:new(handler, result, quit_handle, opts)
   end
 
   -- class object
-  ---@type Editor
+  ---@type EditorTile
   local o = {
     handler = handler,
     result = result,
@@ -61,7 +61,7 @@ end
 
 -- Look for existing namespaces and their notes on disk.
 ---@private
-function Editor:search_existing_namespaces()
+function EditorTile:search_existing_namespaces()
   -- search all directories (namespaces) and their notes
   for _, dir in pairs(vim.split(vim.fn.glob(self.directory .. "/*"), "\n")) do
     if vim.fn.isdirectory(dir) == 1 then
@@ -85,7 +85,7 @@ end
 ---@private
 ---@param mappings table<string, mapping>
 ---@return keymap[]
-function Editor:generate_keymap(mappings)
+function EditorTile:generate_keymap(mappings)
   mappings = mappings or {}
   return {
     {
@@ -128,7 +128,7 @@ end
 ---@private
 ---@param event editor_event_name
 ---@param data any
-function Editor:trigger_event(event, data)
+function EditorTile:trigger_event(event, data)
   local cbs = self.event_callbacks[event] or {}
   for _, cb in ipairs(cbs) do
     cb(data)
@@ -137,7 +137,7 @@ end
 
 ---@param event editor_event_name
 ---@param listener editor_event_listener
-function Editor:register_event_listener(event, listener)
+function EditorTile:register_event_listener(event, listener)
   self.event_callbacks[event] = self.event_callbacks[event] or {}
   table.insert(self.event_callbacks[event], listener)
 end
@@ -145,7 +145,7 @@ end
 ---@private
 ---@param namespace string
 ---@return string
-function Editor:dir(namespace)
+function EditorTile:dir(namespace)
   return self.directory .. "/" .. namespace
 end
 
@@ -153,7 +153,7 @@ end
 ---@param id namespace_id
 ---@param name string name to check
 ---@return boolean # true - conflict, false - no conflict
-function Editor:namespace_check_conflict(id, name)
+function EditorTile:namespace_check_conflict(id, name)
   local notes = self.notes[id] or {}
   for _, note in pairs(notes) do
     if note.name == name then
@@ -167,7 +167,7 @@ end
 ---@param id note_id
 ---@return note_details?
 ---@return namespace_id namespace
-function Editor:get_note(id)
+function EditorTile:get_note(id)
   for namespace, per_namespace in pairs(self.notes) do
     for _, note in pairs(per_namespace) do
       if note.id == id then
@@ -182,7 +182,7 @@ end
 ---@param bufnr integer
 ---@return note_details?
 ---@return namespace_id namespace
-function Editor:get_note_by_buf(bufnr)
+function EditorTile:get_note_by_buf(bufnr)
   for namespace, per_namespace in pairs(self.notes) do
     for _, note in pairs(per_namespace) do
       if note.bufnr and note.bufnr == bufnr then
@@ -199,7 +199,7 @@ end
 ---@param id namespace_id
 ---@param name string
 ---@return note_id
-function Editor:namespace_create_note(id, name)
+function EditorTile:namespace_create_note(id, name)
   local namespace = id
   if not namespace or namespace == "" then
     error("invalid namespace id")
@@ -238,7 +238,7 @@ end
 
 ---@param id namespace_id
 ---@return note_details[]
-function Editor:namespace_get_notes(id)
+function EditorTile:namespace_get_notes(id)
   local namespace = id
   if not namespace or namespace == "" then
     error("invalid namespace id")
@@ -256,7 +256,7 @@ end
 -- Errors if there is no note with provided id in namespace.
 ---@param id namespace_id
 ---@param note_id note_id
-function Editor:namespace_remove_note(id, note_id)
+function EditorTile:namespace_remove_note(id, note_id)
   local namespace = id
   if not self.notes[namespace] then
     error("invalid namespace id to remove the note from")
@@ -281,7 +281,7 @@ end
 -- there is already an existing note with the same name in the same namespace.
 ---@param id note_id
 ---@param name string new name
-function Editor:note_rename(id, name)
+function EditorTile:note_rename(id, name)
   local note, namespace = self:get_note(id)
   if not note then
     error("invalid note id to rename")
@@ -318,7 +318,7 @@ function Editor:note_rename(id, name)
 end
 
 ---@return note_details?
-function Editor:get_current_note()
+function EditorTile:get_current_note()
   local note, _ = self:get_note(self.current_note_id)
   return note
 end
@@ -326,7 +326,7 @@ end
 -- Sets note with id as the current note
 -- and opens it in the window
 ---@param id note_id
-function Editor:set_current_note(id)
+function EditorTile:set_current_note(id)
   if id and self.current_note_id == id then
     self:display_note(id)
     return
@@ -346,7 +346,7 @@ end
 
 ---@private
 ---@param id note_id
-function Editor:display_note(id)
+function EditorTile:display_note(id)
   if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
     return
   end
@@ -371,7 +371,7 @@ function Editor:display_note(id)
   self.notes[namespace][id].bufnr = bufnr
 
   -- configure options on new buffer
-  ui_helper.configure_buffer_options(bufnr, {
+  common.configure_buffer_options(bufnr, {
     buflisted = false,
     swapfile = false,
     filetype = "sql",
@@ -380,7 +380,7 @@ end
 
 ---@private
 ---@param winid integer
-function Editor:configure_autocommands(winid)
+function EditorTile:configure_autocommands(winid)
   -- remove current note if another buffer is opened in the window
   -- and set current note if any known note is opened in the window.
   utils.create_singleton_autocmd({ "BufWinEnter" }, {
@@ -413,7 +413,7 @@ end
 
 ---@private
 ---@return note_id
-function Editor:create_welcome_note()
+function EditorTile:create_welcome_note()
   local note_id = self:namespace_create_note("global", "welcome")
   local note = self:get_note(note_id)
   if not note then
@@ -450,12 +450,12 @@ function Editor:create_welcome_note()
 end
 
 ---@param winid integer
-function Editor:show(winid)
+function EditorTile:show(winid)
   self.winid = winid
   self:configure_autocommands(winid)
 
-  ui_helper.configure_window_mappings(winid, self:generate_keymap(self.mappings))
-  ui_helper.configure_window_quit_handle(winid, self.quit_handle)
+  common.configure_window_mappings(winid, self:generate_keymap(self.mappings))
+  common.configure_window_quit_handle(winid, self.quit_handle)
 
   -- open current note if configured
   if self.current_note_id then
@@ -475,4 +475,4 @@ function Editor:show(winid)
   self:set_current_note(note_id)
 end
 
-return Editor
+return EditorTile

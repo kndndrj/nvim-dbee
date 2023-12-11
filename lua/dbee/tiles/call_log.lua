@@ -1,12 +1,11 @@
 local NuiLine = require("nui.line")
 local NuiTree = require("nui.tree")
-local floats = require("dbee.floats")
 local utils = require("dbee.utils")
-local ui_helper = require("dbee.ui_helper")
+local common = require("dbee.tiles.common")
 
--- CallLog is a call history
----@class CallLog
----@field private result Result
+-- CallLogTile is a call history.
+---@class CallLogTile
+---@field private result ResultTile
 ---@field private handler Handler
 ---@field private tree NuiTree
 ---@field private winid? integer
@@ -14,24 +13,24 @@ local ui_helper = require("dbee.ui_helper")
 ---@field private candies table<string, Candy> map of eye-candy stuff (icons, highlight)
 ---@field private current_connection_id? conn_id
 ---@field private hover_close? fun() function that closes the hover window
-local CallLog = {}
+local CallLogTile = {}
 
 ---@alias call_log_config { mappings: table<string, mapping>, disable_candies: boolean, candies: table<string, Candy> }
 
 ---@param handler Handler
----@param result Result
+---@param result ResultTile
 ---@param quit_handle? fun()
 ---@param opts call_log_config
----@return CallLog
-function CallLog:new(handler, result, quit_handle, opts)
+---@return CallLogTile
+function CallLogTile:new(handler, result, quit_handle, opts)
   opts = opts or {}
   quit_handle = quit_handle or function() end
 
   if not handler then
-    error("no Handler passed to CallLog")
+    error("no Handler passed to CallLogTile")
   end
   if not result then
-    error("no Result passed to CallLog")
+    error("no ResultTile passed to CallLogTile")
   end
 
   local candies = {}
@@ -39,7 +38,7 @@ function CallLog:new(handler, result, quit_handle, opts)
     candies = opts.candies or {}
   end
 
-  ---@type CallLog
+  ---@type CallLogTile
   local o = {
     handler = handler,
     result = result,
@@ -50,22 +49,24 @@ function CallLog:new(handler, result, quit_handle, opts)
   self.__index = self
 
   -- create a buffer for drawer and configure it
-  o.bufnr = ui_helper.create_blank_buffer("dbee-call-log", {
+  o.bufnr = common.create_blank_buffer("dbee-call-log", {
     buflisted = false,
     bufhidden = "delete",
     buftype = "nofile",
     swapfile = false,
   })
-  ui_helper.configure_buffer_mappings(o.bufnr, o:generate_keymap(opts.mappings))
-  ui_helper.configure_buffer_quit_handle(o.bufnr, quit_handle)
+  common.configure_buffer_mappings(o.bufnr, o:generate_keymap(opts.mappings))
+  common.configure_buffer_quit_handle(o.bufnr, quit_handle)
 
   -- create the tree
   o.tree = o:create_tree(o.bufnr)
 
   handler:register_event_listener("call_state_changed", function(data)
+    ---@diagnostic disable-next-line
     o:on_call_state_changed(data)
   end)
   handler:register_event_listener("current_connection_changed", function(data)
+    ---@diagnostic disable-next-line
     o:on_current_connection_changed(data)
   end)
 
@@ -75,14 +76,14 @@ end
 -- event listener for new calls
 ---@private
 ---@param _ { call: call_details }
-function CallLog:on_call_state_changed(_)
+function CallLogTile:on_call_state_changed(_)
   self:refresh()
 end
 
 -- event listener for current connection change
 ---@private
 ---@param data { conn_id: conn_id }
-function CallLog:on_current_connection_changed(data)
+function CallLogTile:on_current_connection_changed(data)
   self.current_connection_id = data.conn_id
   self:refresh()
 end
@@ -125,7 +126,7 @@ end
 ---@private
 ---@param bufnr integer
 ---@return NuiTree
-function CallLog:create_tree(bufnr)
+function CallLogTile:create_tree(bufnr)
   return NuiTree {
     bufnr = bufnr,
     prepare_node = function(node)
@@ -165,7 +166,7 @@ end
 ---@private
 ---@param mappings table<string, mapping>
 ---@return keymap[]
-function CallLog:generate_keymap(mappings)
+function CallLogTile:generate_keymap(mappings)
   mappings = mappings or {}
 
   return {
@@ -206,7 +207,7 @@ function CallLog:generate_keymap(mappings)
 end
 
 ---@private
-function CallLog:refresh()
+function CallLogTile:refresh()
   if not self.current_connection_id then
     return
   end
@@ -234,7 +235,7 @@ end
 
 ---@private
 ---@param bufnr integer
-function CallLog:configure_preview(bufnr)
+function CallLogTile:configure_preview(bufnr)
   utils.create_singleton_autocmd({ "CursorMoved", "BufEnter" }, {
     buffer = bufnr,
     callback = function()
@@ -258,7 +259,7 @@ function CallLog:configure_preview(bufnr)
         string.format("timestamp:            %s", tostring(os.date("%c", (call.timestamp_us or 0) / 1000000))),
       }
 
-      self.hover_close = floats.hover(self.winid, call_summary)
+      self.hover_close = common.float_hover(self.winid, call_summary)
     end,
   })
 
@@ -271,11 +272,11 @@ function CallLog:configure_preview(bufnr)
 end
 
 ---@param winid integer
-function CallLog:show(winid)
+function CallLogTile:show(winid)
   self.winid = winid
 
   -- configure window options
-  ui_helper.configure_window_options(self.winid, {
+  common.configure_window_options(self.winid, {
     wrap = false,
     winfixheight = true,
     winfixwidth = true,
@@ -291,4 +292,4 @@ function CallLog:show(winid)
   self:refresh()
 end
 
-return CallLog
+return CallLogTile

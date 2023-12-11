@@ -1,9 +1,9 @@
 local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
-local ui_helper = require("dbee.ui_helper")
-local menu = require("dbee.drawer.menu")
-local convert = require("dbee.drawer.convert")
-local expansion = require("dbee.drawer.expansion")
+local common = require("dbee.tiles.common")
+local menu = require("dbee.tiles.drawer.menu")
+local convert = require("dbee.tiles.drawer.convert")
+local expansion = require("dbee.tiles.drawer.expansion")
 
 ---@class Candy
 ---@field icon string
@@ -14,22 +14,22 @@ local expansion = require("dbee.drawer.expansion")
 ---@alias drawer_node_action fun(cb: fun(), select: menu_select, input: menu_input)
 
 -- A single line in drawer tree
----@class DrawerNode: NuiTree.Node
+---@class DrawerTileNode: NuiTree.Node
 ---@field id string unique identifier
 ---@field name string display name
 ---@field type ""|"table"|"history"|"note"|"connection"|"database_switch"|"add"|"edit"|"remove"|"help"|"source"|"view" type of node
 ---@field action_1? drawer_node_action primary action if function takes a second selection parameter, pick_items get picked before the call
 ---@field action_2? drawer_node_action secondary action if function takes a second selection parameter, pick_items get picked before the call
 ---@field action_3? drawer_node_action tertiary action if function takes a second selection parameter, pick_items get picked before the call
----@field lazy_children? fun():DrawerNode[] lazy loaded child nodes
+---@field lazy_children? fun():DrawerTileNode[] lazy loaded child nodes
 
 ---@alias drawer_config { disable_candies: boolean, candies: table<string, Candy>, mappings: table<string, mapping>, disable_help: boolean }
 
----@class Drawer
+---@class DrawerTile
 ---@field private tree NuiTree
 ---@field private handler Handler
----@field private editor Editor
----@field private result Result
+---@field private editor EditorTile
+---@field private result ResultTile
 ---@field private mappings table<string, mapping>
 ---@field private candies table<string, Candy> map of eye-candy stuff (icons, highlight)
 ---@field private disable_help boolean show help or not
@@ -38,15 +38,15 @@ local expansion = require("dbee.drawer.expansion")
 ---@field private quit_handle fun() function that closes the whole ui
 ---@field private current_conn_id? conn_id current active connection
 ---@field private current_note_id? note_id current active note
-local Drawer = {}
+local DrawerTile = {}
 
 ---@param handler Handler
----@param editor Editor
----@param result Result
+---@param editor EditorTile
+---@param result ResultTile
 ---@param quit_handle? fun()
 ---@param opts? drawer_config
----@return Drawer
-function Drawer:new(handler, editor, result, quit_handle, opts)
+---@return DrawerTile
+function DrawerTile:new(handler, editor, result, quit_handle, opts)
   opts = opts or {}
 
   if not handler then
@@ -83,14 +83,14 @@ function Drawer:new(handler, editor, result, quit_handle, opts)
   self.__index = self
 
   -- create a buffer for drawer and configure it
-  o.bufnr = ui_helper.create_blank_buffer("dbee-drawer", {
+  o.bufnr = common.create_blank_buffer("dbee-drawer", {
     buflisted = false,
     bufhidden = "delete",
     buftype = "nofile",
     swapfile = false,
   })
-  ui_helper.configure_buffer_mappings(o.bufnr, o:generate_keymap(opts.mappings))
-  ui_helper.configure_buffer_quit_handle(o.bufnr, o.quit_handle)
+  common.configure_buffer_mappings(o.bufnr, o:generate_keymap(opts.mappings))
+  common.configure_buffer_quit_handle(o.bufnr, o.quit_handle)
 
   -- create tree
   o.tree = o:create_tree(o.bufnr)
@@ -110,7 +110,7 @@ end
 -- event listener for current connection change
 ---@private
 ---@param data { conn_id: conn_id }
-function Drawer:on_current_connection_changed(data)
+function DrawerTile:on_current_connection_changed(data)
   if self.current_conn_id == data.conn_id then
     return
   end
@@ -121,7 +121,7 @@ end
 -- event listener for current note change
 ---@private
 ---@param data { note_id: note_id }
-function Drawer:on_current_note_changed(data)
+function DrawerTile:on_current_note_changed(data)
   if self.current_note_id == data.note_id then
     return
   end
@@ -132,7 +132,7 @@ end
 ---@private
 ---@param bufnr integer
 ---@return NuiTree tree
-function Drawer:create_tree(bufnr)
+function DrawerTile:create_tree(bufnr)
   return NuiTree {
     bufnr = bufnr,
     prepare_node = function(node)
@@ -189,7 +189,7 @@ end
 ---@private
 ---@param mappings table<string, mapping>
 ---@return keymap[]
-function Drawer:generate_keymap(mappings)
+function DrawerTile:generate_keymap(mappings)
   mappings = mappings or {}
 
   local function collapse_node(node)
@@ -256,7 +256,7 @@ function Drawer:generate_keymap(mappings)
     },
     {
       action = function()
-        local node = self.tree:get_node() --[[@as DrawerNode]]
+        local node = self.tree:get_node() --[[@as DrawerTileNode]]
         if not node then
           return
         end
@@ -266,7 +266,7 @@ function Drawer:generate_keymap(mappings)
     },
     {
       action = function()
-        local node = self.tree:get_node() --[[@as DrawerNode]]
+        local node = self.tree:get_node() --[[@as DrawerTileNode]]
         if not node then
           return
         end
@@ -276,7 +276,7 @@ function Drawer:generate_keymap(mappings)
     },
     {
       action = function()
-        local node = self.tree:get_node() --[[@as DrawerNode]]
+        local node = self.tree:get_node() --[[@as DrawerTileNode]]
         if not node then
           return
         end
@@ -321,9 +321,9 @@ function Drawer:generate_keymap(mappings)
   }
 end
 
-function Drawer:refresh()
+function DrawerTile:refresh()
   -- assemble tree layout
-  ---@type DrawerNode[]
+  ---@type DrawerTileNode[]
   local nodes = {}
   local editor_nodes = convert.editor_nodes(self.editor, self.current_conn_id, function()
     self:refresh()
@@ -349,11 +349,11 @@ function Drawer:refresh()
 end
 
 ---@param winid integer
-function Drawer:show(winid)
+function DrawerTile:show(winid)
   self.winid = winid
 
   -- configure window options
-  ui_helper.configure_window_options(self.winid, {
+  common.configure_window_options(self.winid, {
     wrap = false,
     winfixheight = true,
     winfixwidth = true,
@@ -366,4 +366,4 @@ function Drawer:show(winid)
   self:refresh()
 end
 
-return Drawer
+return DrawerTile

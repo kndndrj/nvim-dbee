@@ -1,6 +1,12 @@
 local utils = require("dbee.utils")
+local floats = require("dbee.tiles.common.floats")
 
 local M = {}
+
+-- expose floats
+M.float_editor = floats.editor
+M.float_hover = floats.hover
+M.float_prompt = floats.prompt
 
 -- Creates a blank hidden buffer.
 ---@param name string

@@ -1,5 +1,3 @@
-local spinners = require("dbee.progress").spinners
-
 local M = {}
 
 ---@alias mapping { key: string, mode: string, opts: table }|{ key: string, mode: string, opts: table }[]
@@ -15,7 +13,7 @@ local M = {}
 ---@field editor editor_config
 ---@field result result_config
 ---@field call_log call_log_config
----@field window_layout WindowLayout
+---@field window_layout TileLayout
 
 -- default configuration
 ---@type Config
@@ -146,8 +144,8 @@ M.default = {
 
     -- progress (loading) screen options
     progress = {
-      -- spinner to use, see lua/dbee/spinners.lua
-      spinner = spinners.dots,
+      -- spinner to use in progress display
+      spinner = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" },
       -- prefix to display before the timer
       text_prefix = "Executing...",
     },

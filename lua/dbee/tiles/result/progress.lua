@@ -1,10 +1,6 @@
-local spinners = require("dbee.progress.spinners")
-
 local M = {}
 
-M.spinners = spinners
-
----@alias progress_config { text_prefix: string, spinner: spinner }
+---@alias progress_config { text_prefix: string, spinner: string[] }
 
 --- Display an updated progress loader in the specified buffer
 ---@param bufnr integer -- buffer to display the progres in
@@ -16,7 +12,7 @@ function M.display(bufnr, opts)
   end
   opts = opts or {}
   local text_prefix = opts.text_prefix or "Loading..."
-  local spinner = opts.spinner or spinners.dots
+  local spinner = opts.spinner or { "|", "/", "-", "\\" }
 
   local icon_index = 1
   local start_time = vim.fn.reltimefloat(vim.fn.reltime())
