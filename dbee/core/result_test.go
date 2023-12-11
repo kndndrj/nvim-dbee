@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type mockedResultStream struct {
@@ -60,6 +60,7 @@ func (mir *mockedResultStream) Range(from int, to int) []Row {
 }
 
 func TestCache(t *testing.T) {
+	r := require.New(t)
 	// prepare cache and mocks
 	result := new(Result)
 
@@ -67,7 +68,7 @@ func TestCache(t *testing.T) {
 	stream := newMockedResultStream(numOfRows, 0)
 
 	err := result.setIter(stream, nil)
-	assert.NilError(t, err)
+	r.NoError(err)
 
 	type testCase struct {
 		name          string
@@ -133,7 +134,7 @@ func TestCache(t *testing.T) {
 				result.Wipe()
 				// reset result with sleep between iterations
 				err = result.setIter(newMockedResultStream(numOfRows, 500*time.Millisecond), nil)
-				assert.NilError(t, err)
+				r.NoError(err)
 			},
 		},
 		{
@@ -146,7 +147,7 @@ func TestCache(t *testing.T) {
 				result.Wipe()
 				// reset result with sleep between iterations
 				err = result.setIter(newMockedResultStream(numOfRows, 500*time.Millisecond), nil)
-				assert.NilError(t, err)
+				r.NoError(err)
 			},
 		},
 	}
@@ -159,11 +160,11 @@ func TestCache(t *testing.T) {
 
 			rows, err := result.Rows(tc.from, tc.to)
 			if err != nil && tc.expectedError != nil {
-				assert.Equal(t, err.Error(), tc.expectedError.Error())
+				r.Equal(err.Error(), tc.expectedError.Error())
 				return
 			}
 
-			assert.DeepEqual(t, rows, tc.expectedRows)
+			r.Equal(rows, tc.expectedRows)
 		})
 	}
 }

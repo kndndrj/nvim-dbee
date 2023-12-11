@@ -3,10 +3,12 @@ package vim
 import (
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFuncArgs_Parse(t *testing.T) {
+	r := require.New(t)
+
 	type fields struct {
 		StringField  string `arg:"some_name"`
 		IntField     int    `arg:",optional"`
@@ -28,7 +30,7 @@ func TestFuncArgs_Parse(t *testing.T) {
 		funcArgs := FuncArgs[int]{}
 
 		_, err := funcArgs.Parse()
-		assert.ErrorContains(t, err, ErrNotAStruct(0).Error())
+		r.ErrorContains(err, ErrNotAStruct(0).Error())
 	})
 
 	testCases := []testCase{
@@ -90,11 +92,11 @@ func TestFuncArgs_Parse(t *testing.T) {
 
 			parsed, err := funcArgs.Parse()
 			if err != nil {
-				assert.ErrorContains(t, err, tc.expectedError.Error())
+				r.ErrorContains(err, tc.expectedError.Error())
 				return
 			}
 
-			assert.DeepEqual(t, tc.expectedResult, parsed)
+			r.Equal(tc.expectedResult, parsed)
 		})
 	}
 }

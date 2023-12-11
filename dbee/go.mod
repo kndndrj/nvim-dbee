@@ -17,7 +17,6 @@ require (
 	go.mongodb.org/mongo-driver v1.11.6
 	golang.org/x/sync v0.1.0
 	google.golang.org/api v0.118.0
-	gotest.tools v2.2.0+incompatible
 	modernc.org/sqlite v1.21.1
 )
 

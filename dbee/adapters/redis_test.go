@@ -3,10 +3,12 @@ package adapters
 import (
 	"testing"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseRedisCmd(t *testing.T) {
+	r := require.New(t)
+
 	type testCase struct {
 		unparsed       string
 		expectedResult []any
@@ -87,9 +89,9 @@ func TestParseRedisCmd(t *testing.T) {
 	for _, tc := range testCases {
 		parsed, err := parseRedisCmd(tc.unparsed)
 		if err != nil {
-			assert.Equal(t, err.Error(), tc.expectedError.Error())
+			r.Equal(err.Error(), tc.expectedError.Error())
 			continue
 		}
-		assert.DeepEqual(t, parsed, tc.expectedResult)
+		r.Equal(parsed, tc.expectedResult)
 	}
 }
