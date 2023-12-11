@@ -1,45 +1,19 @@
-//go:build cgo && ((darwin && (amd64 || arm64)) || (linux && (amd64 || arm64 || riscv64)))
-
 package adapters
 
 import (
 	"context"
-	"database/sql"
-	"fmt"
-
-	_ "github.com/marcboeker/go-duckdb"
 
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 )
 
-// Register client
-func init() {
-	_ = register(&Duck{}, "duck", "duckdb")
-}
+var _ core.Driver = (*sqliteDriver)(nil)
 
-var _ core.Adapter = (*Duck)(nil)
-
-type Duck struct{}
-
-func (d *Duck) Connect(url string) (core.Driver, error) {
-	db, err := sql.Open("duckdb", url)
-	if err != nil {
-		return nil, fmt.Errorf("unable to connect to duckdb database: %v", err)
-	}
-
-	return &duckDriver{
-		c: builders.NewClient(db),
-	}, nil
-}
-
-var _ core.Driver = (*duckDriver)(nil)
-
-type duckDriver struct {
+type sqliteDriver struct {
 	c *builders.Client
 }
 
-func (c *duckDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
+func (c *sqliteDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
@@ -57,12 +31,21 @@ func (c *duckDriver) Query(ctx context.Context, query string) (core.ResultStream
 	if err != nil {
 		return nil, err
 	}
+
+	if len(rows.Header()) > 0 {
+		rows.SetCallback(cb)
+		return rows, nil
+	}
+	rows.Close()
+
+	// empty header means no result -> get affected rows
+	rows, err = con.Query(ctx, "select changes() as 'Rows Affected'")
 	rows.SetCallback(cb)
-	return rows, nil
+	return rows, err
 }
 
-func (c *duckDriver) Structure() ([]*core.Structure, error) {
-	query := `SHOW TABLES;`
+func (c *sqliteDriver) Structure() ([]*core.Structure, error) {
+	query := `SELECT name FROM sqlite_schema WHERE type ='table'`
 
 	rows, err := c.Query(context.TODO(), query)
 	if err != nil {
@@ -88,6 +71,6 @@ func (c *duckDriver) Structure() ([]*core.Structure, error) {
 	return schema, nil
 }
 
-func (c *duckDriver) Close() {
+func (c *sqliteDriver) Close() {
 	c.c.Close()
 }

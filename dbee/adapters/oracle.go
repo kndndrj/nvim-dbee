@@ -1,10 +1,8 @@
 package adapters
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 
 	_ "github.com/sijms/go-ora/v2"
 
@@ -32,106 +30,101 @@ func (o *Oracle) Connect(url string) (core.Driver, error) {
 	}, nil
 }
 
-var _ core.Driver = (*oracleDriver)(nil)
+func (*Oracle) GetHelpers(opts *core.HelperOptions) map[string]string {
+	from := `
+		FROM all_constraints N
+		JOIN all_cons_columns L
+		ON N.constraint_name = L.constraint_name
+		AND N.owner = L.owner `
 
-type oracleDriver struct {
-	c *builders.Client
-}
-
-func (c *oracleDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
-	con, err := c.c.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	cb := func() {
-		con.Close()
-	}
-	defer func() {
-		if err != nil {
-			cb()
-		}
-	}()
-
-	// Remove the trailing semicolon from the query - for some reason it isn't supported in go_ora
-	query = strings.TrimSuffix(query, ";")
-
-	// Use Exec or Query depending on the query
-	action := strings.ToLower(strings.Split(query, " ")[0])
-	hasReturnValues := strings.Contains(strings.ToLower(query), " returning ")
-	if (action == "update" || action == "delete" || action == "insert") && !hasReturnValues {
-		rows, err := con.Exec(ctx, query)
-		if err != nil {
-			return nil, err
-		}
-		rows.SetCallback(cb)
-		return rows, nil
+	qualifyAndOrderBy := func(by string) string {
+		return fmt.Sprintf(`
+			L.table_name = '%s'
+			ORDER BY %s`, opts.Table, by)
 	}
 
-	rows, err := con.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	if len(rows.Header()) == 0 {
-		rows.SetCustomHeader(core.Header{"No Results"})
-	}
-	rows.SetCallback(cb)
+	keyCmd := func(constraint string) string {
+		return fmt.Sprintf(`
+			SELECT
+			L.table_name,
+			L.column_name
+			%s
+			WHERE
+			N.constraint_type = '%s' AND %s`,
 
-	return rows, nil
-}
-
-func (c *oracleDriver) Structure() ([]*core.Structure, error) {
-	query := `
-		SELECT T.owner, T.table_name
-		FROM (
-			SELECT owner, table_name
-			FROM all_tables
-			UNION SELECT owner, view_name AS "table_name"
-			FROM all_views
-		) T
-		JOIN all_users U ON T.owner = U.username
-		WHERE U.common = 'NO'
-		ORDER BY T.table_name
-	`
-
-	rows, err := c.Query(context.TODO(), query)
-	if err != nil {
-		return nil, err
+			from,
+			constraint,
+			qualifyAndOrderBy("L.column_name"),
+		)
 	}
 
-	children := make(map[string][]*core.Structure)
+	return map[string]string{
+		"Columns": fmt.Sprintf(`SELECT col.column_id,
+				col.owner AS schema_name,
+				col.table_name,
+				col.column_name,
+				col.data_type,
+				col.data_length,
+				col.data_precision,
+				col.data_scale,
+				col.nullable
+			FROM sys.all_tab_columns col
+			INNER JOIN sys.all_tables t
+				ON col.owner = t.owner
+				AND col.table_name = t.table_name
+			WHERE col.owner = '%s'
+				AND col.table_name = '%s'
+			ORDER BY col.owner, col.table_name, col.column_id `,
 
-	for rows.HasNext() {
-		row, err := rows.Next()
-		if err != nil {
-			return nil, err
-		}
+			opts.Schema,
+			opts.Table,
+		),
 
-		// We know for a fact there are 2 string fields (see query above)
-		schema := row[0].(string)
-		table := row[1].(string)
+		"Foreign Keys": keyCmd("R"),
 
-		children[schema] = append(children[schema], &core.Structure{
-			Name:   table,
-			Schema: schema,
-			Type:   core.StructureTypeTable,
-		})
+		"Indexes": fmt.Sprintf(`
+			SELECT DISTINCT
+			N.owner,
+			N.index_name,
+			N.constraint_type
+			%s
+			WHERE %s `,
 
+			from,
+			qualifyAndOrderBy("N.index_name"),
+		),
+
+		"List": fmt.Sprintf("SELECT * FROM %q.%q", opts.Schema, opts.Table),
+
+		"Primary Keys": keyCmd("P"),
+
+		"References": fmt.Sprintf(`
+			SELECT
+			RFRING.owner,
+			RFRING.table_name,
+			RFRING.column_name
+			FROM all_cons_columns RFRING
+			JOIN all_constraints N
+			ON RFRING.constraint_name = N.constraint_name
+			JOIN all_cons_columns RFRD
+			ON N.r_constraint_name = RFRD.constraint_name
+			JOIN all_users U
+			ON N.owner = U.username
+			WHERE
+			N.constraint_type = 'R'
+			AND
+			U.common = 'NO'
+			AND
+			RFRD.owner = '%s'
+			AND
+			RFRD.table_name = '%s'
+			ORDER BY
+			RFRING.owner,
+			RFRING.table_name,
+			RFRING.column_name`,
+
+			opts.Schema,
+			opts.Table,
+		),
 	}
-
-	var structure []*core.Structure
-
-	for k, v := range children {
-		structure = append(structure, &core.Structure{
-			Name:     k,
-			Schema:   k,
-			Type:     core.StructureTypeNone,
-			Children: v,
-		})
-	}
-
-	return structure, nil
-}
-
-func (c *oracleDriver) Close() {
-	c.c.Close()
 }

@@ -95,6 +95,19 @@ func (h *Handler) GetConnections(ids []core.ConnectionID) []*core.Connection {
 	return conns
 }
 
+func (h *Handler) AddHelpers(typ string, helpers map[string]string) error {
+	return new(adapters.Mux).AddHelpers(typ, helpers)
+}
+
+func (h *Handler) ConnectionGetHelpers(connID core.ConnectionID, opts *core.HelperOptions) (map[string]string, error) {
+	c, ok := h.lookupConnection[connID]
+	if !ok {
+		return nil, fmt.Errorf("unknown connection with id: %q", connID)
+	}
+
+	return c.GetHelpers(opts), nil
+}
+
 func (h *Handler) GetCurrentConnection() (*core.Connection, error) {
 	c, ok := h.lookupConnection[h.currentConnectionID]
 	if !ok {

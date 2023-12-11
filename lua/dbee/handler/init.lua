@@ -1,19 +1,23 @@
-local Helpers = require("dbee.handler.helpers")
 local event_bus = require("dbee.handler.__events")
 
+-- Helpers
+---@alias materialization "table"|"view"
+---@alias helper_opts { table: string, schema: string, materialization: materialization}
+---@alias table_helpers table<string, string>
+
+-- Call (single call to database)
 ---@alias duration integer duration (time period) in microseconds
 ---@alias timestamp integer time in microseconds
 ---@alias call_stats { success: boolean, time_taken: duration }
-
----@alias conn_id string
----@alias connection_details { name: string, type: string, url: string, id: conn_id }
-
--- call details represent a single call to database
 ---@alias call_id string
 ---@alias call_state "unknown"|"executing"|"executing_failed"|"retrieving"|"retrieving_failed"|"archived"|"archive_failed"|"canceled"
 ---@alias call_details { id: call_id, time_taken_us: duration, query: string, state: call_state, timestamp_us: timestamp }
 
--- structure of the database
+-- Connection
+---@alias conn_id string
+---@alias connection_details { name: string, type: string, url: string, id: conn_id }
+
+-- Structure of database
 ---@class DBStructure
 ---@field name string display name
 ---@field type ""|"table"|"history"|"database_switch"|"view" type of layout -> this infers action
@@ -26,7 +30,6 @@ local event_bus = require("dbee.handler.__events")
 ---@class Handler
 ---@field private sources table<source_id, Source>
 ---@field private source_conn_lookup table<string, conn_id[]>
----@field private helpers Helpers query helpers
 local Handler = {}
 
 ---@param sources? Source[]
@@ -36,7 +39,6 @@ function Handler:new(sources)
   local o = {
     sources = {},
     source_conn_lookup = {},
-    helpers = Helpers:new(),
   }
   setmetatable(o, self)
   self.__index = self
@@ -153,15 +155,27 @@ function Handler:source_get_connections(id)
 end
 
 ---@param helpers table<string, table_helpers> extra helpers per type
-function Handler:helpers_add(helpers)
-  self.helpers:add(helpers)
+function Handler:add_helpers(helpers)
+  for type, help in pairs(helpers) do
+    vim.fn.DbeeAddHelpers { type = type, helpers = help }
+  end
 end
 
----@param type string
----@param vars helper_vars
+---@param id conn_id
+---@param opts helper_opts
 ---@return table_helpers helpers list of table helpers
-function Handler:helpers_get(type, vars)
-  return self.helpers:get(type, vars)
+function Handler:connection_get_helpers(id, opts)
+  local helpers = vim.fn.DbeeConnectionGetHelpers {
+    id = id,
+    table = opts.table,
+    schema = opts.schema,
+    materialization = opts.materialization,
+  }
+  if not helpers or helpers == vim.NIL then
+    return {}
+  end
+
+  return helpers
 end
 
 ---@return connection_details?
@@ -209,7 +223,12 @@ end
 ---@return string current_db
 ---@return string[] available_dbs
 function Handler:connection_list_databases(id)
-  return unpack(vim.fn.DbeeConnectionListDatabases { id = id })
+  local ret = vim.fn.DbeeConnectionListDatabases { id = id }
+  if not ret or ret == vim.NIL then
+    return "", {}
+  end
+
+  return unpack(ret)
 end
 
 ---@param id conn_id

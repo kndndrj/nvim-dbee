@@ -1,7 +1,6 @@
 package adapters
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"regexp"
@@ -42,85 +41,12 @@ func (m *MySQL) Connect(url string) (core.Driver, error) {
 	}, nil
 }
 
-var _ core.Driver = (*mySQLDriver)(nil)
-
-type mySQLDriver struct {
-	sql *builders.Client
-}
-
-func (c *mySQLDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
-	con, err := c.sql.Conn(ctx)
-	if err != nil {
-		return nil, err
+func (*MySQL) GetHelpers(opts *core.HelperOptions) map[string]string {
+	return map[string]string{
+		"List":         fmt.Sprintf("SELECT * FROM `%s` LIMIT 500", opts.Table),
+		"Columns":      fmt.Sprintf("DESCRIBE `%s`", opts.Table),
+		"Indexes":      fmt.Sprintf("SHOW INDEXES FROM `%s`", opts.Table),
+		"Foreign Keys": fmt.Sprintf("SELECT * FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s' AND CONSTRAINT_TYPE = 'FOREIGN KEY'", opts.Schema, opts.Table),
+		"Primary Keys": fmt.Sprintf("SELECT * FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s' AND CONSTRAINT_TYPE = 'PRIMARY KEY'", opts.Schema, opts.Table),
 	}
-	cb := func() {
-		con.Close()
-	}
-	defer func() {
-		if err != nil {
-			cb()
-		}
-	}()
-
-	rows, err := con.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(rows.Header()) > 0 {
-		rows.SetCallback(cb)
-		return rows, nil
-	}
-	rows.Close()
-
-	// empty header means no result -> get affected rows
-	rows, err = con.Query(ctx, "select ROW_COUNT() as 'Rows Affected'")
-	rows.SetCallback(cb)
-	return rows, err
-}
-
-func (c *mySQLDriver) Structure() ([]*core.Structure, error) {
-	query := `SELECT table_schema, table_name FROM information_schema.tables`
-
-	rows, err := c.Query(context.TODO(), query)
-	if err != nil {
-		return nil, err
-	}
-
-	children := make(map[string][]*core.Structure)
-
-	for rows.HasNext() {
-		row, err := rows.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		// We know for a fact there are 2 string fields (see query above)
-		schema := row[0].(string)
-		table := row[1].(string)
-
-		children[schema] = append(children[schema], &core.Structure{
-			Name:   table,
-			Schema: schema,
-			Type:   core.StructureTypeTable,
-		})
-
-	}
-
-	var structure []*core.Structure
-
-	for k, v := range children {
-		structure = append(structure, &core.Structure{
-			Name:     k,
-			Schema:   k,
-			Type:     core.StructureTypeNone,
-			Children: v,
-		})
-	}
-
-	return structure, nil
-}
-
-func (c *mySQLDriver) Close() {
-	c.sql.Close()
 }

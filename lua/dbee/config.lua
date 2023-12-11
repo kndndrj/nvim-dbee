@@ -27,10 +27,12 @@ M.default = {
     require("dbee.sources").FileSource:new(vim.fn.stdpath("cache") .. "/dbee/persistence.json"),
   },
   -- extra table helpers per connection type
+  -- every helper value is a go-template with values set for
+  -- "Table", "Schema" and "Materialization"
   extra_helpers = {
     -- example:
     -- ["postgres"] = {
-    --   ["List All"] = "select * from {table}",
+    --   ["List All"] = "select * from {{ .Table }}",
     -- },
   },
   -- drawer window config

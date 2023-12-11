@@ -47,7 +47,8 @@ type Connection struct {
 	params           *ConnectionParams
 	unexpandedParams *ConnectionParams
 
-	driver Driver
+	driver  Driver
+	adapter Adapter
 }
 
 func (s *Connection) MarshalJSON() ([]byte, error) {
@@ -70,7 +71,8 @@ func NewConnection(params *ConnectionParams, adapter Adapter) (*Connection, erro
 		params:           expanded,
 		unexpandedParams: params,
 
-		driver: driver,
+		driver:  driver,
+		adapter: adapter,
 	}
 
 	return c, nil
@@ -152,6 +154,19 @@ func (c *Connection) GetStructure() ([]*Structure, error) {
 		}
 	}
 	return structure, nil
+}
+
+func (c *Connection) GetHelpers(opts *HelperOptions) map[string]string {
+	if opts == nil {
+		opts = &HelperOptions{}
+	}
+
+	helpers := c.adapter.GetHelpers(opts)
+	if helpers == nil {
+		return make(map[string]string)
+	}
+
+	return helpers
 }
 
 func (c *Connection) Close() {

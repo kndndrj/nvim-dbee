@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/neovim/go-client/nvim"
@@ -64,6 +65,59 @@ func main() {
 
 				return hnd.WrapConnections(handler.GetConnections(is)), nil
 			})
+
+		entry.Register(
+			"DbeeAddHelpers",
+			func(r *vim.SharedResource, args map[string]any) (any, error) {
+				t, ok := args["type"]
+				if !ok {
+					return nil, nil
+				}
+				typ, ok := t.(string)
+				if !ok {
+					return nil, fmt.Errorf("type not a string: %v", t)
+				}
+
+				raw, ok := args["helpers"]
+				if !ok {
+					return nil, nil
+				}
+
+				rawHelpers, ok := raw.(map[string]any)
+				if !ok {
+					return nil, fmt.Errorf("helpers are not a string-any map: %#v", raw)
+				}
+
+				helpers := make(map[string]string)
+
+				for k, v := range rawHelpers {
+
+					stringV, ok := v.(string)
+					if !ok {
+						return nil, fmt.Errorf("value not a string: %v", v)
+					}
+
+					helpers[k] = stringV
+				}
+
+				return nil, handler.AddHelpers(typ, helpers)
+			})
+
+		entry.Register(
+			"DbeeConnectionGetHelpers",
+			vim.Wrap(func(r *vim.SharedResource, args *struct {
+				ID              string `arg:"id"`
+				Table           string `arg:"table,optional"`
+				Schema          string `arg:"schema,optional"`
+				Materialization string `arg:"materialization,optional"`
+			},
+			) (any, error) {
+				return handler.ConnectionGetHelpers(core.ConnectionID(args.ID), &core.HelperOptions{
+					Table:           args.Table,
+					Schema:          args.Schema,
+					Materialization: core.StructureTypeFromString(args.Materialization),
+				})
+			}))
 
 		entry.Register(
 			"DbeeSetCurrentConnection",

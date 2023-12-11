@@ -1,8 +1,10 @@
 package adapters
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"text/template"
 
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 )
@@ -17,7 +19,7 @@ var _ core.Adapter = (*wrappedAdapter)(nil)
 // wrappedAdapter is returned from Mux and adds extra helpers to internal adapter.
 type wrappedAdapter struct {
 	adapter      core.Adapter
-	extraHelpers map[string]string
+	extraHelpers map[string]*template.Template
 }
 
 // registeredAdapters holds implemented adapters - specific adapters register themselves in their init functions.
@@ -72,9 +74,18 @@ func (*Mux) AddHelpers(typ string, helpers map[string]string) error {
 		return ErrUnsupportedTypeAlias
 	}
 
+	if value.extraHelpers == nil {
+		value.extraHelpers = make(map[string]*template.Template)
+	}
+
 	// new helpers have priority
 	for k, v := range helpers {
-		value.extraHelpers[k] = v
+		tmpl, err := template.New("helper_").Parse(v)
+		if err != nil {
+			return fmt.Errorf("template.New.Parse: %w", err)
+		}
+
+		value.extraHelpers[k] = tmpl
 	}
 
 	return nil
@@ -91,8 +102,14 @@ func (wa *wrappedAdapter) GetHelpers(opts *core.HelperOptions) map[string]string
 	}
 
 	// extra helpers have priority
-	for k, v := range wa.extraHelpers {
-		helpers[k] = v
+	for k, tmpl := range wa.extraHelpers {
+		var out bytes.Buffer
+		err := tmpl.Execute(&out, opts)
+		if err != nil {
+			continue
+		}
+
+		helpers[k] = out.String()
 	}
 
 	return helpers

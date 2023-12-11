@@ -1,7 +1,6 @@
 package adapters
 
 import (
-	"context"
 	"database/sql"
 	"encoding/gob"
 	"fmt"
@@ -59,130 +58,98 @@ func (s *SQLServer) Connect(url string) (core.Driver, error) {
 	}, nil
 }
 
-var (
-	_ core.Driver           = (*sqlServerDriver)(nil)
-	_ core.DatabaseSwitcher = (*sqlServerDriver)(nil)
-)
+func (*SQLServer) GetHelpers(opts *core.HelperOptions) map[string]string {
+	columnSummary := fmt.Sprintf(`
+      SELECT c.column_name + ' (' +
+          ISNULL(( SELECT 'PK, ' FROM information_schema.table_constraints AS k JOIN information_schema.key_column_usage AS kcu ON k.constraint_name = kcu.constraint_name WHERE constraint_type='PRIMARY KEY' AND k.table_name = c.table_name AND kcu.column_name = c.column_name), '') +
+          ISNULL(( SELECT 'FK, ' FROM information_schema.table_constraints AS k JOIN information_schema.key_column_usage AS kcu ON k.constraint_name = kcu.constraint_name WHERE constraint_type='FOREIGN KEY' AND k.table_name = c.table_name AND kcu.column_name = c.column_name), '') +
+          data_type + COALESCE('(' + RTRIM(CAST(character_maximum_length AS VARCHAR)) + ')','(' + RTRIM(CAST(numeric_precision AS VARCHAR)) + ',' + RTRIM(CAST(numeric_scale AS VARCHAR)) + ')','(' + RTRIM(CAST(datetime_precision AS VARCHAR)) + ')','') + ', ' +
+          CASE WHEN is_nullable = 'YES' THEN 'null' ELSE 'not null' END + ')' AS Columns
+      FROM information_schema.columns c WHERE c.table_name='%s' AND c.TABLE_SCHEMA = '%s'`,
 
-type sqlServerDriver struct {
-	c   *builders.Client
-	url *nurl.URL
-}
+		opts.Table,
+		opts.Schema,
+	)
 
-func (c *sqlServerDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
-	con, err := c.c.Conn(ctx)
-	if err != nil {
-		return nil, err
+	foreignKeys := fmt.Sprintf(`
+      SELECT c.constraint_name
+         , kcu.column_name AS column_name
+         , c2.table_name AS foreign_table_name
+         , kcu2.column_name AS foreign_column_name
+      FROM information_schema.table_constraints c
+            INNER JOIN information_schema.key_column_usage kcu
+              ON c.constraint_schema = kcu.constraint_schema
+                AND c.constraint_name = kcu.constraint_name
+            INNER JOIN information_schema.referential_constraints rc
+              ON c.constraint_schema = rc.constraint_schema
+                AND c.constraint_name = rc.constraint_name
+            INNER JOIN information_schema.table_constraints c2
+              ON rc.unique_constraint_schema = c2.constraint_schema
+                AND rc.unique_constraint_name = c2.constraint_name
+            INNER JOIN information_schema.key_column_usage kcu2
+              ON c2.constraint_schema = kcu2.constraint_schema
+                AND c2.constraint_name = kcu2.constraint_name
+                AND kcu.ordinal_position = kcu2.ordinal_position
+      WHERE c.constraint_type = 'FOREIGN KEY'
+      AND c.TABLE_NAME = '%s' AND c.TABLE_SCHEMA = '%s'`,
+
+		opts.Table,
+		opts.Schema,
+	)
+
+	references := fmt.Sprintf(`
+      SELECT kcu1.constraint_name AS constraint_name
+          , kcu1.table_name AS foreign_table_name
+          , kcu1.column_name AS foreign_column_name
+          , kcu2.column_name AS column_name
+      FROM information_schema.referential_constraints AS rc
+      INNER JOIN information_schema.key_column_usage AS kcu1
+          ON kcu1.constraint_catalog = rc.constraint_catalog
+          AND kcu1.constraint_schema = rc.constraint_schema
+          AND kcu1.constraint_name = rc.constraint_name
+      INNER JOIN information_schema.key_column_usage AS kcu2
+          ON kcu2.constraint_catalog = rc.unique_constraint_catalog
+          AND kcu2.constraint_schema = rc.unique_constraint_schema
+          AND kcu2.constraint_name = rc.unique_constraint_name
+          AND kcu2.ordinal_position = kcu1.ordinal_position
+      WHERE kcu2.table_name='%s' AND kcu2.table_schema = '%s'`,
+
+		opts.Table,
+		opts.Schema,
+	)
+
+	primaryKeys := fmt.Sprintf(`
+       SELECT tc.constraint_name, kcu.column_name
+       FROM
+           information_schema.table_constraints AS tc
+           JOIN information_schema.key_column_usage AS kcu
+             ON tc.constraint_name = kcu.constraint_name
+           JOIN information_schema.constraint_column_usage AS ccu
+             ON ccu.constraint_name = tc.constraint_name
+      WHERE constraint_type = 'PRIMARY KEY'
+      AND tc.table_name = '%s' AND tc.table_schema = '%s'`,
+
+		opts.Table,
+		opts.Schema,
+	)
+
+	constraints := fmt.Sprintf(`
+      SELECT u.CONSTRAINT_NAME, c.CHECK_CLAUSE FROM INFORMATION_SCHEMA.CONSTRAINT_TABLE_USAGE u
+          INNER JOIN INFORMATION_SCHEMA.CHECK_CONSTRAINTS c ON u.CONSTRAINT_NAME = c.CONSTRAINT_NAME
+      WHERE TABLE_NAME = '%s' AND u.TABLE_SCHEMA = '%s'`,
+
+		opts.Table,
+		opts.Schema,
+	)
+
+	return map[string]string{
+		"List":         fmt.Sprintf("SELECT top 200 * from [%s]", opts.Table),
+		"Columns":      columnSummary,
+		"Indexes":      fmt.Sprintf("exec sp_helpindex '%s.%s'", opts.Schema, opts.Table),
+		"Foreign Keys": foreignKeys,
+		"References":   references,
+		"Primary Keys": primaryKeys,
+		"Constraints":  constraints,
+		"Describe":     fmt.Sprintf("exec sp_help ''%s.%s''", opts.Schema, opts.Table),
 	}
-	cb := func() {
-		con.Close()
-	}
-	defer func() {
-		if err != nil {
-			cb()
-		}
-	}()
-
-	rows, err := con.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(rows.Header()) > 0 {
-		rows.SetCallback(cb)
-		return rows, nil
-	}
-	rows.Close()
-
-	// empty header means no result -> get affected rows
-	rows, err = con.Query(ctx, "select @@ROWCOUNT as 'Rows Affected'")
-	rows.SetCallback(cb)
-	return rows, err
-}
-
-func (c *sqlServerDriver) Structure() ([]*core.Structure, error) {
-	query := `SELECT table_schema, table_name FROM INFORMATION_SCHEMA.TABLES`
-
-	rows, err := c.Query(context.TODO(), query)
-	if err != nil {
-		return nil, err
-	}
-
-	children := make(map[string][]*core.Structure)
-
-	for rows.HasNext() {
-		row, err := rows.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		// We know for a fact there are 2 string fields (see query above)
-		schema := row[0].(string)
-		table := row[1].(string)
-
-		children[schema] = append(children[schema], &core.Structure{
-			Name:   table,
-			Schema: schema,
-			Type:   core.StructureTypeTable,
-		})
-
-	}
-
-	var layout []*core.Structure
-
-	for k, v := range children {
-		layout = append(layout, &core.Structure{
-			Name:     k,
-			Schema:   k,
-			Type:     core.StructureTypeNone,
-			Children: v,
-		})
-	}
-
-	return layout, nil
-}
-
-func (c *sqlServerDriver) Close() {
-	c.c.Close()
-}
-
-func (c *sqlServerDriver) ListDatabases() (current string, available []string, err error) {
-	query := `
-		SELECT DB_NAME(), name
-		FROM sys.databases
-		WHERE name != DB_NAME();
-	`
-
-	rows, err := c.Query(context.TODO(), query)
-	if err != nil {
-		return "", nil, err
-	}
-
-	for rows.HasNext() {
-		row, err := rows.Next()
-		if err != nil {
-			return "", nil, err
-		}
-
-		// We know for a fact there are 2 string fields (see query above)
-		current = row[0].(string)
-		available = append(available, row[1].(string))
-	}
-
-	return current, available, nil
-}
-
-func (c *sqlServerDriver) SelectDatabase(name string) error {
-	q := c.url.Query()
-	q.Set("database", name)
-	c.url.RawQuery = q.Encode()
-
-	db, err := sql.Open("sqlserver", c.url.String())
-	if err != nil {
-		return fmt.Errorf("unable to switch databases: %w", err)
-	}
-
-	c.c.Swap(db)
-
-	return nil
 }

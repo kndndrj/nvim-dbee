@@ -35,7 +35,7 @@ local function setup_core()
   vim.env.PATH = install.path() .. ":" .. vim.env.PATH
 
   m.handler = Handler:new(m.config.sources)
-  m.handler:helpers_add(m.config.extra_helpers)
+  m.handler:add_helpers(m.config.extra_helpers)
 end
 
 ---@return boolean ok was setup successful?

@@ -1,5 +1,7 @@
 package core
 
+import "strings"
+
 type SchemaType int
 
 const (
@@ -59,6 +61,17 @@ func (s StructureType) String() string {
 		return "view"
 	default:
 		return ""
+	}
+}
+
+func StructureTypeFromString(s string) StructureType {
+	switch strings.ToLower(s) {
+	case "table":
+		return StructureTypeTable
+	case "view":
+		return StructureTypeView
+	default:
+		return StructureTypeNone
 	}
 }
 

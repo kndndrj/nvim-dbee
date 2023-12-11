@@ -37,14 +37,16 @@ local function connection_nodes(handler, conn, result)
       if struct.type == "table" or struct.type == "view" then
         local helper_opts = { table = struct.name, schema = struct.schema, materialization = struct.type }
         node.action_1 = function(cb, select)
-          local items = vim.tbl_keys(handler:helpers_get(conn.type, helper_opts))
+          local helpers = handler:connection_get_helpers(conn.id, helper_opts)
+          local items = vim.tbl_keys(helpers)
           table.sort(items)
 
           select {
             title = "Select a Query",
             items = items,
             callback = function(selection)
-              local helpers = handler:helpers_get(conn.type, helper_opts)
+              print(selection)
+              print(helpers)
               local call = handler:connection_execute(conn.id, helpers[selection])
               result:set_call(call)
               cb()

@@ -61,6 +61,19 @@ function M.select(relative_winid, items, callback, title)
     end,
   })
 
+  -- yank keymap TODO: multiple callbacks instead
+  for _, key in pairs { "y" } do
+    menu:map("n", key, function()
+      local item = menu.tree:get_node()
+
+      menu:unmount()
+
+      if item then
+        vim.fn.setreg("", item.text)
+      end
+    end, { noremap = true, nowait = true })
+  end
+
   menu:mount()
 end
 

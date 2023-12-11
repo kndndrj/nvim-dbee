@@ -18,31 +18,6 @@ function M.once(id)
   return true
 end
 
--- Get random key from table
----@param tbl table key-value table
----@return any|nil key
-function M.random_key(tbl)
-  -- luacheck: push ignore 512
-  for k, _ in pairs(tbl) do
-    return k
-  end
-  -- luacheck: pop
-end
-
--- Get type from alias
----@param alias string
----@return string type
-function M.type_alias(alias)
-  local aliases = {
-    ["postgresql"] = "postgres",
-    ["pg"] = "postgres",
-    ["sqlite3"] = "sqlite",
-    ["mongodb"] = "mongo",
-    ["duckdb"] = "duck",
-  }
-  return aliases[alias] or alias or ""
-end
-
 -- Get cursor range of current selection
 ---@return integer start row
 ---@return integer start column
