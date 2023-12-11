@@ -9,7 +9,7 @@ local ui_helper = require("dbee.ui_helper")
 ---@field private handler Handler
 ---@field private winid? integer
 ---@field private bufnr integer
----@field private current_call call_details
+---@field private current_call? call_details
 ---@field private page_size integer
 ---@field private page_index integer index of the current page
 ---@field private page_ammount integer number of pages in the current result set
@@ -32,7 +32,6 @@ function Result:new(handler, quit_handle, opts)
   -- class object
   local o = {
     handler = handler,
-    current_call = {},
     page_size = opts.page_size or 100,
     page_index = 0,
     page_ammount = 0,
@@ -48,6 +47,7 @@ function Result:new(handler, quit_handle, opts)
     bufhidden = "delete",
     buftype = "nofile",
     swapfile = false,
+    modifiable = false,
   })
   ui_helper.configure_buffer_mappings(o.bufnr, o:generate_keymap(opts.mappings))
   ui_helper.configure_buffer_quit_handle(o.bufnr, quit_handle)
@@ -66,7 +66,7 @@ function Result:on_call_state_changed(data)
   local call = data.call
 
   -- we only care about the current call
-  if call.id ~= self.current_call.id then
+  if not self.current_call or call.id ~= self.current_call.id then
     return
   end
 
@@ -95,6 +95,10 @@ end
 
 ---@private
 function Result:display_status()
+  if not self.current_call then
+    error("no call set to result")
+  end
+
   local state = self.current_call.state
 
   local msg = ""
@@ -106,9 +110,16 @@ function Result:display_status()
     msg = "Call canceled"
   end
 
+  vim.api.nvim_buf_set_option(self.bufnr, "modifiable", true)
+
   local seconds = self.current_call.time_taken_us / 1000000
   local line = string.format("%s after %.3f seconds", msg, seconds)
   vim.api.nvim_buf_set_lines(self.bufnr, 0, -1, false, { line })
+
+  vim.api.nvim_buf_set_option(self.bufnr, "modifiable", false)
+
+  -- set winbar
+  vim.api.nvim_win_set_option(self.winid, "winbar", "Results")
 end
 
 --- Displays a page of the current result in the results buffer
@@ -116,6 +127,9 @@ end
 ---@param page integer zero based page index
 ---@return integer # current page
 function Result:display_result(page)
+  if not self.current_call then
+    error("no call set to result")
+  end
   -- calculate the ranges
   if page < 0 then
     page = 0
@@ -139,7 +153,7 @@ function Result:display_result(page)
   local seconds = self.current_call.time_taken_us / 1000000
 
   -- set winbar status
-  if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
+  if self.winid and vim.api.nvim_win_is_valid(self.winid) then
     vim.api.nvim_win_set_option(
       self.winid,
       "winbar",
@@ -237,6 +251,9 @@ end
 ---@param output string
 ---@param arg any
 function Result:store_current_wrapper(format, output, arg)
+  if not self.current_call then
+    error("no call set to result")
+  end
   local index = self:current_row_index()
 
   -- indexes in table start with 1, but in go they start with 0,
@@ -261,6 +278,9 @@ end
 ---@param output string
 ---@param arg any
 function Result:store_selection_wrapper(format, output, arg)
+  if not self.current_call then
+    error("no call set to result")
+  end
   local sindex, eindex = self:current_row_range()
 
   -- see above comment
@@ -278,6 +298,9 @@ end
 ---@param output string
 ---@param arg any
 function Result:store_all_wrapper(format, output, arg)
+  if not self.current_call then
+    error("no call set to result")
+  end
   self.handler:call_store_result(self.current_call.id, format, output, { extra_arg = arg })
 end
 
@@ -366,6 +389,12 @@ function Result:show(winid)
   })
 
   vim.api.nvim_win_set_buf(self.winid, self.bufnr)
+
+  -- display the current result
+  local ok = pcall(self.page_current, self)
+  if not ok then
+    vim.api.nvim_win_set_option(self.winid, "winbar", "Results")
+  end
 end
 
 return Result

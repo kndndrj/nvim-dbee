@@ -79,7 +79,6 @@ func (s *Call) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Caller builds the cal
 func newCallFromExecutor(executor func(context.Context) (ResultStream, error), query string, onEvent func(*Call)) *Call {
 	id := CallID(uuid.New().String())
 	c := &Call{

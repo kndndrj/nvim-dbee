@@ -5,20 +5,22 @@ import (
 	"testing"
 	"time"
 
-	"gotest.tools/assert"
-
+	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
+	"github.com/stretchr/testify/require"
 )
 
 func testNextYield(t *testing.T, sleep bool) {
-	vals := []string{"here", "are", "some", "random", "values"}
+	r := require.New(t)
 
-	next, hasNext := builders.NextYield(func(yield func(any)) error {
-		for i, val := range vals {
+	rows := [][]any{{"first", "row"}, {"second"}, {"third"}, {"fourth"}, {"fifth"}, {"and", "last", "row"}}
+
+	next, hasNext := builders.NextYield(func(yield func(...any)) error {
+		for i, row := range rows {
 			if sleep && (i == 2 || i == 4) {
 				time.Sleep(500 * time.Millisecond)
 			}
-			yield(val)
+			yield(row...)
 		}
 
 		return nil
@@ -26,18 +28,18 @@ func testNextYield(t *testing.T, sleep bool) {
 
 	i := 0
 	for hasNext() {
-		val, err := next()
-		assert.NilError(t, err)
+		row, err := next()
 
-		if len(val) < 1 {
-			t.Fatal("row without value")
-		}
+		r.NoError(err)
 
-		assert.Equal(t, val[0], vals[i])
+		r.NotEqual(0, len(row))
+
+		r.Equal(row, core.Row(rows[i]))
+
 		i++
 	}
 
-	assert.Equal(t, i, len(vals))
+	r.Equal(i, len(rows))
 }
 
 func TestNextYield_Success(t *testing.T) {
@@ -52,12 +54,39 @@ func TestNextYield_Success(t *testing.T) {
 func TestNextYield_Error(t *testing.T) {
 	expectedError := errors.New("expected error")
 
-	next, hasNext := builders.NextYield(func(yield func(any)) error {
+	next, hasNext := builders.NextYield(func(yield func(...any)) error {
 		return expectedError
 	})
 
 	for hasNext() {
 		_, err := next()
-		assert.Error(t, err, expectedError.Error())
+		require.Error(t, err, expectedError.Error())
 	}
+}
+
+func TestNextYield_NoRows(t *testing.T) {
+	_, hasNext := builders.NextYield(func(yield func(...any)) error {
+		time.Sleep(1 * time.Second)
+		return nil
+	})
+
+	require.Equal(t, false, hasNext())
+}
+
+func TestNextYield_SingleRow(t *testing.T) {
+	r := require.New(t)
+	next, hasNext := builders.NextYield(func(yield func(...any)) error {
+		yield(1)
+		time.Sleep(1 * time.Second)
+		return nil
+	})
+
+	r.True(hasNext())
+
+	row, err := next()
+	r.NoError(err)
+	r.Equal(1, len(row))
+	r.Equal(1, row[0])
+
+	r.Equal(false, hasNext())
 }

@@ -66,7 +66,7 @@ func (c *mongoDriver) Query(ctx context.Context, query string) (core.ResultStrea
 
 	cur, ok := resp["cursor"]
 	if ok {
-		next, hasNext = builders.NextYield(func(yield func(any)) error {
+		next, hasNext = builders.NextYield(func(yield func(...any)) error {
 			cursor := cur.(bson.M)
 			if !ok {
 				return errors.New("type assertion for cursor object failed")

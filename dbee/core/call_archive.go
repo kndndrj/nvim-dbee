@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -224,6 +225,18 @@ func (r *archiveRows) readMeta() error {
 	return nil
 }
 
+// closeOnce closes the channel if it isn't already closed.
+func closeOnce[T any](ch chan T) {
+	select {
+	case <-ch:
+	default:
+		close(ch)
+	}
+}
+
+// readIter creates next and hasNext functions.
+// This method is basically the same as builders/NextYield, but is copy-pasted
+// because of import cycles.
 func (r *archiveRows) readIter() {
 	// open the first file if it exists,
 	// loop through its contents and try the next file
@@ -232,12 +245,11 @@ func (r *archiveRows) readIter() {
 		return err == nil
 	}
 
-	// nextFile returns the contents of the next rows file
-	index := 0
-	nextFile := func() (resultRows []Row, isLast bool, err error) {
-		file, err := os.Open(rowFile(r.id, index))
+	// openFile returns rows of the file
+	openFile := func(i int) ([]Row, error) {
+		file, err := os.Open(rowFile(r.id, i))
 		if err != nil {
-			return nil, false, fmt.Errorf("os.Open: %w", err)
+			return nil, fmt.Errorf("os.Open: %w", err)
 		}
 		defer file.Close()
 
@@ -246,43 +258,89 @@ func (r *archiveRows) readIter() {
 		decoder := gob.NewDecoder(file)
 		err = decoder.Decode(&rows)
 		if err != nil {
-			return nil, false, fmt.Errorf("decoder.Decode: %w", err)
+			return nil, fmt.Errorf("decoder.Decode: %w", err)
 		}
 
-		index++
-		return rows, !fileExists(index + 1), nil
+		return rows, nil
 	}
 
-	// holds rows from current file in memory
-	currentRows := []Row{}
-	maxIndex := -1
-	isLastFile := false
-	hasNext := true
-	i := 0
-	r.iter = func() (Row, error) {
-		if i == maxIndex && isLastFile {
-			hasNext = false
-		}
-		if i > maxIndex {
-			if isLastFile {
-				return nil, errors.New("no next row")
-			}
+	resultsCh := make(chan []any, 10)
+	errorsCh := make(chan error, 1)
+	readyCh := make(chan struct{})
+	doneCh := make(chan struct{})
 
-			var err error
-			currentRows, isLastFile, err = nextFile()
+	// spawn channel function
+	go func() {
+		defer func() {
+			close(doneCh)
+			closeOnce(readyCh)
+			close(resultsCh)
+			close(errorsCh)
+		}()
+
+		file := 0
+		for {
+			if !fileExists(file) {
+				return
+			}
+			rows, err := openFile(file)
 			if err != nil {
-				return nil, err
+				errorsCh <- err
+				return
 			}
-			maxIndex = len(currentRows) - 1
-			i = 0
+
+			for _, row := range rows {
+				resultsCh <- row
+				closeOnce(readyCh)
+			}
+
+			file++
 		}
-		val := currentRows[i]
-		i++
-		return val, nil
-	}
+	}()
+
+	<-readyCh
+
+	var nextVal atomic.Value
+	var nextErr atomic.Value
 
 	r.hasNext = func() bool {
-		return hasNext
+		select {
+		case vals, ok := <-resultsCh:
+			if !ok {
+				return false
+			}
+			nextVal.Store(vals)
+			return true
+		case err := <-errorsCh:
+			if err != nil {
+				nextErr.Store(err)
+				return false
+			}
+		case <-doneCh:
+			if len(resultsCh) < 1 {
+				return false
+			}
+		case <-time.After(5 * time.Second):
+			nextErr.Store(errors.New("next row timeout"))
+			return false
+		}
+
+		return r.hasNext()
+	}
+
+	r.iter = func() (Row, error) {
+		var val Row
+		var err error
+
+		nval := nextVal.Load()
+		if nval != nil {
+			val = nval.([]any)
+		}
+		nerr := nextErr.Load()
+		if nerr != nil {
+			err = nerr.(error)
+		}
+		return val, err
 	}
 }
 

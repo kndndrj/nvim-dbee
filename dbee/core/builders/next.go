@@ -2,6 +2,7 @@ package builders
 
 import (
 	"errors"
+	"sync/atomic"
 	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/core"
@@ -64,51 +65,85 @@ func NextNil() (func() (core.Row, error), func() bool) {
 	return next, hasNext
 }
 
-// NextYield creates next and hasNext functions from provided values
-// preprocessor is an optional function which parses a single value from slice before adding it to a row
-func NextYield(fn func(yield func(any)) error) (func() (core.Row, error), func() bool) {
-	ch := make(chan any, 10)
-	errCh := make(chan error, 1)
+// closeOnce closes the channel if it isn't already closed.
+func closeOnce[T any](ch chan T) {
+	select {
+	case <-ch:
+	default:
+		close(ch)
+	}
+}
+
+// NextYield creates next and hasNext functions by calling yield in internal function.
+// WARNING: the caller must call "hasNext" before each call to "next".
+func NextYield(fn func(yield func(...any)) error) (func() (core.Row, error), func() bool) {
+	resultsCh := make(chan []any, 10)
+	errorsCh := make(chan error, 1)
+	readyCh := make(chan struct{})
+	doneCh := make(chan struct{})
 
 	// spawn channel function
-	done := false
 	go func() {
-		err := fn(func(v any) {
-			ch <- v
+		defer func() {
+			close(doneCh)
+			closeOnce(readyCh)
+			close(resultsCh)
+			close(errorsCh)
+		}()
+
+		err := fn(func(v ...any) {
+			resultsCh <- v
+			closeOnce(readyCh)
 		})
 		if err != nil {
-			errCh <- err
+			errorsCh <- err
 		}
-		close(ch)
-		close(errCh)
-		done = true
 	}()
 
-	hasNext := func() bool {
-		if done && len(ch) < 1 {
+	<-readyCh
+
+	var nextVal atomic.Value
+	var nextErr atomic.Value
+
+	var hasNext func() bool
+	hasNext = func() bool {
+		select {
+		case vals, ok := <-resultsCh:
+			if !ok {
+				return false
+			}
+			nextVal.Store(vals)
+			return true
+		case err := <-errorsCh:
+			if err != nil {
+				nextErr.Store(err)
+				return false
+			}
+		case <-doneCh:
+			if len(resultsCh) < 1 {
+				return false
+			}
+		case <-time.After(5 * time.Second):
+			nextErr.Store(errors.New("next row timeout"))
 			return false
 		}
-		return true
+
+		return hasNext()
 	}
 
-	var next func() (core.Row, error)
-	next = func() (core.Row, error) {
-		if !hasNext() {
-			return nil, errors.New("no next row")
-		}
+	next := func() (core.Row, error) {
+		var val core.Row
+		var err error
 
-		// read value channel
-		select {
-		case val := <-ch:
-			return core.Row{val}, nil
-		case <-time.After(5 * time.Second):
-			return nil, errors.New("next row timeout")
-		case err := <-errCh:
-			if err != nil {
-				return nil, err
-			}
-			return next()
+		nval := nextVal.Load()
+		if nval != nil {
+			val = nval.([]any)
 		}
+		nerr := nextErr.Load()
+		if nerr != nil {
+			err = nerr.(error)
+		}
+		return val, err
 	}
 
 	return next, hasNext

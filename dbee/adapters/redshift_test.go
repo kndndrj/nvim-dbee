@@ -9,6 +9,8 @@ import (
 )
 
 func TestNewRedshift(t *testing.T) {
+	r := require.New(t)
+
 	type args struct {
 		rawURL string
 	}
@@ -36,11 +38,11 @@ func TestNewRedshift(t *testing.T) {
 				return
 			}
 			if tt.wantErr {
-				require.Nil(t, got)
-				require.Error(t, err)
+				r.Nil(got)
+				r.Error(err)
 				return
 			}
-			require.NoError(t, err)
+			r.NoError(err)
 		})
 	}
 }

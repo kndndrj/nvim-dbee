@@ -45,8 +45,6 @@ local function connection_nodes(handler, conn, result)
             title = "Select a Query",
             items = items,
             callback = function(selection)
-              print(selection)
-              print(helpers)
               local call = handler:connection_execute(conn.id, helpers[selection])
               result:set_call(call)
               cb()

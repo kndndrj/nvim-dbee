@@ -258,7 +258,11 @@ end
 ---@param to integer
 ---@return integer # total number of rows
 function Handler:call_display_result(id, bufnr, from, to)
-  return vim.fn.DbeeCallDisplayResult { id = id, buffer = bufnr, from = from, to = to }
+  local length = vim.fn.DbeeCallDisplayResult { id = id, buffer = bufnr, from = from, to = to }
+  if not length or length == vim.NIL then
+    return 0
+  end
+  return length
 end
 
 ---@param id call_id
