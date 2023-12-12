@@ -44,10 +44,13 @@ local function connection_nodes(handler, conn, result)
           select {
             title = "Select a Query",
             items = items,
-            callback = function(selection)
+            on_confirm = function(selection)
               local call = handler:connection_execute(conn.id, helpers[selection])
               result:set_call(call)
               cb()
+            end,
+            on_yank = function(selection)
+              vim.fn.setreg("", helpers[selection])
             end,
           }
         end
@@ -73,7 +76,7 @@ local function connection_nodes(handler, conn, result)
         select {
           title = "Select a Database",
           items = available_dbs,
-          callback = function(selection)
+          on_confirm = function(selection)
             handler:connection_select_database(conn.id, selection)
             cb()
           end,
@@ -195,7 +198,7 @@ local function handler_real_nodes(handler, result)
           select {
             title = "Confirm Deletion",
             items = { "Yes", "No" },
-            callback = function(selection)
+            on_confirm = function(selection)
               if selection == "Yes" then
                 handler:source_remove_connections(source_id, conn)
               end
@@ -278,21 +281,23 @@ function M.separator_node()
   } --[[@as DrawerTileNode]]
 end
 
----@param mappings table<string, mapping>
+---@param mappings key_mapping[]
 ---@return DrawerTileNode
 function M.help_node(mappings)
   -- help node
   ---@type DrawerTileNode[]
   local children = {}
-  for act, map in pairs(mappings) do
-    table.insert(
-      children,
-      NuiTree.Node {
-        id = "__help_action_" .. act,
-        name = act .. " = " .. map.key .. " (" .. map.mode .. ")",
-        type = "",
-      }
-    )
+  for _, km in ipairs(mappings) do
+    if type(km.action) == "string" then
+      table.insert(
+        children,
+        NuiTree.Node {
+          id = "__help_action_" .. tostring(os.clock()),
+          name = km.action .. " = " .. km.key .. " (" .. km.mode .. ")",
+          type = "",
+        }
+      )
+    end
   end
 
   table.sort(children, function(k1, k2)
@@ -351,7 +356,7 @@ local function editor_namespace_nodes(editor, namespace, refresh)
         input {
           title = "Enter Note Name",
           default = "note_" .. tostring(os.clock()) .. ".sql",
-          callback = function(value)
+          on_confirm = function(value)
             if not value or value == "" then
               return
             end
@@ -378,7 +383,7 @@ local function editor_namespace_nodes(editor, namespace, refresh)
         input {
           title = "New Name",
           default = note.name,
-          callback = function(value)
+          on_confirm = function(value)
             if not value or value == "" then
               return
             end
@@ -391,7 +396,7 @@ local function editor_namespace_nodes(editor, namespace, refresh)
         select {
           title = "Confirm Deletion",
           items = { "Yes", "No" },
-          callback = function(selection)
+          on_confirm = function(selection)
             if selection == "Yes" then
               editor:namespace_remove_note(namespace, note.id)
             end

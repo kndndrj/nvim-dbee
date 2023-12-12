@@ -23,14 +23,14 @@ local expansion = require("dbee.tiles.drawer.expansion")
 ---@field action_3? drawer_node_action tertiary action if function takes a second selection parameter, pick_items get picked before the call
 ---@field lazy_children? fun():DrawerTileNode[] lazy loaded child nodes
 
----@alias drawer_config { disable_candies: boolean, candies: table<string, Candy>, mappings: table<string, mapping>, disable_help: boolean }
+---@alias drawer_config { disable_candies: boolean, candies: table<string, Candy>, mappings: key_mapping[], disable_help: boolean }
 
 ---@class DrawerTile
 ---@field private tree NuiTree
 ---@field private handler Handler
 ---@field private editor EditorTile
 ---@field private result ResultTile
----@field private mappings table<string, mapping>
+---@field private mappings key_mapping[]
 ---@field private candies table<string, Candy> map of eye-candy stuff (icons, highlight)
 ---@field private disable_help boolean show help or not
 ---@field private winid? integer
@@ -89,7 +89,7 @@ function DrawerTile:new(handler, editor, result, quit_handle, opts)
     buftype = "nofile",
     swapfile = false,
   })
-  common.configure_buffer_mappings(o.bufnr, o:generate_keymap(opts.mappings))
+  common.configure_buffer_mappings(o.bufnr, o:get_actions(), opts.mappings)
   common.configure_buffer_quit_handle(o.bufnr, o.quit_handle)
 
   -- create tree
@@ -187,11 +187,8 @@ function DrawerTile:create_tree(bufnr)
 end
 
 ---@private
----@param mappings table<string, mapping>
----@return keymap[]
-function DrawerTile:generate_keymap(mappings)
-  mappings = mappings or {}
-
+---@return table<string, fun()>
+function DrawerTile:get_actions()
   local function collapse_node(node)
     if node:collapse() then
       self.tree:render()
@@ -237,87 +234,76 @@ function DrawerTile:generate_keymap(mappings)
       self:refresh()
     end, function(opts)
       opts = opts or {}
-      menu.select(self.winid, opts.items or {}, opts.callback or function() end, opts.title or "")
+      menu.select {
+        relative_winid = self.winid,
+        title = opts.title or "",
+        mappings = self.mappings,
+        items = opts.items or {},
+        on_confirm = opts.on_confirm,
+        on_yank = opts.on_yank,
+      }
     end, function(opts)
-      menu.input(self.winid, opts.default or "", opts.callback or function() end, opts.title or "")
+      menu.input {
+        relative_winid = self.winid,
+        title = opts.title or "",
+        mappings = self.mappings,
+        default_value = opts.default or "",
+        on_confirm = opts.on_confirm,
+      }
     end)
   end
 
   return {
-    {
-      action = self.quit_handle,
-      mapping = mappings["quit"],
-    },
-    {
-      action = function()
-        self:refresh()
-      end,
-      mapping = mappings["refresh"],
-    },
-    {
-      action = function()
-        local node = self.tree:get_node() --[[@as DrawerTileNode]]
-        if not node then
-          return
-        end
-        perform_action(node.action_1)
-      end,
-      mapping = mappings["action_1"],
-    },
-    {
-      action = function()
-        local node = self.tree:get_node() --[[@as DrawerTileNode]]
-        if not node then
-          return
-        end
-        perform_action(node.action_2)
-      end,
-      mapping = mappings["action_2"],
-    },
-    {
-      action = function()
-        local node = self.tree:get_node() --[[@as DrawerTileNode]]
-        if not node then
-          return
-        end
-        perform_action(node.action_3)
-      end,
-      mapping = mappings["action_3"],
-    },
-    {
-      action = function()
-        local node = self.tree:get_node()
-        if not node then
-          return
-        end
+    quit = self.quit_handle,
+    refresh = function()
+      self:refresh()
+    end,
+    action_1 = function()
+      local node = self.tree:get_node() --[[@as DrawerTileNode]]
+      if not node then
+        return
+      end
+      perform_action(node.action_1)
+    end,
+    action_2 = function()
+      local node = self.tree:get_node() --[[@as DrawerTileNode]]
+      if not node then
+        return
+      end
+      perform_action(node.action_2)
+    end,
+    action_3 = function()
+      local node = self.tree:get_node() --[[@as DrawerTileNode]]
+      if not node then
+        return
+      end
+      perform_action(node.action_3)
+    end,
+    collapse = function()
+      local node = self.tree:get_node()
+      if not node then
+        return
+      end
+      collapse_node(node)
+    end,
+    expand = function()
+      local node = self.tree:get_node()
+      if not node then
+        return
+      end
+      expand_node(node)
+    end,
+    toggle = function()
+      local node = self.tree:get_node()
+      if not node then
+        return
+      end
+      if node:is_expanded() then
         collapse_node(node)
-      end,
-      mapping = mappings["collapse"],
-    },
-    {
-      action = function()
-        local node = self.tree:get_node()
-        if not node then
-          return
-        end
+      else
         expand_node(node)
-      end,
-      mapping = mappings["expand"],
-    },
-    {
-      action = function()
-        local node = self.tree:get_node()
-        if not node then
-          return
-        end
-        if node:is_expanded() then
-          collapse_node(node)
-        else
-          expand_node(node)
-        end
-      end,
-      mapping = mappings["toggle"],
-    },
+      end
+    end,
   }
 end
 

@@ -1,7 +1,6 @@
 local M = {}
 
----@alias mapping { key: string, mode: string, opts: table }|{ key: string, mode: string, opts: table }[]
----@alias keymap { action: fun(), mapping: mapping }
+---@alias key_mapping { key: string, mode: string, opts: table, action: string|fun() }
 
 -- configuration object
 ---@class Config
@@ -40,20 +39,25 @@ M.default = {
     -- mappings for the buffer
     mappings = {
       -- quit the dbee interface
-      quit = { key = "q", mode = "n" },
+      { key = "q", mode = "n", action = "quit" },
       -- manually refresh drawer
-      refresh = { key = "r", mode = "n" },
+      { key = "r", mode = "n", action = "refresh" },
       -- actions perform different stuff depending on the node:
       -- action_1 opens a note or executes a helper
-      action_1 = { key = "<CR>", mode = "n" },
+      { key = "<CR>", mode = "n", action = "action_1" },
       -- action_2 renames a note or sets the connection as active manually
-      action_2 = { key = "cw", mode = "n" },
+      { key = "cw", mode = "n", action = "action_2" },
       -- action_3 deletes a note or connection (removes connection from the file if you configured it like so)
-      action_3 = { key = "dd", mode = "n" },
+      { key = "dd", mode = "n", action = "action_3" },
       -- these are self-explanatory:
-      -- collapse = { key = "c", mode = "n" },
-      -- expand = { key = "e", mode = "n" },
-      toggle = { key = "o", mode = "n" },
+      -- { key = "c", mode = "n", action = "collapse" },
+      -- { key = "e", mode = "n", action = "expand" },
+      { key = "o", mode = "n", action = "toggle" },
+      -- mappings for menu popups:
+      { key = "<CR>", mode = "n", action = "menu_confirm" },
+      { key = "y", mode = "n", action = "menu_yank" },
+      { key = "<Esc>", mode = "n", action = "menu_close" },
+      { key = "q", mode = "n", action = "menu_close" },
     },
     -- icon settings:
     disable_candies = false,
@@ -153,15 +157,15 @@ M.default = {
     -- mappings for the buffer
     mappings = {
       -- next/previous page
-      page_next = { key = "L", mode = "" },
-      page_prev = { key = "H", mode = "" },
+      { key = "L", mode = "", action = "page_next" },
+      { key = "H", mode = "", action = "page_prev" },
       -- yank rows as csv/json
-      yank_current_json = { key = "yaj", mode = "n" },
-      yank_selection_json = { key = "yaj", mode = "v" },
-      yank_all_json = { key = "yaJ", mode = "" },
-      yank_current_csv = { key = "yac", mode = "n" },
-      yank_selection_csv = { key = "yac", mode = "v" },
-      yank_all_csv = { key = "yaC", mode = "" },
+      { key = "yaj", mode = "n", action = "yank_current_json" },
+      { key = "yaj", mode = "v", action = "yank_selection_json" },
+      { key = "yaJ", mode = "", action = "yank_all_json" },
+      { key = "yac", mode = "n", action = "yank_current_csv" },
+      { key = "yac", mode = "v", action = "yank_selection_csv" },
+      { key = "yaC", mode = "", action = "yank_all_csv" },
     },
   },
 
@@ -170,9 +174,9 @@ M.default = {
     -- mappings for the buffer
     mappings = {
       -- run what's currently selected on the active connection
-      run_selection = { key = "BB", mode = "v" },
+      { key = "BB", mode = "v", action = "run_selection" },
       -- run the whole file on the active connection
-      run_file = { key = "BB", mode = "n" },
+      { key = "BB", mode = "n", action = "run_file" },
     },
   },
 
@@ -181,9 +185,9 @@ M.default = {
     -- mappings for the buffer
     mappings = {
       -- show the result of the currently selected call record
-      show_result = { key = "<CR>", mode = "" },
+      { key = "<CR>", mode = "", action = "show_result" },
       -- cancel the currently selected call (if its still executing)
-      cancel = { key = "d", mode = "" },
+      { key = "d", mode = "", action = "cancel" },
     },
 
     -- candies (icons and highlights)

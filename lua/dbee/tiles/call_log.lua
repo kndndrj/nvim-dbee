@@ -15,7 +15,7 @@ local common = require("dbee.tiles.common")
 ---@field private hover_close? fun() function that closes the hover window
 local CallLogTile = {}
 
----@alias call_log_config { mappings: table<string, mapping>, disable_candies: boolean, candies: table<string, Candy> }
+---@alias call_log_config { mappings: key_mapping[], disable_candies: boolean, candies: table<string, Candy> }
 
 ---@param handler Handler
 ---@param result ResultTile
@@ -55,7 +55,7 @@ function CallLogTile:new(handler, result, quit_handle, opts)
     buftype = "nofile",
     swapfile = false,
   })
-  common.configure_buffer_mappings(o.bufnr, o:generate_keymap(opts.mappings))
+  common.configure_buffer_mappings(o.bufnr, o:get_actions(), opts.mappings)
   common.configure_buffer_quit_handle(o.bufnr, quit_handle)
 
   -- create the tree
@@ -164,45 +164,36 @@ function CallLogTile:create_tree(bufnr)
 end
 
 ---@private
----@param mappings table<string, mapping>
----@return keymap[]
-function CallLogTile:generate_keymap(mappings)
-  mappings = mappings or {}
-
+---@return table<string, fun()>
+function CallLogTile:get_actions()
   return {
-    {
-      action = function()
-        local node = self.tree:get_node()
-        if not node then
-          return
-        end
-        local call = node.call
-        if not call then
-          return
-        end
+    show_result = function()
+      local node = self.tree:get_node()
+      if not node then
+        return
+      end
+      local call = node.call
+      if not call then
+        return
+      end
 
-        if call.state == "archived" or call.state == "retrieving" then
-          self.result:set_call(call)
-          self.result:page_current()
-        end
-      end,
-      mapping = mappings["show_result"],
-    },
-    {
-      action = function()
-        local node = self.tree:get_node()
-        if not node then
-          return
-        end
-        local call = node.call
-        if not call then
-          return
-        end
+      if call.state == "archived" or call.state == "retrieving" then
+        self.result:set_call(call)
+        self.result:page_current()
+      end
+    end,
+    cancel = function()
+      local node = self.tree:get_node()
+      if not node then
+        return
+      end
+      local call = node.call
+      if not call then
+        return
+      end
 
-        self.handler:call_cancel(call.id)
-      end,
-      mapping = mappings["cancel"],
-    },
+      self.handler:call_cancel(call.id)
+    end,
   }
 end
 

@@ -56,17 +56,18 @@ end
 
 -- Sets mappings to the buffer.
 ---@param bufnr integer
----@param keymap keymap[]
----@param opts? { delete: boolean } if delete is set, remove mappings instad of adding them
-function M.configure_buffer_mappings(bufnr, keymap, opts)
+---@param actions table<string, fun()>
+---@param keymap key_mapping[]
+---@param delete? boolean if set, remove mappings instad of adding them
+function M.configure_buffer_mappings(bufnr, actions, keymap, delete)
   if not bufnr then
     return
   end
+  actions = actions or {}
   keymap = keymap or {}
-  opts = opts or {}
 
   local set_fn = vim.keymap.set
-  if opts.delete then
+  if delete then
     set_fn = function(mode, lhs, _, _)
       vim.keymap.del(mode, lhs, { buffer = bufnr })
     end
@@ -76,18 +77,18 @@ function M.configure_buffer_mappings(bufnr, keymap, opts)
   local default_opts = { noremap = true, nowait = true }
 
   for _, km in ipairs(keymap) do
-    if km.action and type(km.action) == "function" and km.mapping then
-      if not vim.tbl_islist(km.mapping) then
-        ---@diagnostic disable-next-line
-        km.mapping = { km.mapping }
+    if km.key and km.mode then
+      local action
+      if type(km.action) == "string" then
+        action = actions[km.action]
+      elseif type(km.action) == "function" then
+        action = km.action
       end
 
-      for _, map in ipairs(km.mapping) do
-        if map.key and map.mode then
-          local map_opts = map.opts or default_opts
-          map_opts.buffer = bufnr
-          set_fn(map.mode, map.key, km.action, map_opts)
-        end
+      if action then
+        local map_opts = km.opts or default_opts
+        map_opts.buffer = bufnr
+        set_fn(km.mode, km.key, action, map_opts)
       end
     end
   end
@@ -95,8 +96,9 @@ end
 
 -- Sets mappings to the window.
 ---@param winid integer
----@param keymap keymap[]
-function M.configure_window_mappings(winid, keymap)
+---@param actions table<string, fun()>
+---@param keymap key_mapping[]
+function M.configure_window_mappings(winid, actions, keymap)
   if not winid then
     return
   end
@@ -105,7 +107,7 @@ function M.configure_window_mappings(winid, keymap)
   utils.create_singleton_autocmd({ "BufWinEnter" }, {
     window = winid,
     callback = function(event)
-      M.configure_buffer_mappings(event.buf, keymap)
+      M.configure_buffer_mappings(event.buf, actions, keymap)
     end,
   })
 
@@ -113,7 +115,7 @@ function M.configure_window_mappings(winid, keymap)
   utils.create_singleton_autocmd({ "BufWinLeave" }, {
     window = winid,
     callback = function(event)
-      pcall(M.configure_buffer_mappings, event.buf, keymap, { delete = true })
+      pcall(M.configure_buffer_mappings, event.buf, actions, keymap, true)
     end,
   })
 end

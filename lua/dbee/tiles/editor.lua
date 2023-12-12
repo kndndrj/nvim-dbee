@@ -10,14 +10,14 @@ local common = require("dbee.tiles.common")
 ---@alias note_id string
 ---@alias note_details { id: note_id, name: string, file: string, bufnr: integer? }
 
----@alias editor_config { directory: string, mappings: table<string, mapping> }
+---@alias editor_config { directory: string, mappings: key_mapping[] }
 
 ---@class EditorTile
 ---@field private handler Handler
 ---@field private result ResultTile
 ---@field private quit_handle fun()
 ---@field private winid? integer
----@field private mappings table<string, mapping>
+---@field private mappings key_mapping[]
 ---@field private notes table<namespace_id, table<note_id, note_details>> namespace: { id: note_details } mapping
 ---@field private current_note_id? note_id
 ---@field private directory string directory where notes are stored
@@ -83,45 +83,37 @@ function EditorTile:search_existing_namespaces()
 end
 
 ---@private
----@param mappings table<string, mapping>
----@return keymap[]
-function EditorTile:generate_keymap(mappings)
-  mappings = mappings or {}
+---@return table<string, fun()>
+function EditorTile:get_actions()
   return {
-    {
-      action = function()
-        if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
-          return
-        end
-        local bufnr = vim.api.nvim_win_get_buf(self.winid)
-        local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
-        local query = table.concat(lines, "\n")
+    run_file = function()
+      if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
+        return
+      end
+      local bufnr = vim.api.nvim_win_get_buf(self.winid)
+      local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+      local query = table.concat(lines, "\n")
 
-        local conn = self.handler:get_current_connection()
-        if not conn then
-          return
-        end
-        local call = self.handler:connection_execute(conn.id, query)
-        self.result:set_call(call)
-      end,
-      mapping = mappings["run_file"],
-    },
-    {
-      action = function()
-        local srow, scol, erow, ecol = utils.visual_selection()
+      local conn = self.handler:get_current_connection()
+      if not conn then
+        return
+      end
+      local call = self.handler:connection_execute(conn.id, query)
+      self.result:set_call(call)
+    end,
+    run_selection = function()
+      local srow, scol, erow, ecol = utils.visual_selection()
 
-        local selection = vim.api.nvim_buf_get_text(0, srow, scol, erow, ecol, {})
-        local query = table.concat(selection, "\n")
+      local selection = vim.api.nvim_buf_get_text(0, srow, scol, erow, ecol, {})
+      local query = table.concat(selection, "\n")
 
-        local conn = self.handler:get_current_connection()
-        if not conn then
-          return
-        end
-        local call = self.handler:connection_execute(conn.id, query)
-        self.result:set_call(call)
-      end,
-      mapping = mappings["run_selection"],
-    },
+      local conn = self.handler:get_current_connection()
+      if not conn then
+        return
+      end
+      local call = self.handler:connection_execute(conn.id, query)
+      self.result:set_call(call)
+    end,
   }
 end
 
@@ -454,7 +446,7 @@ function EditorTile:show(winid)
   self.winid = winid
   self:configure_autocommands(winid)
 
-  common.configure_window_mappings(winid, self:generate_keymap(self.mappings))
+  common.configure_window_mappings(winid, self:get_actions(), self.mappings)
   common.configure_window_quit_handle(winid, self.quit_handle)
 
   -- open current note if configured

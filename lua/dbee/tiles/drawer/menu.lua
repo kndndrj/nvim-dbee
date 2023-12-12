@@ -3,26 +3,24 @@ local NuiInput = require("nui.input")
 
 local M = {}
 
----@alias menu_select fun(opts?: { title: string, items: string[], callback: fun(selection: string) })
----@alias menu_input fun(opts?: { title: string, default: string, callback: fun(value: string) })
+---@alias menu_select fun(opts?: { title: string, items: string[], on_confirm: fun(selection: string), on_yank: fun(selection: string) })
+---@alias menu_input fun(opts?: { title: string, default: string, on_confirm: fun(value: string) })
 
 -- Pick items from a list.
----@param relative_winid integer window id
----@param items string[] items to select from
----@param callback fun(item: string) selection callback
----@param title string
-function M.select(relative_winid, items, callback, title)
-  if not relative_winid or not vim.api.nvim_win_is_valid(relative_winid) then
+---@param opts { relative_winid: integer, items: string[], on_confirm: fun(item: string), on_yank: fun(item:string), title: string, mappings: key_mapping[] }
+function M.select(opts)
+  opts = opts or {}
+  if not opts.relative_winid or not vim.api.nvim_win_is_valid(opts.relative_winid) then
     error("no window id provided")
   end
 
-  local width = vim.api.nvim_win_get_width(relative_winid)
-  local row, _ = unpack(vim.api.nvim_win_get_cursor(relative_winid))
+  local width = vim.api.nvim_win_get_width(opts.relative_winid)
+  local row, _ = unpack(vim.api.nvim_win_get_cursor(opts.relative_winid))
 
   local popup_options = {
     relative = {
       type = "win",
-      winid = relative_winid,
+      winid = opts.relative_winid,
     },
     position = {
       row = row + 1,
@@ -34,7 +32,7 @@ function M.select(relative_winid, items, callback, title)
     border = {
       style = { "─", "─", "─", "", "─", "─", "─", "" },
       text = {
-        top = title,
+        top = opts.title or "",
         top_align = "left",
       },
     },
@@ -44,7 +42,7 @@ function M.select(relative_winid, items, callback, title)
   }
 
   local lines = {}
-  for _, item in ipairs(items) do
+  for _, item in ipairs(opts.items or {}) do
     table.insert(lines, NuiMenu.item(item))
   end
 
@@ -53,47 +51,53 @@ function M.select(relative_winid, items, callback, title)
     keymap = {
       focus_next = { "j", "<Down>", "<Tab>" },
       focus_prev = { "k", "<Up>", "<S-Tab>" },
-      close = { "<Esc>", "<C-c>", "q" },
-      submit = { "<CR>", "<Space>" },
+      close = {},
+      submit = {},
     },
-    on_submit = function(item)
-      callback(item.text)
-    end,
+    on_submit = function() end,
   })
 
-  -- yank keymap TODO: multiple callbacks instead
-  for _, key in pairs { "y" } do
-    menu:map("n", key, function()
-      local item = menu.tree:get_node()
+  -- configure mappings
+  for _, km in ipairs(opts.mappings or {}) do
+    local action
+    if km.action == "menu_confirm" then
+      action = opts.on_confirm
+    elseif km.action == "menu_yank" then
+      action = opts.on_yank
+    elseif km.action == "menu_close" then
+      action = function() end
+    end
 
-      menu:unmount()
+    local map_opts = km.opts or { noremap = true, nowait = true }
 
-      if item then
-        vim.fn.setreg("", item.text)
-      end
-    end, { noremap = true, nowait = true })
+    if action then
+      menu:map(km.mode, km.key, function()
+        local item = menu.tree:get_node()
+        menu:unmount()
+        if item then
+          action(item.text)
+        end
+      end, map_opts)
+    end
   end
 
   menu:mount()
 end
 
 -- Ask for input.
----@param relative_winid integer window id
----@param default_value string
----@param callback fun(item: string) selection callback
----@param title string
-function M.input(relative_winid, default_value, callback, title)
-  if not relative_winid or not vim.api.nvim_win_is_valid(relative_winid) then
+---@param opts { relative_winid: integer, default_value: string, on_confirm: fun(item: string), title: string, mappings: key_mapping[] }
+function M.input(opts)
+  if not opts.relative_winid or not vim.api.nvim_win_is_valid(opts.relative_winid) then
     error("no window id provided")
   end
 
-  local width = vim.api.nvim_win_get_width(relative_winid)
-  local row, _ = unpack(vim.api.nvim_win_get_cursor(relative_winid))
+  local width = vim.api.nvim_win_get_width(opts.relative_winid)
+  local row, _ = unpack(vim.api.nvim_win_get_cursor(opts.relative_winid))
 
   local popup_options = {
     relative = {
       type = "win",
-      winid = relative_winid,
+      winid = opts.relative_winid,
     },
     position = {
       row = row + 1,
@@ -105,7 +109,7 @@ function M.input(relative_winid, default_value, callback, title)
     border = {
       style = { "─", "─", "─", "", "─", "─", "─", "" },
       text = {
-        top = title,
+        top = opts.title or "",
         top_align = "left",
       },
     },
@@ -115,14 +119,28 @@ function M.input(relative_winid, default_value, callback, title)
   }
 
   local input = NuiInput(popup_options, {
-    default_value = default_value,
-    on_submit = callback,
+    default_value = opts.default_value,
+    on_submit = opts.on_confirm,
   })
 
-  for _, key in ipairs { "<Esc>", "<C-c>", "q" } do
-    input:map("n", key, function()
-      input:unmount()
-    end, { noremap = true })
+  -- configure mappings
+  for _, km in ipairs(opts.mappings or {}) do
+    local action
+    if km.action == "menu_confirm" then
+      action = opts.on_confirm
+    elseif km.action == "menu_close" then
+      action = function() end
+    end
+
+    local map_opts = km.opts or { noremap = true, nowait = true }
+
+    if action then
+      input:map(km.mode, km.key, function()
+        local line = vim.api.nvim_buf_get_lines(input.bufnr, 0, 1, false)[1]
+        input:unmount()
+        action(line)
+      end, map_opts)
+    end
   end
 
   input:mount()

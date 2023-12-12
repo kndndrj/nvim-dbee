@@ -2,7 +2,7 @@ local utils = require("dbee.utils")
 local progress = require("dbee.tiles.result.progress")
 local common = require("dbee.tiles.common")
 
----@alias result_config { mappings: table<string, mapping>, page_size: integer, progress: progress_config }
+---@alias result_config { mappings: key_mapping[], page_size: integer, progress: progress_config }
 
 -- ResultTile represents the part of ui with displayed results
 ---@class ResultTile
@@ -11,6 +11,7 @@ local common = require("dbee.tiles.common")
 ---@field private bufnr integer
 ---@field private current_call? call_details
 ---@field private page_size integer
+---@field private mappings key_mapping[]
 ---@field private page_index integer index of the current page
 ---@field private page_ammount integer number of pages in the current result set
 ---@field private stop_progress fun() function that stops progress display
@@ -35,6 +36,7 @@ function ResultTile:new(handler, quit_handle, opts)
     page_size = opts.page_size or 100,
     page_index = 0,
     page_ammount = 0,
+    mappings = opts.mappings or {},
     stop_progress = function() end,
     progress_opts = opts.progress or {},
   }
@@ -49,7 +51,7 @@ function ResultTile:new(handler, quit_handle, opts)
     swapfile = false,
     modifiable = false,
   })
-  common.configure_buffer_mappings(o.bufnr, o:generate_keymap(opts.mappings))
+  common.configure_buffer_mappings(o.bufnr, o:get_actions(), opts.mappings)
   common.configure_buffer_quit_handle(o.bufnr, quit_handle)
 
   handler:register_event_listener("call_state_changed", function(data)
@@ -172,61 +174,35 @@ function ResultTile:display_result(page)
 end
 
 ---@private
----@param mappings table<string, mapping>
----@return keymap[]
-function ResultTile:generate_keymap(mappings)
-  mappings = mappings or {}
+---@return table<string, fun()>
+function ResultTile:get_actions()
   return {
-    {
-      action = function()
-        self:page_next()
-      end,
-      mapping = mappings["page_next"],
-    },
-    {
-      action = function()
-        self:page_prev()
-      end,
-      mapping = mappings["page_prev"],
-    },
+    page_next = function()
+      self:page_next()
+    end,
+    page_prev = function()
+      self:page_prev()
+    end,
 
     -- yank functions
-    {
-      action = function()
-        self:store_current_wrapper("json", "yank")
-      end,
-      mapping = mappings["yank_current_json"],
-    },
-    {
-      action = function()
-        self:store_selection_wrapper("json", "yank")
-      end,
-      mapping = mappings["yank_selection_json"],
-    },
-    {
-      action = function()
-        self:store_all_wrapper("json", "yank")
-      end,
-      mapping = mappings["yank_all_json"],
-    },
-    {
-      action = function()
-        self:store_current_wrapper("csv", "yank")
-      end,
-      mapping = mappings["yank_current_csv"],
-    },
-    {
-      action = function()
-        self:store_selection_wrapper("csv", "yank")
-      end,
-      mapping = mappings["yank_selection_csv"],
-    },
-    {
-      action = function()
-        self:store_all_wrapper("csv", "yank")
-      end,
-      mapping = mappings["yank_all_csv"],
-    },
+    yank_current_json = function()
+      self:store_current_wrapper("json", "yank")
+    end,
+    yank_selection_json = function()
+      self:store_selection_wrapper("json", "yank")
+    end,
+    yank_all_json = function()
+      self:store_all_wrapper("json", "yank")
+    end,
+    yank_current_csv = function()
+      self:store_current_wrapper("csv", "yank")
+    end,
+    yank_selection_csv = function()
+      self:store_selection_wrapper("csv", "yank")
+    end,
+    yank_all_csv = function()
+      self:store_all_wrapper("csv", "yank")
+    end,
   }
 end
 
@@ -396,6 +372,15 @@ function ResultTile:show(winid)
   })
 
   vim.api.nvim_win_set_buf(self.winid, self.bufnr)
+
+  common.configure_buffer_options(self.bufnr, {
+    buflisted = false,
+    bufhidden = "delete",
+    buftype = "nofile",
+    swapfile = false,
+    modifiable = false,
+  })
+  common.configure_buffer_mappings(self.bufnr, self:get_actions(), self.mappings)
 
   -- display the current result
   local ok = pcall(self.page_current, self)
