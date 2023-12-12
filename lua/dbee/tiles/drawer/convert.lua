@@ -50,7 +50,7 @@ local function connection_nodes(handler, conn, result)
               cb()
             end,
             on_yank = function(selection)
-              vim.fn.setreg("", helpers[selection])
+              vim.fn.setreg(vim.v.register, helpers[selection])
             end,
           }
         end

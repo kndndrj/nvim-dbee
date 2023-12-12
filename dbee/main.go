@@ -230,8 +230,9 @@ func main() {
 				From   int    `arg:"from"`
 				To     int    `arg:"to"`
 				// these two are optional (depending on the output used)
-				Buffer int    `arg:"buffer,optional"`
-				Path   string `arg:"path,optional"`
+				Buffer   int    `arg:"buffer,optional"`
+				Path     string `arg:"path,optional"`
+				Register string `arg:"register,optional"`
 			},
 			) (any, error) {
 				var extraArg any
@@ -239,6 +240,8 @@ func main() {
 					extraArg = args.Path
 				} else if args.Output == "buffer" {
 					extraArg = args.Buffer
+				} else if args.Output == "yank" {
+					extraArg = args.Register
 				}
 
 				return nil, handler.CallStoreResult(core.CallID(args.ID), args.Format, args.Output, args.From, args.To, extraArg)

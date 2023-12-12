@@ -313,7 +313,12 @@ func (h *Handler) CallStoreResult(callID core.CallID, fmat, out string, from, to
 		}
 		writer = newBuffer(h.vim, nvim.Buffer(buf))
 	case "yank":
-		writer = newYankRegister(h.vim)
+		register := ""
+		if len(arg) > 0 {
+			register, _ = arg[0].(string)
+		}
+
+		writer = newYankRegister(h.vim, register)
 	default:
 		return fmt.Errorf("store output: %q is not supported", out)
 	}

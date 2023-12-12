@@ -186,22 +186,22 @@ function ResultTile:get_actions()
 
     -- yank functions
     yank_current_json = function()
-      self:store_current_wrapper("json", "yank")
+      self:store_current_wrapper("json", vim.v.register)
     end,
     yank_selection_json = function()
-      self:store_selection_wrapper("json", "yank")
+      self:store_selection_wrapper("json", vim.v.register)
     end,
     yank_all_json = function()
-      self:store_all_wrapper("json", "yank")
+      self:store_all_wrapper("json", vim.v.register)
     end,
     yank_current_csv = function()
-      self:store_current_wrapper("csv", "yank")
+      self:store_current_wrapper("csv", vim.v.register)
     end,
     yank_selection_csv = function()
-      self:store_selection_wrapper("csv", "yank")
+      self:store_selection_wrapper("csv", vim.v.register)
     end,
     yank_all_csv = function()
-      self:store_all_wrapper("csv", "yank")
+      self:store_all_wrapper("csv", vim.v.register)
     end,
   }
 end
@@ -231,9 +231,8 @@ end
 -- wrapper for storing the current row
 ---@private
 ---@param format string
----@param output string
----@param arg any
-function ResultTile:store_current_wrapper(format, output, arg)
+---@param register string
+function ResultTile:store_current_wrapper(format, register)
   if not self.current_call then
     error("no call set to result")
   end
@@ -250,17 +249,16 @@ function ResultTile:store_current_wrapper(format, output, arg)
   self.handler:call_store_result(
     self.current_call.id,
     format,
-    output,
-    { from = index, to = index + 1, extra_arg = arg }
+    "yank",
+    { from = index, to = index + 1, extra_arg = register }
   )
 end
 
 -- wrapper for storing the current visualy selected rows
 ---@private
 ---@param format string
----@param output string
----@param arg any
-function ResultTile:store_selection_wrapper(format, output, arg)
+---@param register string
+function ResultTile:store_selection_wrapper(format, register)
   if not self.current_call then
     error("no call set to result")
   end
@@ -272,19 +270,23 @@ function ResultTile:store_selection_wrapper(format, output, arg)
     sindex = 0
   end
 
-  self.handler:call_store_result(self.current_call.id, format, output, { from = sindex, to = eindex, extra_arg = arg })
+  self.handler:call_store_result(
+    self.current_call.id,
+    format,
+    "yank",
+    { from = sindex, to = eindex, extra_arg = register }
+  )
 end
 
 -- wrapper for storing all rows
 ---@private
 ---@param format string
----@param output string
----@param arg any
-function ResultTile:store_all_wrapper(format, output, arg)
+---@param register string
+function ResultTile:store_all_wrapper(format, register)
   if not self.current_call then
     error("no call set to result")
   end
-  self.handler:call_store_result(self.current_call.id, format, output, { extra_arg = arg })
+  self.handler:call_store_result(self.current_call.id, format, "yank", { extra_arg = register })
 end
 
 ---@private

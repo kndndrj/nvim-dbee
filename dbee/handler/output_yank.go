@@ -1,18 +1,28 @@
 package handler
 
-import "github.com/neovim/go-client/nvim"
+import (
+	"fmt"
+
+	"github.com/neovim/go-client/nvim"
+)
 
 type YankRegister struct {
-	vim *nvim.Nvim
+	vim      *nvim.Nvim
+	register string
 }
 
-func newYankRegister(vim *nvim.Nvim) *YankRegister {
+func newYankRegister(vim *nvim.Nvim, register string) *YankRegister {
 	return &YankRegister{
-		vim: vim,
+		vim:      vim,
+		register: register,
 	}
 }
 
-func (r *YankRegister) Write(p []byte) (int, error) {
-	err := r.vim.Call("setreg", nil, "", string(p))
+func (yr *YankRegister) Write(p []byte) (int, error) {
+	err := yr.vim.Call("setreg", nil, yr.register, string(p))
+	if err != nil {
+		return 0, fmt.Errorf("r.vim.Call: %w", err)
+	}
+
 	return len(p), err
 }

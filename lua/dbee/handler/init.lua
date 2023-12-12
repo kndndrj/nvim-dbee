@@ -281,6 +281,10 @@ function Handler:call_store_result(id, format, output, opts)
   if output == "buffer" then
     bufnr = opts.extra_arg
   end
+  local register
+  if output == "yank" then
+    register = opts.extra_arg
+  end
 
   vim.fn.DbeeCallStoreResult {
     id = id,
@@ -288,8 +292,10 @@ function Handler:call_store_result(id, format, output, opts)
     output = output,
     from = from,
     to = to,
+
     path = path,
     bufnr = bufnr,
+    register = register,
   }
 end
 
