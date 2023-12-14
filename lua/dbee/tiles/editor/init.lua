@@ -1,5 +1,6 @@
 local utils = require("dbee.utils")
 local common = require("dbee.tiles.common")
+local welcome = require("dbee.tiles.editor.welcome")
 
 -- events:
 ---@alias editor_event_name "note_state_changed"|"note_removed"|"note_created"|"current_note_changed"
@@ -33,10 +34,10 @@ function EditorTile:new(handler, result, quit_handle, opts)
   opts = opts or {}
 
   if not handler then
-    error("no Handler provided to Editor")
+    error("no Handler provided to EditorTile")
   end
   if not result then
-    error("no Result provided to Editor")
+    error("no Result provided to EditorTile")
   end
 
   -- class object
@@ -412,18 +413,10 @@ function EditorTile:create_welcome_note()
     error("failed creating welcome note")
   end
 
-  -- TODO: nicer text
-  local text = {
-    "",
-    "",
-    "",
-    "Welcome to DBee!",
-  }
-
   -- create note buffer with contents
   local bufnr = vim.api.nvim_create_buf(false, false)
   vim.api.nvim_buf_set_name(bufnr, note.file)
-  vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, text)
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, welcome.banner(self.directory))
   vim.api.nvim_buf_set_option(bufnr, "modified", false)
 
   self.notes["global"][note_id].bufnr = bufnr
