@@ -5,6 +5,9 @@ on:
     tags-ignore:
       # ignore all tags
       - '**'
+    branches:
+      # run for all branches
+      - '**'
 
 jobs:
   luacheck:

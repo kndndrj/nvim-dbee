@@ -7,6 +7,9 @@ on:
     tags-ignore:
       # ignore all pushed tags
       - '**'
+    branches:
+      # run for all branches
+      - '**'
 
 jobs:
   assemble-os-matrix:
@@ -56,12 +59,13 @@ jobs:
 
           tar -C "../ci_tmp/bin" -czvf "../ci_tmp/bin/$artefact" "$bin"
       - name: Upload artefacts to release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'release'
         uses: svenstaro/upload-release-action@v2
         with:
           file: ci_tmp/bin/${{ steps.build.outputs.artefact }}
           tag: ${{ github.ref }}
       - name: Create metadata
+        if: github.event_name == 'release'
         shell: bash
         run: |
           mkdir ci_tmp/meta
@@ -69,6 +73,7 @@ jobs:
           echo "${{ matrix.goos }}" > ci_tmp/meta/os
           echo "${{ matrix.goarch }}" > ci_tmp/meta/arch
       - name: Upload metadata
+        if: github.event_name == 'release'
         uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.goos }}_${{ matrix.goarch }}
@@ -76,7 +81,7 @@ jobs:
 
   create-install-manifest:
     runs-on: ubuntu-22.04
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'release'
     name: Create Install Manifest
     needs: [ go-build ]
     env:
