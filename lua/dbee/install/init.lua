@@ -72,37 +72,54 @@ local function get_job(command)
   local uname = vim.loop.os_uname()
   local arch = uname.machine
   local osys = uname.sysname
+  -- paths for final installation location
   local install_dir = M.path()
   local install_binary = install_dir .. "/dbee"
+  -- paths for extracting archives
+  local build_dir = vim.fn.stdpath("cache") .. "/dbee/build"
+  local archive = build_dir .. "/dbee.tar.gz"
 
-  -- make install dir
+  -- make install and build dirs
   vim.fn.mkdir(install_dir, "p")
-
-  local chmod = {
-    cmd = "chmod",
-    args = { "+x", install_binary },
-    env = {},
-  }
+  vim.fn.mkdir(build_dir, "p")
 
   local jobs_list = {
     wget = function()
       return {
         {
           cmd = "wget",
-          args = { "-qO", install_binary, get_url(osys, arch) },
+          args = { "-qO", archive, get_url(osys, arch) },
           env = {},
         },
-        chmod,
+        {
+          cmd = "tar",
+          args = { "-xzf", archive, "-C", install_dir },
+          env = {},
+        },
+        {
+          cmd = "chmod",
+          args = { "+x", install_binary },
+          env = {},
+        },
       }
     end,
     curl = function()
       return {
         {
           cmd = "curl",
-          args = { "-sfLo", install_binary, get_url(osys, arch) },
+          args = { "-sfLo", archive, get_url(osys, arch) },
           env = {},
         },
-        chmod,
+        {
+          cmd = "tar",
+          args = { "-xzf", archive, "-C", install_dir },
+          env = {},
+        },
+        {
+          cmd = "chmod",
+          args = { "+x", install_binary },
+          env = {},
+        },
       }
     end,
     bitsadmin = function()
@@ -141,7 +158,7 @@ local function get_job(command)
     local jobs = jobs_list[command]() or {}
     for _, j in ipairs(jobs) do
       if vim.fn.executable(j.cmd) ~= 1 then
-        error('"' .. command .. '" is not a supported installation method')
+        error('"' .. command .. '" is not executable')
       end
     end
     return jobs

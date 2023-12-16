@@ -2,6 +2,9 @@ name: Testing
 
 on:
   push:
+    tags-ignore:
+      # ignore all tags
+      - '**'
 
 jobs:
   go-test:
