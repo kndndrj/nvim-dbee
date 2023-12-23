@@ -1,252 +1,213 @@
 package main
 
 import (
-	"fmt"
+	"log"
+	"os"
 	"time"
 
 	"github.com/neovim/go-client/nvim"
-	"github.com/neovim/go-client/nvim/plugin"
 
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 	hnd "github.com/kndndrj/nvim-dbee/dbee/handler"
+	"github.com/kndndrj/nvim-dbee/dbee/plugin"
 	"github.com/kndndrj/nvim-dbee/dbee/vim"
 )
 
 func main() {
-	var handler *hnd.Handler
+	stdout := os.Stdout
+	os.Stdout = os.Stderr
+	log.SetFlags(0)
+
+	v, err := nvim.New(os.Stdin, stdout, stdout, log.Printf)
+	if err != nil {
+		log.Fatal(err)
+	}
+	logger := vim.NewLogger(v)
+
+	p := plugin.New(v, logger)
+	handler := hnd.NewHandler(v, logger)
 	defer func() {
 		handler.Close()
 		// TODO: I'm sure this can be done prettier
 		time.Sleep(10 * time.Second)
 	}()
 
-	plugin.Main(func(p *plugin.Plugin) error {
-		entry := vim.NewEntrypoint(p)
-		handler = hnd.NewHandler(p.Nvim, vim.NewLogger(p.Nvim))
-
-		entry.Register(
-			"DbeeCreateConnection",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID   string `arg:"id,optional"`
-				URL  string `arg:"url"`
-				Type string `arg:"type"`
-				Name string `arg:"name"`
-			},
-			) (any, error) {
-				return handler.CreateConnection(&core.ConnectionParams{
-					ID:   core.ConnectionID(args.ID),
-					Name: args.Name,
-					Type: args.Type,
-					URL:  args.URL,
-				})
-			}))
-
-		entry.Register(
-			"DbeeGetConnections",
-			func(r *vim.SharedResource, args map[string]any) (any, error) {
-				raw, ok := args["ids"]
-				if !ok {
-					return nil, nil
-				}
-
-				ids, ok := raw.([]any)
-				if !ok {
-					return nil, nil
-				}
-
-				is := make([]core.ConnectionID, len(ids))
-				for i := range ids {
-					str, ok := ids[i].(string)
-					if !ok {
-						continue
-					}
-					is[i] = core.ConnectionID(str)
-				}
-
-				return hnd.WrapConnections(handler.GetConnections(is)), nil
+	p.RegisterEndpoint(
+		"DbeeCreateConnection",
+		func(args *struct {
+			Opts *struct {
+				ID   string `msgpack:"id"`
+				URL  string `msgpack:"url"`
+				Type string `msgpack:"type"`
+				Name string `msgpack:"name"`
+			} `msgpack:",array"`
+		},
+		) (core.ConnectionID, error) {
+			return handler.CreateConnection(&core.ConnectionParams{
+				ID:   core.ConnectionID(args.Opts.ID),
+				Name: args.Opts.Name,
+				Type: args.Opts.Type,
+				URL:  args.Opts.URL,
 			})
+		})
 
-		entry.Register(
-			"DbeeAddHelpers",
-			func(r *vim.SharedResource, args map[string]any) (any, error) {
-				t, ok := args["type"]
-				if !ok {
-					return nil, nil
-				}
-				typ, ok := t.(string)
-				if !ok {
-					return nil, fmt.Errorf("type not a string: %v", t)
-				}
+	p.RegisterEndpoint(
+		"DbeeGetConnections",
+		func(args *struct {
+			IDs []core.ConnectionID `msgpack:",array"`
+		},
+		) (any, error) {
+			return hnd.WrapConnections(handler.GetConnections(args.IDs)), nil
+		})
 
-				raw, ok := args["helpers"]
-				if !ok {
-					return nil, nil
-				}
+	p.RegisterEndpoint(
+		"DbeeAddHelpers",
+		func(args *struct {
+			Type    string `msgpack:",array"`
+			Helpers map[string]string
+		},
+		) (any, error) {
+			return nil, handler.AddHelpers(args.Type, args.Helpers)
+		})
 
-				rawHelpers, ok := raw.(map[string]any)
-				if !ok {
-					return nil, fmt.Errorf("helpers are not a string-any map: %#v", raw)
-				}
-
-				helpers := make(map[string]string)
-
-				for k, v := range rawHelpers {
-
-					stringV, ok := v.(string)
-					if !ok {
-						return nil, fmt.Errorf("value not a string: %v", v)
-					}
-
-					helpers[k] = stringV
-				}
-
-				return nil, handler.AddHelpers(typ, helpers)
+	p.RegisterEndpoint(
+		"DbeeConnectionGetHelpers",
+		func(args *struct {
+			ID   string `msgpack:",array"`
+			Opts *struct {
+				Table           string `msgpack:"table"`
+				Schema          string `msgpack:"schema"`
+				Materialization string `msgpack:"materialization"`
+			}
+		},
+		) (any, error) {
+			return handler.ConnectionGetHelpers(core.ConnectionID(args.ID), &core.HelperOptions{
+				Table:           args.Opts.Table,
+				Schema:          args.Opts.Schema,
+				Materialization: core.StructureTypeFromString(args.Opts.Materialization),
 			})
+		})
 
-		entry.Register(
-			"DbeeConnectionGetHelpers",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID              string `arg:"id"`
-				Table           string `arg:"table,optional"`
-				Schema          string `arg:"schema,optional"`
-				Materialization string `arg:"materialization,optional"`
-			},
-			) (any, error) {
-				return handler.ConnectionGetHelpers(core.ConnectionID(args.ID), &core.HelperOptions{
-					Table:           args.Table,
-					Schema:          args.Schema,
-					Materialization: core.StructureTypeFromString(args.Materialization),
-				})
-			}))
+	p.RegisterEndpoint(
+		"DbeeSetCurrentConnection",
+		func(args *struct {
+			ID core.ConnectionID `msgpack:",array"`
+		},
+		) error {
+			return handler.SetCurrentConnection(args.ID)
+		})
 
-		entry.Register(
-			"DbeeSetCurrentConnection",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID string `arg:"id"`
-			},
-			) (any, error) {
-				return nil, handler.SetCurrentConnection(core.ConnectionID(args.ID))
-			}))
+	p.RegisterEndpoint(
+		"DbeeGetCurrentConnection",
+		func() (any, error) {
+			conn, err := handler.GetCurrentConnection()
+			return hnd.WrapConnection(conn), err
+		})
 
-		entry.Register(
-			"DbeeGetCurrentConnection",
-			vim.Wrap(func(r *vim.SharedResource, args *struct{},
-			) (any, error) {
-				conn, err := handler.GetCurrentConnection()
-				return hnd.WrapConnection(conn), err
-			}))
+	p.RegisterEndpoint(
+		"DbeeConnectionExecute",
+		func(args *struct {
+			ID    core.ConnectionID `msgpack:",array"`
+			Query string
+		},
+		) (any, error) {
+			call, err := handler.ConnectionExecute(args.ID, args.Query)
+			return hnd.WrapCall(call), err
+		})
 
-		entry.Register(
-			"DbeeConnectionExecute",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID    string `arg:"id"`
-				Query string `arg:"query"`
-			},
-			) (any, error) {
-				call, err := handler.ConnectionExecute(core.ConnectionID(args.ID), args.Query)
-				return hnd.WrapCall(call), err
-			}))
+	p.RegisterEndpoint(
+		"DbeeConnectionGetCalls",
+		func(args *struct {
+			ID core.ConnectionID `msgpack:",array"`
+		},
+		) (any, error) {
+			calls, err := handler.ConnectionGetCalls(args.ID)
+			return hnd.WrapCalls(calls), err
+		})
 
-		entry.Register(
-			"DbeeConnectionGetCalls",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID string `arg:"id"`
-			},
-			) (any, error) {
-				calls, err := handler.ConnectionGetCalls(core.ConnectionID(args.ID))
-				return hnd.WrapCalls(calls), err
-			}))
+	p.RegisterEndpoint(
+		"DbeeConnectionGetParams",
+		func(args *struct {
+			ID core.ConnectionID `msgpack:",array"`
+		},
+		) (any, error) {
+			params, err := handler.ConnectionGetParams(args.ID)
+			return hnd.WrapConnectionParams(params), err
+		})
 
-		entry.Register(
-			"DbeeConnectionGetParams",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID string `arg:"id"`
-			},
-			) (any, error) {
-				params, err := handler.ConnectionGetParams(core.ConnectionID(args.ID))
-				return hnd.WrapConnectionParams(params), err
-			}))
+	p.RegisterEndpoint(
+		"DbeeConnectionGetStructure",
+		func(args *struct {
+			ID core.ConnectionID `msgpack:",array"`
+		},
+		) (any, error) {
+			str, err := handler.ConnectionGetStructure(args.ID)
+			return hnd.WrapStructures(str), err
+		})
 
-		entry.Register(
-			"DbeeConnectionGetStructure",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID string `arg:"id"`
-			},
-			) (any, error) {
-				str, err := handler.ConnectionGetStructure(core.ConnectionID(args.ID))
-				return hnd.WrapStructures(str), err
-			}))
+	p.RegisterEndpoint(
+		"DbeeConnectionListDatabases",
+		func(args *struct {
+			ID core.ConnectionID `msgpack:",array"`
+		},
+		) (any, error) {
+			current, available, err := handler.ConnectionListDatabases(args.ID)
+			if err != nil {
+				return nil, err
+			}
+			return []any{current, available}, nil
+		})
 
-		entry.Register(
-			"DbeeConnectionListDatabases",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID string `arg:"id"`
-			},
-			) (any, error) {
-				current, available, err := handler.ConnectionListDatabases(core.ConnectionID(args.ID))
-				if err != nil {
-					return nil, err
-				}
-				return []any{current, available}, nil
-			}))
+	p.RegisterEndpoint(
+		"DbeeConnectionSelectDatabase",
+		func(args *struct {
+			ID       core.ConnectionID `msgpack:",array"`
+			Database string
+		},
+		) (any, error) {
+			return nil, handler.ConnectionSelectDatabase(args.ID, args.Database)
+		})
 
-		entry.Register(
-			"DbeeConnectionSelectDatabase",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID       string `arg:"id"`
-				Database string `arg:"database"`
-			},
-			) (any, error) {
-				return nil, handler.ConnectionSelectDatabase(core.ConnectionID(args.ID), args.Database)
-			}))
+	p.RegisterEndpoint(
+		"DbeeCallCancel",
+		func(args *struct {
+			ID core.CallID `msgpack:",array"`
+		},
+		) (any, error) {
+			return nil, handler.CallCancel(args.ID)
+		})
 
-		entry.Register(
-			"DbeeCallCancel",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID string `arg:"id"`
-			},
-			) (any, error) {
-				return nil, handler.CallCancel(core.CallID(args.ID))
-			}))
+	p.RegisterEndpoint(
+		"DbeeCallDisplayResult",
+		func(args *struct {
+			ID   core.CallID `msgpack:",array"`
+			Opts *struct {
+				Buffer int `msgpack:"buffer"`
+				From   int `msgpack:"from"`
+				To     int `msgpack:"to"`
+			}
+		},
+		) (any, error) {
+			return handler.CallDisplayResult(args.ID, nvim.Buffer(args.Opts.Buffer), args.Opts.From, args.Opts.To)
+		})
 
-		entry.Register(
-			"DbeeCallDisplayResult",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID     string `arg:"id"`
-				Buffer int    `arg:"buffer"`
-				From   int    `arg:"from"`
-				To     int    `arg:"to"`
-			},
-			) (any, error) {
-				return handler.CallDisplayResult(core.CallID(args.ID), nvim.Buffer(args.Buffer), args.From, args.To)
-			}))
+	p.RegisterEndpoint(
+		"DbeeCallStoreResult",
+		func(args *struct {
+			ID     core.CallID `msgpack:",array"`
+			Format string
+			Output string
+			Opts   *struct {
+				From     int `msgpack:"from"`
+				To       int `msgpack:"to"`
+				ExtraArg any `msgpack:"buffer"`
+			}
+		},
+		) (any, error) {
+			return nil, handler.CallStoreResult(args.ID, args.Format, args.Output, args.Opts.From, args.Opts.To, args.Opts.ExtraArg)
+		})
 
-		entry.Register(
-			"DbeeCallStoreResult",
-			vim.Wrap(func(r *vim.SharedResource, args *struct {
-				ID     string `arg:"id"`
-				Format string `arg:"format"`
-				Output string `arg:"output"`
-				From   int    `arg:"from"`
-				To     int    `arg:"to"`
-				// these two are optional (depending on the output used)
-				Buffer   int    `arg:"buffer,optional"`
-				Path     string `arg:"path,optional"`
-				Register string `arg:"register,optional"`
-			},
-			) (any, error) {
-				var extraArg any
-				if args.Output == "file" {
-					extraArg = args.Path
-				} else if args.Output == "buffer" {
-					extraArg = args.Buffer
-				} else if args.Output == "yank" {
-					extraArg = args.Register
-				}
-
-				return nil, handler.CallStoreResult(core.CallID(args.ID), args.Format, args.Output, args.From, args.To, extraArg)
-			}))
-
-		return nil
-	})
+	if err := v.Serve(); err != nil {
+		log.Fatal(err)
+	}
 }

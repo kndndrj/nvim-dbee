@@ -140,7 +140,7 @@ function Handler:source_get_connections(id)
   end
 
   ---@type connection_details[]?
-  local ret = vim.fn.DbeeGetConnections { ids = conn_ids }
+  local ret = vim.fn.DbeeGetConnections(conn_ids)
   if not ret or ret == vim.NIL then
     return {}
   end
@@ -155,7 +155,7 @@ end
 ---@param helpers table<string, table_helpers> extra helpers per type
 function Handler:add_helpers(helpers)
   for type, help in pairs(helpers) do
-    vim.fn.DbeeAddHelpers { type = type, helpers = help }
+    vim.fn.DbeeAddHelpers(type, help)
   end
 end
 
@@ -163,12 +163,11 @@ end
 ---@param opts helper_opts
 ---@return table_helpers helpers list of table helpers
 function Handler:connection_get_helpers(id, opts)
-  local helpers = vim.fn.DbeeConnectionGetHelpers {
-    id = id,
+  local helpers = vim.fn.DbeeConnectionGetHelpers(id, {
     table = opts.table,
     schema = opts.schema,
     materialization = opts.materialization,
-  }
+  })
   if not helpers or helpers == vim.NIL then
     return {}
   end
@@ -187,20 +186,20 @@ end
 
 ---@param id conn_id
 function Handler:set_current_connection(id)
-  vim.fn.DbeeSetCurrentConnection { id = id }
+  vim.fn.DbeeSetCurrentConnection(id)
 end
 
 ---@param id conn_id
 ---@param query string
 ---@return call_details
 function Handler:connection_execute(id, query)
-  return vim.fn.DbeeConnectionExecute { id = id, query = query }
+  return vim.fn.DbeeConnectionExecute(id, query)
 end
 
 ---@param id conn_id
 ---@return DBStructure[]
 function Handler:connection_get_structure(id)
-  local ret = vim.fn.DbeeConnectionGetStructure { id = id }
+  local ret = vim.fn.DbeeConnectionGetStructure(id)
   if not ret or ret == vim.NIL then
     return {}
   end
@@ -210,7 +209,7 @@ end
 ---@param id conn_id
 ---@return connection_details?
 function Handler:connection_get_params(id)
-  local ret = vim.fn.DbeeConnectionGetParams { id = id }
+  local ret = vim.fn.DbeeConnectionGetParams(id)
   if not ret or ret == vim.NIL then
     return
   end
@@ -221,7 +220,7 @@ end
 ---@return string current_db
 ---@return string[] available_dbs
 function Handler:connection_list_databases(id)
-  local ret = vim.fn.DbeeConnectionListDatabases { id = id }
+  local ret = vim.fn.DbeeConnectionListDatabases(id)
   if not ret or ret == vim.NIL then
     return "", {}
   end
@@ -232,13 +231,13 @@ end
 ---@param id conn_id
 ---@param database string
 function Handler:connection_select_database(id, database)
-  vim.fn.DbeeConnectionSelectDatabase { id = id, database = database }
+  vim.fn.DbeeConnectionSelectDatabase(id, database)
 end
 
 ---@param id conn_id
 ---@return call_details[]
 function Handler:connection_get_calls(id)
-  local ret = vim.fn.DbeeConnectionGetCalls { id = id }
+  local ret = vim.fn.DbeeConnectionGetCalls(id)
   if not ret or ret == vim.NIL then
     return {}
   end
@@ -247,7 +246,7 @@ end
 
 ---@param id call_id
 function Handler:call_cancel(id)
-  vim.fn.DbeeCallCancel { id = id }
+  vim.fn.DbeeCallCancel(id)
 end
 
 ---@param id call_id
@@ -256,7 +255,7 @@ end
 ---@param to integer
 ---@return integer # total number of rows
 function Handler:call_display_result(id, bufnr, from, to)
-  local length = vim.fn.DbeeCallDisplayResult { id = id, buffer = bufnr, from = from, to = to }
+  local length = vim.fn.DbeeCallDisplayResult(id, { buffer = bufnr, from = from, to = to })
   if not length or length == vim.NIL then
     return 0
   end
@@ -273,30 +272,11 @@ function Handler:call_store_result(id, format, output, opts)
   local from = opts.from or 0
   local to = opts.to or -1
 
-  local path
-  if output == "file" then
-    path = opts.extra_arg
-  end
-  local bufnr
-  if output == "buffer" then
-    bufnr = opts.extra_arg
-  end
-  local register
-  if output == "yank" then
-    register = opts.extra_arg
-  end
-
-  vim.fn.DbeeCallStoreResult {
-    id = id,
-    format = format,
-    output = output,
+  vim.fn.DbeeCallStoreResult(id, format, output, {
     from = from,
     to = to,
-
-    path = path,
-    bufnr = bufnr,
-    register = register,
-  }
+    extra_arg = opts.extra_arg,
+  })
 end
 
 return Handler
