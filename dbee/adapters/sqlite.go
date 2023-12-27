@@ -5,6 +5,9 @@ package adapters
 import (
 	"database/sql"
 	"fmt"
+	"os/user"
+	"path/filepath"
+	"strings"
 
 	_ "modernc.org/sqlite"
 
@@ -21,8 +24,28 @@ var _ core.Adapter = (*SQLite)(nil)
 
 type SQLite struct{}
 
+func (s *SQLite) expandPath(path string) (string, error) {
+	usr, err := user.Current()
+	if err != nil {
+		return "", fmt.Errorf("user.Current: %w", err)
+	}
+
+	if path == "~" {
+		return usr.HomeDir, nil
+	} else if strings.HasPrefix(path, "~/") {
+		return filepath.Join(usr.HomeDir, path[2:]), nil
+	}
+
+	return path, nil
+}
+
 func (s *SQLite) Connect(url string) (core.Driver, error) {
-	db, err := sql.Open("sqlite", url)
+	path, err := s.expandPath(url)
+	if err != nil {
+		return nil, err
+	}
+
+	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to sqlite database: %v", err)
 	}
