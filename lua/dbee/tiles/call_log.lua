@@ -13,6 +13,7 @@ local common = require("dbee.tiles.common")
 ---@field private candies table<string, Candy> map of eye-candy stuff (icons, highlight)
 ---@field private current_connection_id? conn_id
 ---@field private hover_close? fun() function that closes the hover window
+---@field private switch_handle fun(bufnr: integer)
 local CallLogTile = {}
 
 ---@alias call_log_config { mappings: key_mapping[], disable_candies: boolean, candies: table<string, Candy> }
@@ -20,9 +21,10 @@ local CallLogTile = {}
 ---@param handler Handler
 ---@param result ResultTile
 ---@param quit_handle? fun()
+---@param switch_handle? fun(bufnr: integer)
 ---@param opts call_log_config
 ---@return CallLogTile
-function CallLogTile:new(handler, result, quit_handle, opts)
+function CallLogTile:new(handler, result, quit_handle, switch_handle, opts)
   opts = opts or {}
   quit_handle = quit_handle or function() end
 
@@ -44,6 +46,7 @@ function CallLogTile:new(handler, result, quit_handle, opts)
     result = result,
     candies = candies,
     hover_close = function() end,
+    switch_handle = switch_handle or function() end,
   }
   setmetatable(o, self)
   self.__index = self
@@ -273,6 +276,9 @@ function CallLogTile:show(winid)
     winfixwidth = true,
     number = false,
   })
+
+  -- configure window immutablity
+  common.configure_window_immutable_buffer(self.winid, self.bufnr, self.switch_handle)
 
   -- configure auto preview
   self:configure_preview(self.bufnr)

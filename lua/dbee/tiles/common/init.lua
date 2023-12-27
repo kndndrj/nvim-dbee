@@ -150,4 +150,30 @@ function M.configure_window_quit_handle(winid, handle)
   })
 end
 
+-- Configures immutablity of the window (e.g. only the provided buffer can be opened in
+-- the window).
+---@param winid integer
+---@param bufnr integer
+---@param switch? fun(bufnr: integer) optional function that recieves the number of buffer which tried to be opened in the window.
+function M.configure_window_immutable_buffer(winid, bufnr, switch)
+  if not winid or not bufnr then
+    return
+  end
+
+  utils.create_singleton_autocmd({ "BufWinEnter", "BufReadPost", "BufNewFile" }, {
+    window = winid,
+    callback = function(event)
+      if event.buf == bufnr then
+        return
+      end
+
+      pcall(vim.api.nvim_win_set_buf, winid, bufnr)
+
+      if type(switch) == "function" then
+        switch(event.buf)
+      end
+    end,
+  })
+end
+
 return M

@@ -434,6 +434,13 @@ function EditorTile:create_welcome_note()
   return note_id
 end
 
+-- Sets a buffer to editor window.
+---@param bufnr integer
+function EditorTile:set_buf(bufnr)
+  pcall(vim.api.nvim_win_set_buf, self.winid, bufnr)
+  pcall(vim.api.nvim_set_current_win, self.winid)
+end
+
 ---@param winid integer
 function EditorTile:show(winid)
   self.winid = winid

@@ -36,6 +36,7 @@ local expansion = require("dbee.tiles.drawer.expansion")
 ---@field private winid? integer
 ---@field private bufnr integer
 ---@field private quit_handle fun() function that closes the whole ui
+---@field private switch_handle fun(bufnr: integer)
 ---@field private current_conn_id? conn_id current active connection
 ---@field private current_note_id? note_id current active note
 local DrawerTile = {}
@@ -44,9 +45,10 @@ local DrawerTile = {}
 ---@param editor EditorTile
 ---@param result ResultTile
 ---@param quit_handle? fun()
+---@param switch_handle? fun(bufnr: integer)
 ---@param opts? drawer_config
 ---@return DrawerTile
-function DrawerTile:new(handler, editor, result, quit_handle, opts)
+function DrawerTile:new(handler, editor, result, quit_handle, switch_handle, opts)
   opts = opts or {}
 
   if not handler then
@@ -76,6 +78,7 @@ function DrawerTile:new(handler, editor, result, quit_handle, opts)
     candies = candies,
     disable_help = opts.disable_help or false,
     quit_handle = quit_handle or function() end,
+    switch_handle = switch_handle or function() end,
     current_conn_id = current_conn.id,
     current_note_id = current_note.id,
   }
@@ -345,6 +348,9 @@ function DrawerTile:show(winid)
     winfixwidth = true,
     number = false,
   })
+
+  -- configure window immutablity
+  common.configure_window_immutable_buffer(self.winid, self.bufnr, self.switch_handle)
 
   -- set buffer to window
   vim.api.nvim_win_set_buf(self.winid, self.bufnr)

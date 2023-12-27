@@ -16,13 +16,15 @@ local common = require("dbee.tiles.common")
 ---@field private page_ammount integer number of pages in the current result set
 ---@field private stop_progress fun() function that stops progress display
 ---@field private progress_opts progress_config
+---@field private switch_handle fun(bufnr: integer)
 local ResultTile = {}
 
 ---@param handler Handler
 ---@param quit_handle? fun()
+---@param switch_handle? fun(bufnr: integer)
 ---@param opts? result_config
 ---@return ResultTile
-function ResultTile:new(handler, quit_handle, opts)
+function ResultTile:new(handler, quit_handle, switch_handle, opts)
   opts = opts or {}
   quit_handle = quit_handle or function() end
 
@@ -39,6 +41,7 @@ function ResultTile:new(handler, quit_handle, opts)
     mappings = opts.mappings or {},
     stop_progress = function() end,
     progress_opts = opts.progress or {},
+    switch_handle = switch_handle or function() end,
   }
   setmetatable(o, self)
   self.__index = self
@@ -383,6 +386,9 @@ function ResultTile:show(winid)
     modifiable = false,
   })
   common.configure_buffer_mappings(self.bufnr, self:get_actions(), self.mappings)
+
+  -- configure window immutablity
+  common.configure_window_immutable_buffer(self.winid, self.bufnr, self.switch_handle)
 
   -- display the current result
   local ok = pcall(self.page_current, self)

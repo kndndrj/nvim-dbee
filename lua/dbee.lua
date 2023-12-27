@@ -64,10 +64,14 @@ local function setup_ui()
     return
   end
 
-  m.result = ResultTile:new(m.handler, M.close_ui, m.config.result)
-  m.call_log = CallLogTile:new(m.handler, m.result, M.close_ui, m.config.call_log)
+  local switch = function(bufnr)
+    m.editor:set_buf(bufnr)
+  end
+
+  m.result = ResultTile:new(m.handler, M.close_ui, switch, m.config.result)
+  m.call_log = CallLogTile:new(m.handler, m.result, M.close_ui, switch, m.config.call_log)
   m.editor = EditorTile:new(m.handler, m.result, M.close_ui, m.config.editor)
-  m.drawer = DrawerTile:new(m.handler, m.editor, m.result, M.close_ui, m.config.drawer)
+  m.drawer = DrawerTile:new(m.handler, m.editor, m.result, M.close_ui, switch, m.config.drawer)
 end
 
 ---@return boolean ok was setup successful?
