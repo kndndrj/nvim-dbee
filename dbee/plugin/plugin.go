@@ -1,11 +1,11 @@
 package plugin
 
 import (
-	"bytes"
 	"fmt"
+	"text/template"
+	"os"
 	"reflect"
 	"sort"
-	"strings"
 
 	"github.com/neovim/go-client/nvim"
 
@@ -33,14 +33,6 @@ type pluginSpec struct {
 	Name string            `msgpack:"name"`
 	Sync bool              `msgpack:"sync"`
 	Opts map[string]string `msgpack:"opts"`
-}
-
-func (spec *pluginSpec) path() string {
-	if i := strings.Index(spec.sm, ":"); i > 0 {
-		return spec.sm[:i]
-	}
-
-	return ""
 }
 
 func isSync(f interface{}) bool {
@@ -86,54 +78,34 @@ func (p *Plugin) RegisterEndpoint(name string, fn any) {
 	})
 }
 
-type byServiceMethod []*pluginSpec
-
-func (a byServiceMethod) Len() int           { return len(a) }
-func (a byServiceMethod) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a byServiceMethod) Less(i, j int) bool { return a[i].sm < a[j].sm }
-
-func (p *Plugin) Manifest(host string) []byte {
-	var buf bytes.Buffer
-
+func (p *Plugin) Manifest(host, executable, writeTo string) error {
 	// Sort for consistent order on output.
-	sort.Sort(byServiceMethod(p.pluginSpecs))
-	escape := strings.NewReplacer(`'`, `''`).Replace
+	sort.Slice(p.pluginSpecs, func(i, j int) bool {
+		return p.pluginSpecs[i].sm < p.pluginSpecs[j].sm
+	})
 
-	prevPath := ""
-	for _, spec := range p.pluginSpecs {
-		path := spec.path()
-		if path != prevPath {
-			if prevPath != "" {
-				fmt.Fprintf(&buf, "\\ )")
-			}
-			fmt.Fprintf(&buf, "call remote#host#RegisterPlugin('%s', '%s', [\n", host, path)
-			prevPath = path
-		}
-
-		sync := "0"
-		if spec.Sync {
-			sync = "1"
-		}
-
-		fmt.Fprintf(&buf, "\\ {'type': '%s', 'name': '%s', 'sync': %s, 'opts': {", spec.Type, spec.Name, sync)
-
-		var keys []string
-		for k := range spec.Opts {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-
-		optDelim := ""
-		for _, k := range keys {
-			fmt.Fprintf(&buf, "%s'%s': '%s'", optDelim, k, escape(spec.Opts[k]))
-			optDelim = ", "
-		}
-
-		fmt.Fprintf(&buf, "}},\n")
-	}
-	if prevPath != "" {
-		fmt.Fprintf(&buf, "\\ ])\n")
+	tmpl, err := template.New("manifest.lua.tmpl").Parse(manifestLuaFile)
+	if err != nil {
+		return fmt.Errorf("template.New.Parse: %w", err)
 	}
 
-	return buf.Bytes()
+	outputFile, err := os.Create(writeTo)
+	if err != nil {
+		return fmt.Errorf("os.Create: %w", err)
+	}
+
+	err = tmpl.Execute(outputFile, struct {
+		Host       string
+		Executable string
+		Specs      []*pluginSpec
+	}{
+		Host:       host,
+		Executable: executable,
+		Specs:      p.pluginSpecs,
+	})
+	if err != nil {
+		return fmt.Errorf("tmpl.Execute: %w", err)
+	}
+
+	return nil
 }

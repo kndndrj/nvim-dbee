@@ -6,6 +6,7 @@ local Handler = require("dbee.handler")
 local install = require("dbee.install")
 local utils = require("dbee.utils")
 local config = require("dbee.config")
+local register = require("dbee.__register")
 
 -- TODO:
 -- revisit the whole api:
@@ -31,6 +32,10 @@ local function setup_core()
   if not m.setup_called then
     error("setup() has not been called yet")
   end
+
+  -- register remote plugin
+  register()
+
   -- add install binary to path
   vim.env.PATH = install.path() .. ":" .. vim.env.PATH
 

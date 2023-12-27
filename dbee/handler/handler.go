@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"time"
 
 	"github.com/neovim/go-client/nvim"
 
@@ -29,7 +30,7 @@ type Handler struct {
 	currentConnectionID core.ConnectionID
 }
 
-func NewHandler(vim *nvim.Nvim, logger *vim.Logger) *Handler {
+func New(vim *nvim.Nvim, logger *vim.Logger) *Handler {
 	h := &Handler{
 		vim: vim,
 		log: logger,
@@ -55,11 +56,21 @@ func NewHandler(vim *nvim.Nvim, logger *vim.Logger) *Handler {
 }
 
 func (h *Handler) Close() {
+	// wait for unfinished calls
+	for _, c := range h.lookupCall {
+		select {
+		case <-c.Done():
+		case <-time.After(10 * time.Second):
+		}
+	}
+
+	// store call log
 	err := h.storeCallLog()
 	if err != nil {
 		h.log.Debugf("h.storeCallLog: %s", err)
 	}
 
+	// close connections
 	for _, c := range h.lookupConnection {
 		c.Close()
 	}

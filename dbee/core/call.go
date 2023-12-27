@@ -25,7 +25,8 @@ type (
 		onEventFunc func(*Call)
 
 		// any error that might occur during execution
-		err error
+		err  error
+		done chan struct{}
 	}
 )
 
@@ -59,6 +60,9 @@ func (s *Call) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
+	done := make(chan struct{})
+	close(done)
+
 	archive := newArchive(CallID(alias.ID))
 	state := CallStateFromString(alias.State)
 	if state == CallStateArchived && archive.isEmpty() {
@@ -74,6 +78,7 @@ func (s *Call) UnmarshalJSON(data []byte) error {
 
 		result:  new(Result),
 		archive: newArchive(CallID(alias.ID)),
+		done:    done,
 	}
 
 	return nil
@@ -89,6 +94,8 @@ func newCallFromExecutor(executor func(context.Context) (ResultStream, error), q
 		result:      new(Result),
 		archive:     newArchive(id),
 		onEventFunc: onEvent,
+
+		done: make(chan struct{}),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -104,7 +111,7 @@ func newCallFromExecutor(executor func(context.Context) (ResultStream, error), q
 		c.setState(CallStateExecuting)
 		iter, err := executor(ctx)
 		if err != nil {
-			c.err = err
+			c.finish(err)
 			c.setState(CallStateExecutingFailed)
 			return
 		}
@@ -112,7 +119,7 @@ func newCallFromExecutor(executor func(context.Context) (ResultStream, error), q
 		// set iterator to result
 		err = c.result.setIter(iter, func() { c.setState(CallStateRetrieving) })
 		if err != nil {
-			c.err = err
+			c.finish(err)
 			c.setState(CallStateRetrievingFailed)
 			return
 		}
@@ -120,12 +127,13 @@ func newCallFromExecutor(executor func(context.Context) (ResultStream, error), q
 		// archive the result
 		err = c.archive.setResult(c.result)
 		if err != nil {
-			c.err = err
+			c.finish(err)
 			c.setState(CallStateArchiveFailed)
 			return
 		}
 
 		c.setState(CallStateArchived)
+		c.finish(nil)
 	}()
 
 	return c
@@ -151,8 +159,20 @@ func (c *Call) GetTimestamp() time.Time {
 	return c.timestamp
 }
 
+// finish sets an error and closes the done chan.
+func (c *Call) finish(err error) {
+	c.err = err
+	close(c.done)
+}
+
 func (c *Call) Err() error {
 	return c.err
+}
+
+// Done returns a non-buffered channel that is closed when
+// call finishes.
+func (c *Call) Done() chan struct{} {
+	return c.done
 }
 
 func (c *Call) setState(state CallState) {
