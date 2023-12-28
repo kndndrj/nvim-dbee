@@ -99,39 +99,43 @@ func newCallFromExecutor(executor func(context.Context) (ResultStream, error), q
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	c.cancelFunc = cancel
+	c.timestamp = time.Now()
+	c.cancelFunc = func() {
+		cancel()
+		c.timeTaken = time.Since(c.timestamp)
+		c.setState(CallStateCanceled)
+	}
 
 	go func() {
-		c.timestamp = time.Now()
-		defer func() {
-			c.timeTaken = time.Since(c.timestamp)
-		}()
-
 		// execute the function
 		c.setState(CallStateExecuting)
 		iter, err := executor(ctx)
 		if err != nil {
-			c.finish(err)
+			c.timeTaken = time.Since(c.timestamp)
 			c.setState(CallStateExecutingFailed)
+			c.finish(err)
 			return
 		}
 
 		// set iterator to result
 		err = c.result.setIter(iter, func() { c.setState(CallStateRetrieving) })
 		if err != nil {
-			c.finish(err)
+			c.timeTaken = time.Since(c.timestamp)
 			c.setState(CallStateRetrievingFailed)
+			c.finish(err)
 			return
 		}
 
 		// archive the result
 		err = c.archive.setResult(c.result)
 		if err != nil {
-			c.finish(err)
+			c.timeTaken = time.Since(c.timestamp)
 			c.setState(CallStateArchiveFailed)
+			c.finish(err)
 			return
 		}
 
+		c.timeTaken = time.Since(c.timestamp)
 		c.setState(CallStateArchived)
 		c.finish(nil)
 	}()
@@ -193,7 +197,6 @@ func (c *Call) Cancel() {
 	if c.state != CallStateExecuting {
 		return
 	}
-	c.setState(CallStateCanceled)
 	if c.cancelFunc != nil {
 		c.cancelFunc()
 	}

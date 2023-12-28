@@ -96,6 +96,8 @@ end
 ---@private
 function ResultTile:display_progress()
   self.stop_progress = progress.display(self.bufnr, self.progress_opts)
+
+  vim.api.nvim_set_current_win(self.winid)
 end
 
 ---@private
@@ -128,6 +130,8 @@ function ResultTile:display_status()
 
   -- reset modified flag
   vim.api.nvim_buf_set_option(self.bufnr, "modified", false)
+
+  vim.api.nvim_set_current_win(self.winid)
 end
 
 --- Displays a page of the current result in the results buffer
@@ -205,6 +209,12 @@ function ResultTile:get_actions()
     end,
     yank_all_csv = function()
       self:store_all_wrapper("csv", vim.v.register)
+    end,
+
+    cancel_call = function()
+      if self.current_call then
+        self.handler:call_cancel(self.current_call.id)
+      end
     end,
   }
 end

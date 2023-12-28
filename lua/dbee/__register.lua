@@ -8,7 +8,7 @@ return function()
       rpc = true,
       detach = true,
       on_stderr = function(_, data, _)
-        print(data)
+        vim.print(data)
       end,
     })
   end)

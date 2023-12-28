@@ -185,7 +185,7 @@ function CallLogTile:get_actions()
         self.result:page_current()
       end
     end,
-    cancel = function()
+    cancel_call = function()
       local node = self.tree:get_node()
       if not node then
         return

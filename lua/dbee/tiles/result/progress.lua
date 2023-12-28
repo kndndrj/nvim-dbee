@@ -21,8 +21,10 @@ function M.display(bufnr, opts)
     local passed_time = vim.fn.reltimefloat(vim.fn.reltime()) - start_time
     icon_index = (icon_index % #spinner) + 1
 
+    vim.api.nvim_buf_set_option(bufnr, "modifiable", true)
     local line = string.format("%s %.3f seconds %s ", text_prefix, passed_time, spinner[icon_index])
     vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { line })
+    vim.api.nvim_buf_set_option(bufnr, "modifiable", false)
   end
 
   local timer = vim.fn.timer_start(100, update, { ["repeat"] = -1 })
