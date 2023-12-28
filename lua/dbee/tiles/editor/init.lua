@@ -156,11 +156,10 @@ function EditorTile:namespace_check_conflict(id, name)
   return false
 end
 
----@private
 ---@param id note_id
 ---@return note_details?
 ---@return namespace_id namespace
-function EditorTile:get_note(id)
+function EditorTile:search_note(id)
   for namespace, per_namespace in pairs(self.notes) do
     for _, note in pairs(per_namespace) do
       if note.id == id then
@@ -175,7 +174,7 @@ end
 ---@param bufnr integer
 ---@return note_details?
 ---@return namespace_id namespace
-function EditorTile:get_note_by_buf(bufnr)
+function EditorTile:search_note_by_buf(bufnr)
   for namespace, per_namespace in pairs(self.notes) do
     for _, note in pairs(per_namespace) do
       if note.bufnr and note.bufnr == bufnr then
@@ -275,7 +274,7 @@ end
 ---@param id note_id
 ---@param name string new name
 function EditorTile:note_rename(id, name)
-  local note, namespace = self:get_note(id)
+  local note, namespace = self:search_note(id)
   if not note then
     error("invalid note id to rename")
   end
@@ -312,7 +311,7 @@ end
 
 ---@return note_details?
 function EditorTile:get_current_note()
-  local note, _ = self:get_note(self.current_note_id)
+  local note, _ = self:search_note(self.current_note_id)
   return note
 end
 
@@ -325,7 +324,7 @@ function EditorTile:set_current_note(id)
     return
   end
 
-  local note, _ = self:get_note(id)
+  local note, _ = self:search_note(id)
   if not note then
     error("invalid note set as current")
   end
@@ -344,7 +343,7 @@ function EditorTile:display_note(id)
     return
   end
 
-  local note, namespace = self:get_note(id)
+  local note, namespace = self:search_note(id)
   if not note then
     return
   end
@@ -380,7 +379,7 @@ function EditorTile:configure_autocommands(winid)
     window = winid,
     callback = function(event)
       if not self.current_note_id then
-        local note, _ = self:get_note_by_buf(event.buf)
+        local note, _ = self:search_note_by_buf(event.buf)
         if note then
           self.current_note_id = note.id
           self:trigger_event("current_note_changed", { note_id = note.id })
@@ -388,7 +387,7 @@ function EditorTile:configure_autocommands(winid)
         return
       end
 
-      local note, _ = self:get_note(self.current_note_id)
+      local note, _ = self:search_note(self.current_note_id)
       if not note then
         self.current_note_id = nil
         self:trigger_event("current_note_changed", { note_id = nil })
@@ -408,7 +407,7 @@ end
 ---@return note_id
 function EditorTile:create_welcome_note()
   local note_id = self:namespace_create_note("global", "welcome")
-  local note = self:get_note(note_id)
+  local note = self:search_note(note_id)
   if not note then
     error("failed creating welcome note")
   end

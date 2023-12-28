@@ -200,7 +200,6 @@ function CallLogTile:get_actions()
   }
 end
 
----@private
 function CallLogTile:refresh()
   if not self.current_connection_id then
     return
