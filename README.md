@@ -7,6 +7,10 @@
 ![Backend](https://img.shields.io/badge/go-backend-lightblue?style=for-the-badge&logo=go&logoColor=white)
 ![Frontend](https://img.shields.io/badge/lua-frontend-blue?style=for-the-badge&logo=lua&logoColor=white)
 
+**Attention**: breaking changes soon! A refactor is in progress on `refactor` branch.
+Branch will be merged to master sometime soon. I'll create a new release in case you want to update
+manually. Thanks.
+
 <!-- DOCGEN_IGNORE_END -->
 
 # Neovim DBee
