@@ -94,6 +94,16 @@ function ResultTile:on_call_state_changed(data)
 end
 
 ---@private
+function ResultTile:apply_highlight(winid)
+  -- switch to provided window, apply hightlight and jump back
+  local current_win = vim.api.nvim_get_current_win()
+  vim.api.nvim_set_current_win(winid)
+  -- match table separators and leading row numbers
+  vim.cmd([[match NonText /^\s*\d*\|─\|│\|┼/]])
+  vim.api.nvim_set_current_win(current_win)
+end
+
+---@private
 function ResultTile:display_progress()
   self.stop_progress = progress.display(self.bufnr, self.progress_opts)
 
@@ -385,6 +395,9 @@ function ResultTile:show(winid)
     winfixwidth = true,
     number = false,
   })
+
+  -- configure window highlights
+  self:apply_highlight(self.winid)
 
   vim.api.nvim_win_set_buf(self.winid, self.bufnr)
 
