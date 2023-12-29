@@ -239,6 +239,12 @@ function ResultTile:set_call(call)
   self.stop_progress()
 end
 
+-- Gets the currently displayed call.
+---@return call_details?
+function ResultTile:get_call()
+  return self.current_call
+end
+
 function ResultTile:page_current()
   self.page_index = self:display_result(self.page_index)
 end

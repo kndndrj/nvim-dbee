@@ -84,7 +84,7 @@ func (p *Plugin) Manifest(host, executable, writeTo string) error {
 		return p.pluginSpecs[i].sm < p.pluginSpecs[j].sm
 	})
 
-	tmpl, err := template.New("manifest.lua.tmpl").Parse(manifestLuaFile)
+	tmpl, err := template.New("manifest_template").Parse(manifestLuaFile)
 	if err != nil {
 		return fmt.Errorf("template.New.Parse: %w", err)
 	}

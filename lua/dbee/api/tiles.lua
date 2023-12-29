@@ -108,6 +108,12 @@ function M.result_set_call(call)
   entry.get_tiles().result:set_call(call)
 end
 
+-- Gets the currently displayed call.
+---@return call_details?
+function M.result_get_call()
+  return entry.get_tiles().result:get_call()
+end
+
 function M.result_page_current()
   entry.get_tiles().result:page_current()
 end

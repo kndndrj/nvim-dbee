@@ -80,7 +80,7 @@ func (*Mux) AddHelpers(typ string, helpers map[string]string) error {
 
 	// new helpers have priority
 	for k, v := range helpers {
-		tmpl, err := template.New("helper_").Parse(v)
+		tmpl, err := template.New("helpers").Parse(v)
 		if err != nil {
 			return fmt.Errorf("template.New.Parse: %w", err)
 		}

@@ -21,8 +21,6 @@
 
 **Get Results FAST With Under-the-hood Iterator!**
 
-**Integrates with nvim-projector!**
-
 **Bees Love It!**
 
 ***Alpha Software - Expect Breaking Changes!***
@@ -114,8 +112,7 @@ The installation examples include the `build`/`run` functions, which get
 triggered once the plugin updates. This should be sufficient for the majority of
 users. If that doesn't include you, then you have a few options:
 
-- just install with the `"go"` option (this performs `go install` under the
-  hood):
+- just install with the `"go"` option (this performs `go build` under the hood):
   ```lua
   require("dbee").install("go")
   ```
@@ -156,9 +153,7 @@ Here are the defaults:
 
 ## Usage
 
-Call the `setup()` function with an optional config parameter. If you are not
-using your plugin manager to lazy load for you, make sure to specify
-`{ lazy = true }` in the config.
+Call the `setup()` function with an optional config parameter.
 
 <!-- DOCGEN_IGNORE_START -->
 
@@ -171,14 +166,6 @@ using your plugin manager to lazy load for you, make sure to specify
 require("dbee").open()
 require("dbee").close()
 require("dbee").toggle()
--- Next/previous page of the results (there are the same mappings that work just inside the results buffer
--- available in config).
-require("dbee").next()
-require("dbee").prev()
--- Run a query on the active connection directly.
-require("dbee").execute(query)
--- Store the current result to file/buffer/yank-register (see "Getting Started").
-require("dbee").store(format, output, opts)
 ```
 
 <!-- DOCGEN_IGNORE_START -->
@@ -240,13 +227,14 @@ Here are a few steps to quickly get started:
     connection.
 
 - If the request was successful, the results should appear in the "result"
-  buffer (bottom one by default). If the total number of results was lower than
-  the `page_size` parameter in config (100 by default), all results should
+  buffer (bottom right by default). If the total number of results was lower
+  than the `page_size` parameter in config (100 by default), all results should
   already be present. If there are more than `page_size` results, you can "page"
   thrugh them using one of the following:
 
-  - Using `require("dbee").next()` and `require("dbee").prev()` from anywhere
-    (even if your cursor is outside the result buffer).
+  - Using `require("dbee")api.tiles.result_page_next()` and
+    `require("dbee")api.tiles.result_page_prev()` from anywhere (even if your
+    cursor is outside the result buffer).
   - Using `L` for next and `H` for previous page if the cursor is located inside
     the results buffer.
 
@@ -258,22 +246,7 @@ Here are a few steps to quickly get started:
   - `yaC` to yank all rows as CSV
 
 - The current result (of the active connection) can also be saved to a file,
-  yank-register or buffer using `require("dbee").store()` command. Some
-  examples:
-
-  ```lua
-  -- All rows as CSV to current buffer:
-  require("dbee").store("csv", "buffer", { extra_arg = 0 })
-  -- Results from row 2 to row 7 as json to file (index is zero based):
-  require("dbee").store("json", "file", { from = 2, to = 7, extra_arg = "path/to/file.json"  })
-  -- Yank the first row as table
-  require("dbee").store("table", "yank", { from = 0, to = 1 })
-  -- Yank the last 2 rows as CSV
-  -- (negative indices are interpreted as length+1+index - same as nvim_buf_get_lines())
-  -- Be aware that using negative indices requires for the
-  -- iterator of the result to be drained completely, which might affect large result sets.
-  require("dbee").store("csv", "yank", { from = -3, to = -1 })
-  ```
+  yank-register or buffer using the appropriate API function (see [API](#api)).
 
 - Once you are done or you want to go back to where you were, you can call
   `require("dbee").close()`.
@@ -311,9 +284,6 @@ to dbee using the `setup()` function:
     },
     -- ...
   },
-  -- ... the rest of your config
-  }
-
 ```
 
 The above sources are just built-ins. Here is a short description of them:
@@ -374,8 +344,8 @@ exporting secrets to environment:
 # Define connections
 export DBEE_CONNECTIONS='[
     {
-        "name": "{{ env.SECRET_DB_NAME }}",
-        "url": "postgres://{{ env.SECRET_DB_USER }}:{{ env.SECRET_DB_PASS }}@localhost:5432/{{ env.SECRET_DB_NAME }}?sslmode=disable",
+        "name": "{{ .Env.SECRET_DB_NAME }}",
+        "url": "postgres://{{ .Env.SECRET_DB_USER }}:{{ .Env.SECRET_DB_PASS }}@localhost:5432/{{ .Env.SECRET_DB_NAME }}?sslmode=disable",
         "type": "postgres"
     }
 ]'
@@ -397,13 +367,19 @@ connection:
 } }
 ```
 
-## Projector Integration
+## API
 
-DBee is compatible with my other plugin
-[nvim-projector](https://github.com/kndndrj/nvim-projector), a
-code-runner/project-configurator.
+Dbee comes with it's own API interface. It is split into two parts:
 
-To use dbee with it, simply use `"dbee"` as one of it's outputs.
+- core (interacting with core of the plugin),
+- tiles (interacting with ui of the plugin).
+
+You can access it like this:
+
+```lua
+require("dbee").api.core.some_func()
+require("dbee").api.tiles.some_func()
+```
 
 <!-- DOCGEN_IGNORE_START -->
 
