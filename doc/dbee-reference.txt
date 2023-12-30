@@ -1,0 +1,680 @@
+==============================================================================
+Table of Contents                                            *dbee.ref.contents*
+
+Types ····························································· |dbee.types|
+Sources ························································· |dbee.sources|
+Tile Layout ················································· |dbee.tile_layout|
+Dbee Core API ·················································· |dbee.api.core|
+Dbee Tiles API ················································ |dbee.api.tiles|
+
+==============================================================================
+Types                                                               *dbee.types*
+
+Overview of types used in DBee API.
+
+------------------------------------------------------------------------------
+
+                                                            *dbee.types.helpers*
+Helper (predefined query) related types.
+
+table_helpers                                                    *table_helpers*
+    Table helpers queries by name.
+
+    Type: ~
+        table<string,string>
+
+
+materialization                                                *materialization*
+    Table Materialization.
+
+    Variants: ~
+        ("table")
+        ("view")
+
+
+HelperOpts                                                          *HelperOpts*
+    Options for expanding helper queries.
+
+    Fields: ~
+        {table}            (string)
+        {schema}           (string)
+        {materialization}  (materialization)
+
+
+------------------------------------------------------------------------------
+
+                                                               *dbee.types.call*
+Call related types.
+
+call_id                                                                *call_id*
+    ID of a call.
+
+    Type: ~
+        string
+
+
+call_state                                                          *call_state*
+    State of a call.
+
+    Variants: ~
+        ("unknown")
+        ("executing")
+        ("executing_failed")
+        ("retrieving")
+        ("retrieving_failed")
+        ("archived")
+        ("archive_failed")
+        ("canceled")
+
+
+CallDetails                                                        *CallDetails*
+    Details and stats of a single call to database.
+
+    Fields: ~
+        {id}             (call_id)
+        {time_taken_us}  (integer)     duration (time period) in microseconds
+        {query}          (string)
+        {state}          (call_state)
+        {timestamp_us}   (integer)     time in microseconds
+
+
+------------------------------------------------------------------------------
+
+                                                         *dbee.types.connection*
+Connection related types.
+
+connection_id                                                    *connection_id*
+    ID of a connection.
+
+    Type: ~
+        string
+
+
+ConnectionParams                                              *ConnectionParams*
+    Parameters of a connection.
+
+    Fields: ~
+        {id}    (connection_id)
+        {name}  (string)
+        {type}  (string)
+        {url}   (string)
+
+
+------------------------------------------------------------------------------
+
+                                                          *dbee.types.structure*
+Database structure related types.
+
+structure_type                                                  *structure_type*
+    Type of node in database structure.
+
+    Variants: ~
+        ("")
+        ("table")
+        ("history")
+        ("database_switch")
+        ("view")
+
+
+DBStructure                                                        *DBStructure*
+    Structure of database.
+
+    Fields: ~
+        {name}    (string)          display name
+        {type}    (structure_type)  type of node in structure
+        {schema}  (string)
+
+
+------------------------------------------------------------------------------
+
+                                                             *dbee.types.events*
+Event related types.
+
+core_event_name                                                *core_event_name*
+    Avaliable core events.
+
+    Variants: ~
+        ("call_state_changed")
+        ("current_connection_changed")
+
+
+editor_event_name                                            *editor_event_name*
+    Available editor events.
+
+    Variants: ~
+        ("note_state_changed")
+        ("note_removed")
+        ("note_created")
+        ("current_note_changed")
+
+
+event_listener                                                  *event_listener*
+    Event handler function.
+
+    Type: ~
+        fun(data:any)
+
+
+==============================================================================
+Sources                                                           *dbee.sources*
+
+Sources can be created by implementing the Source interface.
+Some methods are optional and are related to updating/editing functionality.
+
+source_id                                                            *source_id*
+    ID of a source.
+
+    Type: ~
+        string
+
+
+source_save_action                                          *source_save_action*
+    Action enum for saving connections to source.
+
+    Variants: ~
+        ("add")
+        ("delete")
+
+
+Source                                                                  *Source*
+    Source interface
+
+    Fields: ~
+        {name}  (fun(self:Source):string)                                                  function to return the name of the source
+        {load}  (fun(self:Source):ConnectionParams[])                                      function to load connections from external source
+        {save}  (nil|fun(self:Source,conns:ConnectionParams[],action:source_save_action))  function to save connections to external source (optional)
+        {file}  (nil|fun(self:Source):string)                                              function which returns a source file to edit (optional)
+
+
+------------------------------------------------------------------------------
+
+FileSource : Source                                                 *FileSource*
+    Built-In File Source.
+
+    Fields: ~
+
+
+
+sources.FileSource:new({path})                          *sources.FileSource:new*
+     Loads connections from json file
+
+    Parameters: ~
+        {path}  (string)  path to file
+
+    Returns: ~
+        (Source)
+
+
+------------------------------------------------------------------------------
+
+EnvSource : Source                                                   *EnvSource*
+    Built-In Env Source.
+    Loads connections from json string of env variable.
+
+    Fields: ~
+
+
+
+sources.EnvSource:new({var})                             *sources.EnvSource:new*
+
+    Parameters: ~
+        {var}  (string)  env var to load connections from
+
+    Returns: ~
+        (Source)
+
+
+------------------------------------------------------------------------------
+
+MemorySource : Source                                             *MemorySource*
+    Built-In Memory Source.
+    Loads connections from lua table.
+
+    Fields: ~
+        {conns}  (ConnectionParams[])
+
+
+sources.MemorySource:new({conns})                     *sources.MemorySource:new*
+
+    Parameters: ~
+        {conns}  (ConnectionParams[])  list of connections
+
+    Returns: ~
+        (Source)
+
+
+==============================================================================
+Tile Layout                                                   *dbee.tile_layout*
+
+Tile layout defines the layout of UI.
+The default layout is already defined, but it's possible to define your own layout.
+
+Layout implementation should implement the |TileLayout| interface and show the tiles on screen
+as seen fit.
+
+layout_tiles                                                      *layout_tiles*
+    Layout tiles that are passed to ̏|TileLayout| open method.
+
+    Type: ~
+        {drawer:DrawerTile,editor:EditorTile,result:ResultTile,call_log:CallLogTile}
+
+
+TileLayout                                                          *TileLayout*
+
+    Fields: ~
+        {open}   (fun(self:TileLayout,tiles:layout_tiles))  function to open ui.
+        {close}  (fun(self:TileLayout))                     function to close ui.
+
+
+------------------------------------------------------------------------------
+
+DefaultTileLayout : TileLayout                               *DefaultTileLayout*
+
+    Fields: ~
+
+
+
+layouts.Default:new()                                      *layouts.Default:new*
+    Create a default layout.
+
+    Returns: ~
+        (TileLayout)
+
+
+==============================================================================
+Dbee Core API                                                    *dbee.api.core*
+
+This module contains functions to operate on the backend side.
+
+Access it like this:
+>
+require("dbee").api.core.func()
+<
+
+                                                  *core.register_event_listener*
+core.register_event_listener({event}, {listener})
+    Registers an event handler for core events.
+
+    Parameters: ~
+        {event}     (core_event_name)
+        {listener}  (event_listener)
+
+
+core.add_source({source})                                      *core.add_source*
+    Add new source and load connections from it.
+
+    Parameters: ~
+        {source}  (Source)
+
+
+core.get_sources()                                            *core.get_sources*
+    Get a list of registered sources.
+
+    Returns: ~
+        (Source[])
+
+
+core.source_reload({id})                                    *core.source_reload*
+    Reload a source by id.
+
+    Parameters: ~
+        {id}  (source_id)
+
+
+                                                   *core.source_add_connections*
+core.source_add_connections({id}, {details})
+    Add connections to the source.
+
+    Parameters: ~
+        {id}       (source_id)
+        {details}  (ConnectionParams[])
+
+
+                                                *core.source_remove_connections*
+core.source_remove_connections({id}, {details})
+    Remove a connection from the source.
+    If source can edit connections, it also removes the
+    connection permanently.
+
+    Parameters: ~
+        {id}       (source_id)
+        {details}  (ConnectionParams[])
+
+
+core.source_get_connections({id})                  *core.source_get_connections*
+     Get a list of connections from source.
+
+    Parameters: ~
+        {id}  (source_id)
+
+    Returns: ~
+        (ConnectionParams[])
+
+
+core.add_helpers({helpers})                                   *core.add_helpers*
+    Register helper queries per database type.
+    every helper value is a go-template with values set for
+    "Table", "Schema" and "Materialization".
+
+    Parameters: ~
+        {helpers}  (table<string,table<string,string>>)  extra helpers per type
+
+    See: ~
+        |table_helpers|
+
+    Usage: ~
+>lua
+        {
+          ["postgres"] = {
+            ["List All"] = "SELECT * FROM {{ .Table }}",
+          }
+        }
+<
+
+
+                                                   *core.connection_get_helpers*
+core.connection_get_helpers({id}, {opts})
+    Get helper queries for a specific connection.
+
+    Parameters: ~
+        {id}    (connection_id)
+        {opts}  (HelperOpts)
+
+    Returns: ~
+        (table<string,string>)  list of table helpers
+
+    See: ~
+        |table_helpers|
+
+
+core.get_current_connection()                      *core.get_current_connection*
+    Get the currently active connection.
+
+    Returns: ~
+        (ConnectionParams|nil)
+
+
+core.set_current_connection({id})                  *core.set_current_connection*
+    Set a currently active connection.
+
+    Parameters: ~
+        {id}  (connection_id)
+
+
+core.connection_execute({id}, {query})                 *core.connection_execute*
+    Execute a query on a connection.
+
+    Parameters: ~
+        {id}     (connection_id)
+        {query}  (string)
+
+    Returns: ~
+        (CallDetails)
+
+
+core.connection_get_structure({id})              *core.connection_get_structure*
+    Get database structure of a connection.
+
+    Parameters: ~
+        {id}  (connection_id)
+
+    Returns: ~
+        (DBStructure[])
+
+
+core.connection_get_params({id})                    *core.connection_get_params*
+    Get parameters that define the connection.
+
+    Parameters: ~
+        {id}  (connection_id)
+
+    Returns: ~
+        (ConnectionParams|nil)
+
+
+core.connection_list_databases({id})            *core.connection_list_databases*
+    List databases of a connection.
+    Some databases might not support this - in that case, a call to this
+    function returns an error.
+
+    Parameters: ~
+        {id}  (connection_id)
+
+    Returns: ~
+        (string)    selected database
+        (string[])  available databases
+
+
+                                               *core.connection_select_database*
+core.connection_select_database({id}, {database})
+    Select an active database of a connection.
+    Some databases might not support this - in that case, a call to this
+    function returns an error.
+
+    Parameters: ~
+        {id}        (connection_id)
+        {database}  (string)
+
+
+core.connection_get_calls({id})                      *core.connection_get_calls*
+    Get a list of past calls of a connection.
+
+    Parameters: ~
+        {id}  (connection_id)
+
+    Returns: ~
+        (CallDetails[])
+
+
+core.call_cancel({id})                                        *core.call_cancel*
+    Cancel call execution.
+    If call is finished, nothing happens.
+
+    Parameters: ~
+        {id}  (call_id)
+
+
+                                                      *core.call_display_result*
+core.call_display_result({id}, {bufnr}, {from}, {to})
+    Display the result of a call formatted as a table in a buffer.
+
+    Parameters: ~
+        {id}     (call_id)  id of the call
+        {bufnr}  (integer)
+        {from}   (integer)
+        {to}     (integer)
+
+    Returns: ~
+        (integer)  number of rows
+
+
+                                                        *core.call_store_result*
+core.call_store_result({id}, {format}, {output}, {opts})
+    Store the result of a call.
+
+    Parameters: ~
+        {id}      (call_id)
+        {format}  (string)                                   format of the output -> "csv"|"json"|"table"
+        {output}  (string)                                   where to pipe the results -> "file"|"yank"|"buffer"
+        {opts}    ({from:integer,to:integer,extra_arg:any})
+
+
+==============================================================================
+Dbee Tiles API                                                  *dbee.api.tiles*
+
+Tiles API module for nvim dbee.
+
+This module contains functions to operate with tiles (UI).
+Functions are prefixed with a tile name:
+- editor
+- result
+- drawer
+- call_log
+
+ Access the module like this:
+>
+require("dbee").api.tiles.func()
+<
+
+------------------------------------------------------------------------------
+
+                                                         *dbee.api.tiles.editor*
+Editor API
+
+                                          *tiles.editor_register_event_listener*
+tiles.editor_register_event_listener({event}, {listener})
+    Registers an event handler for editor events.
+
+    Parameters: ~
+        {event}     (editor_event_name)
+        {listener}  (event_listener)
+
+
+tiles.editor_search_note({id})                        *tiles.editor_search_note*
+     Search for a note across namespaces.
+
+    Parameters: ~
+        {id}  (note_id)
+
+    Returns: ~
+        (note_details|nil)
+        (namespace_id)      namespace of the note
+
+
+                                            *tiles.editor_namespace_create_note*
+tiles.editor_namespace_create_note({id}, {name})
+     Creates a new note in namespace.
+     Errors if id or name is nil or there is a note with the same
+     name in namespace already.
+
+    Parameters: ~
+        {id}    (namespace_id)
+        {name}  (string)
+
+    Returns: ~
+        (note_id)
+
+
+tiles.editor_namespace_get_notes({id})        *tiles.editor_namespace_get_notes*
+     Get notes of a specified namespace.
+
+    Parameters: ~
+        {id}  (namespace_id)
+
+    Returns: ~
+        (note_details[])
+
+
+                                            *tiles.editor_namespace_remove_note*
+tiles.editor_namespace_remove_note({id}, {note_id})
+     Removes an existing note.
+     Errors if there is no note with provided id in namespace.
+
+    Parameters: ~
+        {id}       (namespace_id)
+        {note_id}  (note_id)
+
+
+tiles.editor_note_rename({id}, {name})                *tiles.editor_note_rename*
+     Renames an existing note.
+     Errors if no name or id provided, there is no note with provided id or
+     there is already an existing note with the same name in the same namespace.
+
+    Parameters: ~
+        {id}    (note_id)
+        {name}  (string)   new name
+
+
+tiles.editor_get_current_note()                  *tiles.editor_get_current_note*
+     Get details of a current note
+
+    Returns: ~
+        (note_details|nil)
+
+
+tiles.editor_set_current_note({id})              *tiles.editor_set_current_note*
+     Sets note with id as the current note
+     and opens it in the window.
+
+    Parameters: ~
+        {id}  (note_id)
+
+
+tiles.editor_show({winid})                                   *tiles.editor_show*
+     Open the editor UI.
+
+    Parameters: ~
+        {winid}  (integer)
+
+
+------------------------------------------------------------------------------
+
+                                                       *dbee.api.tiles.call_log*
+Call Log API
+
+tiles.call_log_refresh()                                *tiles.call_log_refresh*
+     Refresh the call log.
+
+
+tiles.call_log_show({winid})                               *tiles.call_log_show*
+     Open the call log UI.
+
+    Parameters: ~
+        {winid}  (integer)
+
+
+------------------------------------------------------------------------------
+
+                                                         *dbee.api.tiles.drawer*
+Drawer API
+
+tiles.drawer_refresh()                                    *tiles.drawer_refresh*
+     Refresh the drawer.
+
+
+tiles.drawer_show({winid})                                   *tiles.drawer_show*
+     Open the drawer UI.
+
+    Parameters: ~
+        {winid}  (integer)
+
+
+------------------------------------------------------------------------------
+
+                                                         *dbee.api.tiles.result*
+Result API
+
+tiles.result_set_call({call})                            *tiles.result_set_call*
+     Sets call's result to Result's buffer.
+
+    Parameters: ~
+        {call}  (CallDetails)
+
+
+tiles.result_get_call()                                  *tiles.result_get_call*
+     Gets the currently displayed call.
+
+    Returns: ~
+        (CallDetails|nil)
+
+
+tiles.result_page_current()                          *tiles.result_page_current*
+     Display the currently selected page in results UI.
+
+
+tiles.result_page_next()                                *tiles.result_page_next*
+     Go to next page in results UI and display it.
+
+
+tiles.result_page_prev()                                *tiles.result_page_prev*
+     Go to previous page in results UI and display it.
+
+
+tiles.result_show({winid})                                   *tiles.result_show*
+     Open the result UI.
+
+    Parameters: ~
+        {winid}  (integer)
+
+
+vim:tw=78:ts=8:noet:ft=help:norl:
