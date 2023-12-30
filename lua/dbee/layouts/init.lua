@@ -1,5 +1,15 @@
 local tools = require("dbee.layouts.tools")
 
+---@mod dbee.tile_layout Tile Layout
+---@brief [[
+---Tile layout defines the layout of UI.
+---The default layout is already defined, but it's possible to define your own layout.
+---
+---Layout implementation should implement the |TileLayout| interface and show the tiles on screen
+---as seen fit.
+---@brief ]]
+
+---Layout tiles that are passed to ̏|TileLayout| open method.
 ---@alias layout_tiles { drawer: DrawerTile, editor: EditorTile, result: ResultTile, call_log: CallLogTile }
 
 -- Window layout defines how windows are opened.
@@ -7,7 +17,9 @@ local tools = require("dbee.layouts.tools")
 ---@field open fun(self: TileLayout, tiles: layout_tiles) function to open ui.
 ---@field close fun(self: TileLayout) function to close ui.
 
-local M = {}
+local layouts = {}
+
+---@divider -
 
 -- Default layout uses a helper to save the existing window layout before opening any windows,
 -- then makes a new empty window for the editor and then opens result and drawer.
@@ -15,11 +27,11 @@ local M = {}
 ---@class DefaultTileLayout: TileLayout
 ---@field private egg? layout_egg
 ---@field private windows integer[]
-M.Default = {}
+layouts.Default = {}
 
---- Loads connections from json file
+---Create a default layout.
 ---@return TileLayout
-function M.Default:new()
+function layouts.Default:new()
   local o = {
     egg = nil,
     windows = {},
@@ -29,8 +41,9 @@ function M.Default:new()
   return o
 end
 
+---@package
 ---@param tiles layout_tiles
-function M.Default:open(tiles)
+function layouts.Default:open(tiles)
   -- save layout before opening ui
   self.egg = tools.save()
 
@@ -64,7 +77,8 @@ function M.Default:open(tiles)
   vim.api.nvim_set_current_win(editor_win)
 end
 
-function M.Default:close()
+---@package
+function layouts.Default:close()
   -- close all windows
   for _, win in ipairs(self.windows) do
     pcall(vim.api.nvim_win_close, win, false)
@@ -75,4 +89,4 @@ function M.Default:close()
   self.egg = nil
 end
 
-return M
+return layouts

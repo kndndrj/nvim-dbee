@@ -1,23 +1,39 @@
 local utils = require("dbee.utils")
 
-local M = {}
+---@mod dbee.sources Sources
+---@brief [[
+---Sources can be created by implementing the Source interface.
+---Some methods are optional and are related to updating/editing functionality.
+---@brief ]]
 
+---ID of a source.
 ---@alias source_id string
 
+---Action enum for saving connections to source.
+---@alias source_save_action
+---| '"add"'
+---| '"delete"'
+
+---Source interface
 ---@class Source
 ---@field name fun(self: Source):string function to return the name of the source
 ---@field load fun(self: Source):ConnectionParams[] function to load connections from external source
----@field save? fun(self: Source, conns: ConnectionParams[], action: "add"|"delete") function to save connections to external source (optional)
+---@field save? fun(self: Source, conns: ConnectionParams[], action: source_save_action) function to save connections to external source (optional)
 ---@field file? fun(self: Source):string function which returns a source file to edit (optional)
 
+local sources = {}
+
+---@divider -
+
+---Built-In File Source.
 ---@class FileSource: Source
 ---@field private path string path to file
-M.FileSource = {}
+sources.FileSource = {}
 
 --- Loads connections from json file
 ---@param path string path to file
 ---@return Source
-function M.FileSource:new(path)
+function sources.FileSource:new(path)
   if not path then
     error("no path provided")
   end
@@ -29,13 +45,15 @@ function M.FileSource:new(path)
   return o
 end
 
+---@package
 ---@return string
-function M.FileSource:name()
+function sources.FileSource:name()
   return vim.fs.basename(self.path)
 end
 
+---@package
 ---@return ConnectionParams[]
-function M.FileSource:load()
+function sources.FileSource:load()
   local path = self.path
 
   ---@type ConnectionParams[]
@@ -68,10 +86,10 @@ function M.FileSource:load()
   return conns
 end
 
--- saves connection to file
+---@package
 ---@param conns ConnectionParams[]
 ---@param action "add"|"delete"
-function M.FileSource:save(conns, action)
+function sources.FileSource:save(conns, action)
   local path = self.path
 
   if not conns or vim.tbl_isempty(conns) then
@@ -123,19 +141,23 @@ function M.FileSource:save(conns, action)
   file:close()
 end
 
+---@package
 ---@return string
-function M.FileSource:file()
+function sources.FileSource:file()
   return self.path
 end
 
+---@divider -
+
+---Built-In Env Source.
+---Loads connections from json string of env variable.
 ---@class EnvSource: Source
 ---@field private var string path to file
-M.EnvSource = {}
+sources.EnvSource = {}
 
---- Loads connections from json file
----@param var string env var to load from
+---@param var string env var to load connections from
 ---@return Source
-function M.EnvSource:new(var)
+function sources.EnvSource:new(var)
   if not var then
     error("no path provided")
   end
@@ -147,13 +169,15 @@ function M.EnvSource:new(var)
   return o
 end
 
+---@package
 ---@return string
-function M.EnvSource:name()
+function sources.EnvSource:name()
   return self.var
 end
 
+---@package
 ---@return ConnectionParams[]
-function M.EnvSource:load()
+function sources.EnvSource:load()
   ---@type ConnectionParams[]
   local conns = {}
 
@@ -177,14 +201,17 @@ function M.EnvSource:load()
   return conns
 end
 
+---@divider -
+
+---Built-In Memory Source.
+---Loads connections from lua table.
 ---@class MemorySource: Source
 ---@field conns ConnectionParams[]
-M.MemorySource = {}
+sources.MemorySource = {}
 
---- Loads connections from json file
----@param conns ConnectionParams[]
+---@param conns ConnectionParams[] list of connections
 ---@return Source
-function M.MemorySource:new(conns)
+function sources.MemorySource:new(conns)
   local o = {
     conns = conns or {},
   }
@@ -193,14 +220,16 @@ function M.MemorySource:new(conns)
   return o
 end
 
+---@package
 ---@return string
-function M.MemorySource:name()
+function sources.MemorySource:name()
   return "memory"
 end
 
+---@package
 ---@return ConnectionParams[]
-function M.MemorySource:load()
+function sources.MemorySource:load()
   return self.conns
 end
 
-return M
+return sources

@@ -238,9 +238,12 @@ function Handler:call_display_result(id, bufnr, from, to)
   return length
 end
 
+---@alias store_format "csv"|"json"|"table"
+---@alias store_output "file"|"yank"|"buffer"
+
 ---@param id call_id
----@param format "csv"|"json"|"table" format of the output
----@param output "file"|"yank"|"buffer" where to pipe the results
+---@param format store_format format of the output
+---@param output store_output where to pipe the results
 ---@param opts { from: integer, to: integer, extra_arg: any }
 function Handler:call_store_result(id, format, output, opts)
   opts = opts or {}

@@ -1,30 +1,31 @@
+---@mod dbee.api.tiles Dbee Tiles API
 ---@brief [[
---- Tiles API module for nvim dbee.
+---Tiles API module for nvim dbee.
 ---
---- This module contains functions to operate with tiles (UI).
---- Functions are prefixed with a tile name:
---- - editor
---- - result
---- - drawer
---- - call_log
+---This module contains functions to operate with tiles (UI).
+---Functions are prefixed with a tile name:
+---- editor
+---- result
+---- drawer
+---- call_log
 ---
 --- Access the module like this:
---- <code>
---- require("dbee").api.tiles.func()
---- </code>
+--->
+---require("dbee").api.tiles.func()
+---<
 ---@brief ]]
-
----@tag dbee.api.tiles
 
 local entry = require("dbee.entry")
 
 local tiles = {}
 
---
--- Editor
---
+---@divider -
+---@tag dbee.api.tiles.editor
+---@brief [[
+---Editor API
+---@brief ]]
 
---- Registers an event handler for editor events.
+---Registers an event handler for editor events.
 ---@param event editor_event_name
 ---@param listener event_listener
 function tiles.editor_register_event_listener(event, listener)
@@ -33,8 +34,8 @@ end
 
 --- Search for a note across namespaces.
 ---@param id note_id
----@return note_details?
----@return namespace_id: namespace of the note
+---@return note_details|nil
+---@return namespace_id _ namespace of the note
 function tiles.editor_search_note(id)
   return entry.get_tiles().editor:search_note(id)
 end
@@ -68,13 +69,13 @@ end
 --- Errors if no name or id provided, there is no note with provided id or
 --- there is already an existing note with the same name in the same namespace.
 ---@param id note_id
----@param name string: new name
+---@param name string new name
 function tiles.editor_note_rename(id, name)
   entry.get_tiles().editor:note_rename(id, name)
 end
 
 --- Get details of a current note
----@return note_details?
+---@return note_details|nil
 function tiles.editor_get_current_note()
   return entry.get_tiles().editor:get_current_note()
 end
@@ -92,9 +93,11 @@ function tiles.editor_show(winid)
   entry.get_tiles().editor:show(winid)
 end
 
---
--- Call Log
---
+---@divider -
+---@tag dbee.api.tiles.call_log
+---@brief [[
+---Call Log API
+---@brief ]]
 
 --- Refresh the call log.
 function tiles.call_log_refresh()
@@ -107,9 +110,11 @@ function tiles.call_log_show(winid)
   entry.get_tiles().call_log:show(winid)
 end
 
---
--- Drawer
---
+---@divider -
+---@tag dbee.api.tiles.drawer
+---@brief [[
+---Drawer API
+---@brief ]]
 
 --- Refresh the drawer.
 function tiles.drawer_refresh()
@@ -122,9 +127,11 @@ function tiles.drawer_show(winid)
   entry.get_tiles().drawer:show(winid)
 end
 
---
--- Result
---
+---@divider -
+---@tag dbee.api.tiles.result
+---@brief [[
+---Result API
+---@brief ]]
 
 --- Sets call's result to Result's buffer.
 ---@param call CallDetails
@@ -133,7 +140,7 @@ function tiles.result_set_call(call)
 end
 
 --- Gets the currently displayed call.
----@return CallDetails?
+---@return CallDetails|nil
 function tiles.result_get_call()
   return entry.get_tiles().result:get_call()
 end
