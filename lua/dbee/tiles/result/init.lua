@@ -9,7 +9,7 @@ local common = require("dbee.tiles.common")
 ---@field private handler Handler
 ---@field private winid? integer
 ---@field private bufnr integer
----@field private current_call? call_details
+---@field private current_call? CallDetails
 ---@field private page_size integer
 ---@field private mappings key_mapping[]
 ---@field private page_index integer index of the current page
@@ -66,7 +66,7 @@ end
 
 -- event listener for new calls
 ---@private
----@param data { call: call_details }
+---@param data { call: CallDetails }
 function ResultTile:on_call_state_changed(data)
   local call = data.call
 
@@ -230,7 +230,7 @@ function ResultTile:get_actions()
 end
 
 -- sets call's result to Result's buffer
----@param call call_details
+---@param call CallDetails
 function ResultTile:set_call(call)
   self.page_index = 0
   self.page_ammount = 0
@@ -240,7 +240,7 @@ function ResultTile:set_call(call)
 end
 
 -- Gets the currently displayed call.
----@return call_details?
+---@return CallDetails?
 function ResultTile:get_call()
   return self.current_call
 end

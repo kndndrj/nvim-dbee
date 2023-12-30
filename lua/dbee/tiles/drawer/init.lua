@@ -37,7 +37,7 @@ local expansion = require("dbee.tiles.drawer.expansion")
 ---@field private bufnr integer
 ---@field private quit_handle fun() function that closes the whole ui
 ---@field private switch_handle fun(bufnr: integer)
----@field private current_conn_id? conn_id current active connection
+---@field private current_conn_id? connection_id current active connection
 ---@field private current_note_id? note_id current active note
 local DrawerTile = {}
 
@@ -112,7 +112,7 @@ end
 
 -- event listener for current connection change
 ---@private
----@param data { conn_id: conn_id }
+---@param data { conn_id: connection_id }
 function DrawerTile:on_current_connection_changed(data)
   if self.current_conn_id == data.conn_id then
     return

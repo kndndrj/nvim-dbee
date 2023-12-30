@@ -5,7 +5,7 @@ local NuiTree = require("nui.tree")
 local M = {}
 
 ---@param handler Handler
----@param conn connection_details
+---@param conn ConnectionParams
 ---@param result ResultTile
 ---@return DrawerTileNode[]
 local function connection_nodes(handler, conn, result)
@@ -413,7 +413,7 @@ local function editor_namespace_nodes(editor, namespace, refresh)
 end
 
 ---@param editor EditorTile
----@param current_connection_id conn_id
+---@param current_connection_id connection_id
 ---@param refresh fun() function that refreshes the tree
 ---@return DrawerTileNode[]
 function M.editor_nodes(editor, current_connection_id, refresh)

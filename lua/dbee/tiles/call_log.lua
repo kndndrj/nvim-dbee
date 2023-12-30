@@ -11,7 +11,7 @@ local common = require("dbee.tiles.common")
 ---@field private winid? integer
 ---@field private bufnr integer
 ---@field private candies table<string, Candy> map of eye-candy stuff (icons, highlight)
----@field private current_connection_id? conn_id
+---@field private current_connection_id? connection_id
 ---@field private hover_close? fun() function that closes the hover window
 ---@field private switch_handle fun(bufnr: integer)
 local CallLogTile = {}
@@ -78,14 +78,14 @@ end
 
 -- event listener for new calls
 ---@private
----@param _ { call: call_details }
+---@param _ { call: CallDetails }
 function CallLogTile:on_call_state_changed(_)
   self:refresh()
 end
 
 -- event listener for current connection change
 ---@private
----@param data { conn_id: conn_id }
+---@param data { conn_id: connection_id }
 function CallLogTile:on_current_connection_changed(data)
   self.current_connection_id = data.conn_id
   self:refresh()
@@ -133,7 +133,7 @@ function CallLogTile:create_tree(bufnr)
   return NuiTree {
     bufnr = bufnr,
     prepare_node = function(node)
-      ---@type call_details
+      ---@type CallDetails
       local call = node.call
       local line = NuiLine()
       if not call then
@@ -238,7 +238,7 @@ function CallLogTile:configure_preview(bufnr)
       if not node then
         return
       end
-      ---@type call_details?
+      ---@type CallDetails?
       local call = node.call
       if not call then
         return

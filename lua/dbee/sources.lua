@@ -6,8 +6,8 @@ local M = {}
 
 ---@class Source
 ---@field name fun(self: Source):string function to return the name of the source
----@field load fun(self: Source):connection_details[] function to load connections from external source
----@field save? fun(self: Source, conns: connection_details[], action: "add"|"delete") function to save connections to external source (optional)
+---@field load fun(self: Source):ConnectionParams[] function to load connections from external source
+---@field save? fun(self: Source, conns: ConnectionParams[], action: "add"|"delete") function to save connections to external source (optional)
 ---@field file? fun(self: Source):string function which returns a source file to edit (optional)
 
 ---@class FileSource: Source
@@ -34,11 +34,11 @@ function M.FileSource:name()
   return vim.fs.basename(self.path)
 end
 
----@return connection_details[]
+---@return ConnectionParams[]
 function M.FileSource:load()
   local path = self.path
 
-  ---@type connection_details[]
+  ---@type ConnectionParams[]
   local conns = {}
 
   if not vim.loop.fs_stat(path) then
@@ -69,7 +69,7 @@ function M.FileSource:load()
 end
 
 -- saves connection to file
----@param conns connection_details[]
+---@param conns ConnectionParams[]
 ---@param action "add"|"delete"
 function M.FileSource:save(conns, action)
   local path = self.path
@@ -81,7 +81,7 @@ function M.FileSource:save(conns, action)
   -- read from file
   local existing = self:load()
 
-  ---@type connection_details[]
+  ---@type ConnectionParams[]
   local new = {}
 
   if action == "add" then
@@ -152,9 +152,9 @@ function M.EnvSource:name()
   return self.var
 end
 
----@return connection_details[]
+---@return ConnectionParams[]
 function M.EnvSource:load()
-  ---@type connection_details[]
+  ---@type ConnectionParams[]
   local conns = {}
 
   local raw = os.getenv(self.var)
@@ -178,11 +178,11 @@ function M.EnvSource:load()
 end
 
 ---@class MemorySource: Source
----@field conns connection_details[]
+---@field conns ConnectionParams[]
 M.MemorySource = {}
 
 --- Loads connections from json file
----@param conns connection_details[]
+---@param conns ConnectionParams[]
 ---@return Source
 function M.MemorySource:new(conns)
   local o = {
@@ -198,7 +198,7 @@ function M.MemorySource:name()
   return "memory"
 end
 
----@return connection_details[]
+---@return ConnectionParams[]
 function M.MemorySource:load()
   return self.conns
 end

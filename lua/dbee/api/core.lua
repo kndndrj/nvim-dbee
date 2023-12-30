@@ -1,127 +1,178 @@
+
+---@brief [[
+--- Core API module for nvim dbee.
+---
+--- This module contains functions to operate on the backend side.
+---
+--- Access it like this:
+--- <code>
+--- require("dbee").api.core.func()
+--- </code>
+---@brief ]]
+
+---@tag dbee.api.core
+
 local entry = require("dbee.entry")
 
-local M = {}
+local core = {}
 
----@param event handler_event_name
----@param listener handler_event_listener
-function M.register_event_listener(event, listener)
+--- Registers an event handler for core events.
+---@param event core_event_name
+---@param listener event_listener
+function core.register_event_listener(event, listener)
   entry.get_handler():register_event_listener(event, listener)
 end
 
--- add new source and load connections from it
+--- Add new source and load connections from it.
 ---@param source Source
-function M.add_source(source)
+function core.add_source(source)
   entry.get_handler():add_source(source)
 end
 
+--- Get a list of registered sources.
 ---@return Source[]
-function M.get_sources()
+function core.get_sources()
   return entry.get_handler():get_sources()
 end
 
+--- Reload a source by id.
 ---@param id source_id
-function M.source_reload(id)
+function core.source_reload(id)
   entry.get_handler():source_reload(id)
 end
 
+--- Add connections to the source.
 ---@param id source_id
----@param details connection_details[]
-function M.source_add_connections(id, details)
+---@param details ConnectionParams[]
+function core.source_add_connections(id, details)
   entry.get_handler():source_add_connections(id, details)
 end
 
+--- Remove a connection from the source.
+--- If source can edit connections, it also removes the
+--- connection permanently.
 ---@param id source_id
----@param details connection_details[]
-function M.source_remove_connections(id, details)
+---@param details ConnectionParams[]
+function core.source_remove_connections(id, details)
   entry.get_handler():source_remove_connections(id, details)
 end
 
+--- Get a list of connections from source.
 ---@param id source_id
----@return connection_details[]
-function M.source_get_connections(id)
+---@return ConnectionParams[]
+function core.source_get_connections(id)
   return entry.get_handler():source_get_connections(id)
 end
 
----@param helpers table<string, table_helpers> extra helpers per type
-function M.add_helpers(helpers)
+--- Register helper queries per database type.
+--- every helper value is a go-template with values set for
+--- "Table", "Schema" and "Materialization"
+---
+--- Example:
+--- <code>
+--- {
+---   ["postgres"] = {
+---     ["List All"] = "select * from {{ .Table }}",
+---   }
+--- },
+--- </code>
+---@param helpers table<string, table_helpers>: extra helpers per type
+function core.add_helpers(helpers)
   entry.get_handler():add_helpers(helpers)
 end
 
----@param id conn_id
----@param opts helper_opts
----@return table_helpers helpers list of table helpers
-function M.connection_get_helpers(id, opts)
+--- Get helper queries for a specific connection.
+---@param id connection_id
+---@param opts HelperOpts
+---@return table_helpers: list of table helpers
+function core.connection_get_helpers(id, opts)
   return entry.get_handler():connection_get_helpers(id, opts)
 end
 
----@return connection_details?
-function M.get_current_connection()
+--- Get the currently active connection.
+---@return ConnectionParams?
+function core.get_current_connection()
   return entry.get_handler():get_current_connection()
 end
 
----@param id conn_id
-function M.set_current_connection(id)
+--- Set a currently active connection.
+---@param id connection_id
+function core.set_current_connection(id)
   entry.get_handler():set_current_connection(id)
 end
 
----@param id conn_id
+--- Execute a query on a connection.
+---@param id connection_id
 ---@param query string
----@return call_details
-function M.connection_execute(id, query)
+---@return CallDetails
+function core.connection_execute(id, query)
   return entry.get_handler():connection_execute(id, query)
 end
 
----@param id conn_id
+--- Get database structure of a connection.
+---@param id connection_id
 ---@return DBStructure[]
-function M.connection_get_structure(id)
+function core.connection_get_structure(id)
   return entry.get_handler():connection_get_structure(id)
 end
 
----@param id conn_id
----@return connection_details?
-function M.connection_get_params(id)
+--- Get parameters that define the connection.
+---@param id connection_id
+---@return ConnectionParams?
+function core.connection_get_params(id)
   return entry.get_handler():connection_get_params(id)
 end
 
----@param id conn_id
----@return string current_db
----@return string[] available_dbs
-function M.connection_list_databases(id)
+--- List databases of a connection.
+--- Some databases might not support this - in that case, a call to this
+--- function returns an error.
+---@param id connection_id
+---@return string: currently selected database
+---@return string[]: other available databases
+function core.connection_list_databases(id)
   return entry.get_handler():connection_list_databases(id)
 end
 
----@param id conn_id
+--- Select an active database of a connection.
+--- Some databases might not support this - in that case, a call to this
+--- function returns an error.
+---@param id connection_id
 ---@param database string
-function M.connection_select_database(id, database)
+function core.connection_select_database(id, database)
   entry.get_handler():connection_select_database(id, database)
 end
 
----@param id conn_id
----@return call_details[]
-function M.connection_get_calls(id)
+--- Get a list of past calls of a connection.
+---@param id connection_id
+---@return CallDetails[]
+function core.connection_get_calls(id)
   return entry.get_handler():connection_get_calls(id)
 end
 
+--- Cancel call execution.
+--- If call is finished, nothing happens.
 ---@param id call_id
-function M.call_cancel(id)
+function core.call_cancel(id)
   entry.get_handler():call_cancel(id)
 end
 
----@param id call_id
+--- Display the result of a call formatted as a table in a buffer.
+---@param id call_id: id of the call
 ---@param bufnr integer
 ---@param from integer
 ---@param to integer
----@return integer # total number of rows
-function M.call_display_result(id, bufnr, from, to)
+---@return integer: total number of rows
+function core.call_display_result(id, bufnr, from, to)
   return entry.get_handler():call_display_result(id, bufnr, from, to)
 end
 
+--- Store the result of a call.
 ---@param id call_id
----@param format "csv"|"json"|"table" format of the output
----@param output "file"|"yank"|"buffer" where to pipe the results
+---@param format "csv"|"json"|"table": format of the output
+---@param output "file"|"yank"|"buffer": where to pipe the results
 ---@param opts { from: integer, to: integer, extra_arg: any }
-function M.call_store_result(id, format, output, opts)
+function core.call_store_result(id, format, output, opts)
   entry.get_handler():call_store_result(id, format, output, opts)
 end
 
-return M
+return core

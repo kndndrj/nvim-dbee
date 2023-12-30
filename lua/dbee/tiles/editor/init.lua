@@ -2,10 +2,6 @@ local utils = require("dbee.utils")
 local common = require("dbee.tiles.common")
 local welcome = require("dbee.tiles.editor.welcome")
 
--- events:
----@alias editor_event_name "note_state_changed"|"note_removed"|"note_created"|"current_note_changed"
----@alias editor_event_listener fun(data: any)
-
 ---@alias namespace_id "global"|string
 
 ---@alias note_id string
@@ -22,7 +18,7 @@ local welcome = require("dbee.tiles.editor.welcome")
 ---@field private notes table<namespace_id, table<note_id, note_details>> namespace: { id: note_details } mapping
 ---@field private current_note_id? note_id
 ---@field private directory string directory where notes are stored
----@field private event_callbacks table<editor_event_name, editor_event_listener[]> callbacks for events
+---@field private event_callbacks table<editor_event_name, event_listener[]> callbacks for events
 local EditorTile = {}
 
 ---@param handler Handler
@@ -129,7 +125,7 @@ function EditorTile:trigger_event(event, data)
 end
 
 ---@param event editor_event_name
----@param listener editor_event_listener
+---@param listener event_listener
 function EditorTile:register_event_listener(event, listener)
   self.event_callbacks[event] = self.event_callbacks[event] or {}
   table.insert(self.event_callbacks[event], listener)

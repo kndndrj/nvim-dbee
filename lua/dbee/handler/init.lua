@@ -1,33 +1,9 @@
 local event_bus = require("dbee.handler.__events")
 
--- Helpers
----@alias materialization "table"|"view"
----@alias helper_opts { table: string, schema: string, materialization: materialization}
----@alias table_helpers table<string, string>
-
--- Call (single call to database)
----@alias duration integer duration (time period) in microseconds
----@alias timestamp integer time in microseconds
----@alias call_stats { success: boolean, time_taken: duration }
----@alias call_id string
----@alias call_state "unknown"|"executing"|"executing_failed"|"retrieving"|"retrieving_failed"|"archived"|"archive_failed"|"canceled"
----@alias call_details { id: call_id, time_taken_us: duration, query: string, state: call_state, timestamp_us: timestamp }
-
--- Connection
----@alias conn_id string
----@alias connection_details { name: string, type: string, url: string, id: conn_id }
-
--- Structure of database
----@class DBStructure
----@field name string display name
----@field type ""|"table"|"history"|"database_switch"|"view" type of layout -> this infers action
----@field schema? string parent schema
----@field children? DBStructure[] child layout nodes
-
 -- Handler is an aggregator of connections
 ---@class Handler
 ---@field private sources table<source_id, Source>
----@field private source_conn_lookup table<string, conn_id[]>
+---@field private source_conn_lookup table<string, connection_id[]>
 local Handler = {}
 
 ---@param sources? Source[]
@@ -50,8 +26,8 @@ function Handler:new(sources)
   return o
 end
 
----@param event handler_event_name
----@param listener handler_event_listener
+---@param event core_event_name
+---@param listener event_listener
 function Handler:register_event_listener(event, listener)
   event_bus.register(event, listener)
 end
@@ -94,7 +70,7 @@ function Handler:source_reload(id)
 end
 
 ---@param id source_id
----@param details connection_details[]
+---@param details ConnectionParams[]
 function Handler:source_add_connections(id, details)
   if not details then
     return
@@ -113,7 +89,7 @@ function Handler:source_add_connections(id, details)
 end
 
 ---@param id source_id
----@param details connection_details[]
+---@param details ConnectionParams[]
 function Handler:source_remove_connections(id, details)
   if not details then
     return
@@ -132,14 +108,14 @@ function Handler:source_remove_connections(id, details)
 end
 
 ---@param id source_id
----@return connection_details[]
+---@return ConnectionParams[]
 function Handler:source_get_connections(id)
   local conn_ids = self.source_conn_lookup[id] or {}
   if #conn_ids < 1 then
     return {}
   end
 
-  ---@type connection_details[]?
+  ---@type ConnectionParams[]?
   local ret = vim.fn.DbeeGetConnections(conn_ids)
   if not ret or ret == vim.NIL then
     return {}
@@ -159,8 +135,8 @@ function Handler:add_helpers(helpers)
   end
 end
 
----@param id conn_id
----@param opts helper_opts
+---@param id connection_id
+---@param opts HelperOpts
 ---@return table_helpers helpers list of table helpers
 function Handler:connection_get_helpers(id, opts)
   local helpers = vim.fn.DbeeConnectionGetHelpers(id, {
@@ -175,7 +151,7 @@ function Handler:connection_get_helpers(id, opts)
   return helpers
 end
 
----@return connection_details?
+---@return ConnectionParams?
 function Handler:get_current_connection()
   local ret = vim.fn.DbeeGetCurrentConnection()
   if ret == vim.NIL then
@@ -184,19 +160,19 @@ function Handler:get_current_connection()
   return ret
 end
 
----@param id conn_id
+---@param id connection_id
 function Handler:set_current_connection(id)
   vim.fn.DbeeSetCurrentConnection(id)
 end
 
----@param id conn_id
+---@param id connection_id
 ---@param query string
----@return call_details
+---@return CallDetails
 function Handler:connection_execute(id, query)
   return vim.fn.DbeeConnectionExecute(id, query)
 end
 
----@param id conn_id
+---@param id connection_id
 ---@return DBStructure[]
 function Handler:connection_get_structure(id)
   local ret = vim.fn.DbeeConnectionGetStructure(id)
@@ -206,8 +182,8 @@ function Handler:connection_get_structure(id)
   return ret
 end
 
----@param id conn_id
----@return connection_details?
+---@param id connection_id
+---@return ConnectionParams?
 function Handler:connection_get_params(id)
   local ret = vim.fn.DbeeConnectionGetParams(id)
   if not ret or ret == vim.NIL then
@@ -216,7 +192,7 @@ function Handler:connection_get_params(id)
   return ret
 end
 
----@param id conn_id
+---@param id connection_id
 ---@return string current_db
 ---@return string[] available_dbs
 function Handler:connection_list_databases(id)
@@ -228,14 +204,14 @@ function Handler:connection_list_databases(id)
   return unpack(ret)
 end
 
----@param id conn_id
+---@param id connection_id
 ---@param database string
 function Handler:connection_select_database(id, database)
   vim.fn.DbeeConnectionSelectDatabase(id, database)
 end
 
----@param id conn_id
----@return call_details[]
+---@param id connection_id
+---@return CallDetails[]
 function Handler:connection_get_calls(id)
   local ret = vim.fn.DbeeConnectionGetCalls(id)
   if not ret or ret == vim.NIL then
