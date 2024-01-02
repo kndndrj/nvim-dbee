@@ -168,7 +168,13 @@ Call the `setup()` function with an optional config parameter.
 require("dbee").open()
 require("dbee").close()
 require("dbee").toggle()
+-- Run a query on the currently active connection.
+require("dbee").execute(query)
+-- Store the current result to file/buffer/yank-register (see "Getting Started").
+require("dbee").store(format, output, opts)
 ```
+
+The same functions are also available through the `:Dbee` user command.
 
 <!-- DOCGEN_IGNORE_START -->
 
@@ -248,7 +254,22 @@ Here are a few steps to quickly get started:
   - `yaC` to yank all rows as CSV
 
 - The current result (of the active connection) can also be saved to a file,
-  yank-register or buffer using the appropriate API function (see [API](#api)).
+  yank-register or buffer using `require("dbee").store()` lua function or
+  `:Dbee store` Ex command. Here are some examples:
+
+  ```lua
+  -- All rows as CSV to current buffer:
+  require("dbee").store("csv", "buffer", { extra_arg = 0 })
+  -- Results from row 2 to row 7 as json to file (index is zero based):
+  require("dbee").store("json", "file", { from = 2, to = 7, extra_arg = "path/to/file.json"  })
+  -- Yank the first row as table
+  require("dbee").store("table", "yank", { from = 0, to = 1 })
+  -- Yank the last 2 rows as CSV
+  -- (negative indices are interpreted as length+1+index - same as nvim_buf_get_lines())
+  -- Be aware that using negative indices requires for the
+  -- iterator of the result to be drained completely, which might affect large result sets.
+  require("dbee").store("csv", "yank", { from = -3, to = -1 })
+  ```
 
 - Once you are done or you want to go back to where you were, you can call
   `require("dbee").close()`.
@@ -382,6 +403,15 @@ You can access it like this:
 require("dbee").api.core.some_func()
 require("dbee").api.tiles.some_func()
 ```
+
+## Projector Integration
+
+DBee is compatible with my other plugin
+[nvim-projector](https://github.com/kndndrj/nvim-projector), a
+code-runner/project-configurator.
+
+To use dbee with it, use
+[this extension](https://github.com/kndndrj/projector-dbee).
 
 <!-- DOCGEN_IGNORE_START -->
 
