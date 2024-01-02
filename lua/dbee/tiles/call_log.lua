@@ -16,8 +16,6 @@ local common = require("dbee.tiles.common")
 ---@field private switch_handle fun(bufnr: integer)
 local CallLogTile = {}
 
----@alias call_log_config { mappings: key_mapping[], disable_candies: boolean, candies: table<string, Candy> }
-
 ---@param handler Handler
 ---@param result ResultTile
 ---@param quit_handle? fun()

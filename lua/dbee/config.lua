@@ -1,22 +1,44 @@
-local M = {}
+local config = {}
 
----Keymap options.
----@alias key_mapping { key: string, mode: string, opts: table, action: string|fun() }
+---@mod dbee.ref.config Dbee Configuration
 
 -- Configuration object.
 ---@class Config
 ---@field sources Source[] list of connection sources
----@field extra_helpers table<string, table_helpers>
+---@field extra_helpers table<string, table<string, string>>
 ---@field drawer drawer_config
 ---@field editor editor_config
 ---@field result result_config
 ---@field call_log call_log_config
----@field window_layout TileLayout
+---@field window_layout Layout
 
--- default configuration
----@type Config
--- DOCGEN_START
-M.default = {
+---@class Candy
+---@field icon string
+---@field icon_highlight string
+---@field text_highlight string
+
+---Keymap options.
+---@alias key_mapping { key: string, mode: string, opts: table, action: string|fun() }
+
+---@divider -
+
+---Configuration for result UI tile.
+---@alias result_config { mappings: key_mapping[], page_size: integer, progress: progress_config }
+
+---Configuration for editor UI tile.
+---@alias editor_config { directory: string, mappings: key_mapping[] }
+
+---Configuration for call log UI tile.
+---@alias call_log_config { mappings: key_mapping[], disable_candies: boolean, candies: table<string, Candy> }
+
+---Configuration for drawer UI tile.
+---@alias drawer_config { disable_candies: boolean, candies: table<string, Candy>, mappings: key_mapping[], disable_help: boolean }
+
+---@divider -
+
+---Default configuration.
+---@type Config config
+config.default = {
   -- loads connections from files and environment variables
   sources = {
     require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
@@ -242,11 +264,11 @@ M.default = {
   -- window layout
   window_layout = require("dbee.layouts").Default:new(),
 }
--- DOCGEN_END
 
 -- Validates provided input config
+---@package
 ---@param cfg Config
-function M.validate(cfg)
+function config.validate(cfg)
   vim.validate {
     sources = { cfg.sources, "table" },
     extra_helpers = { cfg.extra_helpers, "table" },
@@ -267,4 +289,4 @@ function M.validate(cfg)
   }
 end
 
-return M
+return config

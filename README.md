@@ -318,16 +318,8 @@ Another option is to use "edit" item in the tree and just edit the source
 manually.
 
 If you aren't satisfied with the default capabilities, you can implement your
-own source. You just need to fill the following interface and pass it to config
-at setup.
-
-```lua
----@class Source
----@field name fun(self: Source):string function to return the name of the source
----@field load fun(self: Source):connection_details[] function to load connections from external source
----@field save? fun(self: Source, conns: connection_details[], action: "add"|"delete") function to save connections to external source (optional)
----@field file? fun(self: Source):string function which returns a source file to edit (optional)
-```
+own source. You just need to fill the `Source` interface and pass it to config
+at setup (`:h dbee.sources`).
 
 #### Secrets
 

@@ -1,4 +1,4 @@
----@mod dbee.api.core Dbee Core API
+---@mod dbee.ref.api.core Dbee Core API
 ---@brief [[
 ---This module contains functions to operate on the backend side.
 ---

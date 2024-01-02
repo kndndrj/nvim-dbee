@@ -2,8 +2,6 @@ local utils = require("dbee.utils")
 local progress = require("dbee.tiles.result.progress")
 local common = require("dbee.tiles.common")
 
----@alias result_config { mappings: key_mapping[], page_size: integer, progress: progress_config }
-
 -- ResultTile represents the part of ui with displayed results
 ---@class ResultTile
 ---@field private handler Handler

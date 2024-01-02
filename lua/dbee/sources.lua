@@ -1,6 +1,6 @@
 local utils = require("dbee.utils")
 
----@mod dbee.sources Sources
+---@mod dbee.ref.sources Sources
 ---@brief [[
 ---Sources can be created by implementing the Source interface.
 ---Some methods are optional and are related to updating/editing functionality.

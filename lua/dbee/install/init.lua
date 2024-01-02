@@ -1,7 +1,5 @@
 local M = {}
 
----@alias install_command "wget"|"curl"|"bitsadmin"|"go"|"cgo"
-
 -- NOTE: don't use vim.notify in loop callbacks
 local function log_error(mes)
   print("[dbee install - error]: " .. mes)

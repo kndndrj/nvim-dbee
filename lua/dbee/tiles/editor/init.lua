@@ -7,8 +7,6 @@ local welcome = require("dbee.tiles.editor.welcome")
 ---@alias note_id string
 ---@alias note_details { id: note_id, name: string, file: string, bufnr: integer? }
 
----@alias editor_config { directory: string, mappings: key_mapping[] }
-
 ---@class EditorTile
 ---@field private handler Handler
 ---@field private result ResultTile

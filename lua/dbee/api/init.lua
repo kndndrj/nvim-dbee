@@ -1,4 +1,4 @@
 return {
   core = require("dbee.api.core"),
-  tiles = require("dbee.api.tiles"),
+  ui = require("dbee.api.ui"),
 }

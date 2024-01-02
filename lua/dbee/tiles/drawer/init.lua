@@ -5,11 +5,6 @@ local menu = require("dbee.tiles.drawer.menu")
 local convert = require("dbee.tiles.drawer.convert")
 local expansion = require("dbee.tiles.drawer.expansion")
 
----@class Candy
----@field icon string
----@field icon_highlight string
----@field text_highlight string
-
 -- action function of drawer nodes
 ---@alias drawer_node_action fun(cb: fun(), select: menu_select, input: menu_input)
 
@@ -22,8 +17,6 @@ local expansion = require("dbee.tiles.drawer.expansion")
 ---@field action_2? drawer_node_action secondary action if function takes a second selection parameter, pick_items get picked before the call
 ---@field action_3? drawer_node_action tertiary action if function takes a second selection parameter, pick_items get picked before the call
 ---@field lazy_children? fun():DrawerTileNode[] lazy loaded child nodes
-
----@alias drawer_config { disable_candies: boolean, candies: table<string, Candy>, mappings: key_mapping[], disable_help: boolean }
 
 ---@class DrawerTile
 ---@field private tree NuiTree

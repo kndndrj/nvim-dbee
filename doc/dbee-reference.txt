@@ -1,20 +1,137 @@
 ==============================================================================
 Table of Contents                                            *dbee.ref.contents*
 
-Types ····························································· |dbee.types|
+Dbee Reference ······················································ |dbee.ref|
+Dbee Configuration ··········································· |dbee.ref.config|
+Types ························································· |dbee.ref.types|
 Sources ························································· |dbee.sources|
-Tile Layout ················································· |dbee.tile_layout|
+UI Layout ···················································· |dbee.ref.layout|
 Dbee Core API ·················································· |dbee.api.core|
-Dbee Tiles API ················································ |dbee.api.tiles|
+Dbee UI API ······················································ |dbee.api.ui|
 
 ==============================================================================
-Types                                                               *dbee.types*
+Dbee Reference                                                        *dbee.ref*
+
+Database Client for NeoVim.
+
+dbee.setup({cfg?})                                                  *dbee.setup*
+    Setup function.
+    Needs to be called before calling any other function.
+
+    Parameters: ~
+        {cfg}  (nil|Config)
+
+
+dbee.toggle()                                                      *dbee.toggle*
+    Toggle dbee UI.
+
+
+dbee.open()                                                          *dbee.open*
+    Open dbee UI.
+
+
+dbee.close()                                                        *dbee.close*
+    Close dbee UI.
+
+
+install_command                                                *install_command*
+    Supported install commands.
+
+    Variants: ~
+        ("wget")
+        ("curl")
+        ("bitsadmin")
+        ("go")
+        ("cgo")
+
+
+dbee.install({command?})                                          *dbee.install*
+    Install dbee backend binary.
+
+    Parameters: ~
+        {command}  (nil|install_command)  Preffered install command
+
+    See: ~
+        |install_command|
+
+
+==============================================================================
+Dbee Configuration                                             *dbee.ref.config*
+
+Config                                                                  *Config*
+
+    Fields: ~
+        {sources}        (Source[])                            list of connection sources
+        {extra_helpers}  (table<string,table<string,string>>)
+        {drawer}         (drawer_config)
+        {editor}         (editor_config)
+        {result}         (result_config)
+        {call_log}       (call_log_config)
+        {window_layout}  (Layout)
+
+
+Candy                                                                    *Candy*
+
+    Fields: ~
+        {icon}            (string)
+        {icon_highlight}  (string)
+        {text_highlight}  (string)
+
+
+key_mapping                                                        *key_mapping*
+    Keymap options.
+
+    Type: ~
+        {key:string,mode:string,opts:table,action:string|fun()}
+
+
+------------------------------------------------------------------------------
+
+result_config                                                    *result_config*
+    Configuration for result UI tile.
+
+    Type: ~
+        {mappings:key_mapping[],page_size:integer,progress:progress_config}
+
+
+editor_config                                                    *editor_config*
+    Configuration for editor UI tile.
+
+    Type: ~
+        {directory:string,mappings:key_mapping[]}
+
+
+call_log_config                                                *call_log_config*
+    Configuration for call log UI tile.
+
+    Type: ~
+        {mappings:key_mapping[],disable_candies:boolean,candies:table<string,Candy>}
+
+
+drawer_config                                                    *drawer_config*
+    Configuration for drawer UI tile.
+
+    Type: ~
+        {disable_candies:boolean,candies:table<string,Candy>,mappings:key_mapping[],disable_help:boolean}
+
+
+------------------------------------------------------------------------------
+
+config.default                                                  *config.default*
+    Default configuration.
+
+    Type: ~
+        (Config)  config
+
+
+==============================================================================
+Types                                                           *dbee.ref.types*
 
 Overview of types used in DBee API.
 
 ------------------------------------------------------------------------------
 
-                                                            *dbee.types.helpers*
+                                                        *dbee.ref.types.helpers*
 Helper (predefined query) related types.
 
 table_helpers                                                    *table_helpers*
@@ -43,7 +160,7 @@ HelperOpts                                                          *HelperOpts*
 
 ------------------------------------------------------------------------------
 
-                                                               *dbee.types.call*
+                                                           *dbee.ref.types.call*
 Call related types.
 
 call_id                                                                *call_id*
@@ -80,7 +197,7 @@ CallDetails                                                        *CallDetails*
 
 ------------------------------------------------------------------------------
 
-                                                         *dbee.types.connection*
+                                                     *dbee.ref.types.connection*
 Connection related types.
 
 connection_id                                                    *connection_id*
@@ -102,7 +219,7 @@ ConnectionParams                                              *ConnectionParams*
 
 ------------------------------------------------------------------------------
 
-                                                          *dbee.types.structure*
+                                                      *dbee.ref.types.structure*
 Database structure related types.
 
 structure_type                                                  *structure_type*
@@ -127,7 +244,7 @@ DBStructure                                                        *DBStructure*
 
 ------------------------------------------------------------------------------
 
-                                                             *dbee.types.events*
+                                                         *dbee.ref.types.events*
 Event related types.
 
 core_event_name                                                *core_event_name*
@@ -244,12 +361,12 @@ sources.MemorySource:new({conns})                     *sources.MemorySource:new*
 
 
 ==============================================================================
-Tile Layout                                                   *dbee.tile_layout*
+UI Layout                                                      *dbee.ref.layout*
 
-Tile layout defines the layout of UI.
+Defines the layout of UI windows.
 The default layout is already defined, but it's possible to define your own layout.
 
-Layout implementation should implement the |TileLayout| interface and show the tiles on screen
+Layout implementation should implement the |Layout| interface and show the UI on screen
 as seen fit.
 
 layout_tiles                                                      *layout_tiles*
@@ -259,16 +376,16 @@ layout_tiles                                                      *layout_tiles*
         {drawer:DrawerTile,editor:EditorTile,result:ResultTile,call_log:CallLogTile}
 
 
-TileLayout                                                          *TileLayout*
+Layout                                                                  *Layout*
 
     Fields: ~
-        {open}   (fun(self:TileLayout,tiles:layout_tiles))  function to open ui.
-        {close}  (fun(self:TileLayout))                     function to close ui.
+        {open}   (fun(self:Layout,tiles:layout_tiles))  function to open ui.
+        {close}  (fun(self:Layout))                     function to close ui.
 
 
 ------------------------------------------------------------------------------
 
-DefaultTileLayout : TileLayout                               *DefaultTileLayout*
+DefaultLayout : Layout                                           *DefaultLayout*
 
     Fields: ~
 
@@ -278,7 +395,7 @@ layouts.Default:new()                                      *layouts.Default:new*
     Create a default layout.
 
     Returns: ~
-        (TileLayout)
+        (Layout)
 
 
 ==============================================================================
@@ -500,11 +617,11 @@ core.call_store_result({id}, {format}, {output}, {opts})
 
 
 ==============================================================================
-Dbee Tiles API                                                  *dbee.api.tiles*
+Dbee UI API                                                        *dbee.api.ui*
 
 Tiles API module for nvim dbee.
 
-This module contains functions to operate with tiles (UI).
+This module contains functions to operate with UI tiles.
 Functions are prefixed with a tile name:
 - editor
 - result
@@ -513,16 +630,16 @@ Functions are prefixed with a tile name:
 
  Access the module like this:
 >
-require("dbee").api.tiles.func()
+require("dbee").api.ui.func()
 <
 
 ------------------------------------------------------------------------------
 
-                                                         *dbee.api.tiles.editor*
+                                                            *dbee.api.ui.editor*
 Editor API
 
-                                          *tiles.editor_register_event_listener*
-tiles.editor_register_event_listener({event}, {listener})
+                                             *ui.editor_register_event_listener*
+ui.editor_register_event_listener({event}, {listener})
     Registers an event handler for editor events.
 
     Parameters: ~
@@ -530,7 +647,7 @@ tiles.editor_register_event_listener({event}, {listener})
         {listener}  (event_listener)
 
 
-tiles.editor_search_note({id})                        *tiles.editor_search_note*
+ui.editor_search_note({id})                              *ui.editor_search_note*
      Search for a note across namespaces.
 
     Parameters: ~
@@ -541,8 +658,8 @@ tiles.editor_search_note({id})                        *tiles.editor_search_note*
         (namespace_id)      namespace of the note
 
 
-                                            *tiles.editor_namespace_create_note*
-tiles.editor_namespace_create_note({id}, {name})
+                                               *ui.editor_namespace_create_note*
+ui.editor_namespace_create_note({id}, {name})
      Creates a new note in namespace.
      Errors if id or name is nil or there is a note with the same
      name in namespace already.
@@ -555,7 +672,7 @@ tiles.editor_namespace_create_note({id}, {name})
         (note_id)
 
 
-tiles.editor_namespace_get_notes({id})        *tiles.editor_namespace_get_notes*
+ui.editor_namespace_get_notes({id})              *ui.editor_namespace_get_notes*
      Get notes of a specified namespace.
 
     Parameters: ~
@@ -565,8 +682,8 @@ tiles.editor_namespace_get_notes({id})        *tiles.editor_namespace_get_notes*
         (note_details[])
 
 
-                                            *tiles.editor_namespace_remove_note*
-tiles.editor_namespace_remove_note({id}, {note_id})
+                                               *ui.editor_namespace_remove_note*
+ui.editor_namespace_remove_note({id}, {note_id})
      Removes an existing note.
      Errors if there is no note with provided id in namespace.
 
@@ -575,7 +692,7 @@ tiles.editor_namespace_remove_note({id}, {note_id})
         {note_id}  (note_id)
 
 
-tiles.editor_note_rename({id}, {name})                *tiles.editor_note_rename*
+ui.editor_note_rename({id}, {name})                      *ui.editor_note_rename*
      Renames an existing note.
      Errors if no name or id provided, there is no note with provided id or
      there is already an existing note with the same name in the same namespace.
@@ -585,14 +702,14 @@ tiles.editor_note_rename({id}, {name})                *tiles.editor_note_rename*
         {name}  (string)   new name
 
 
-tiles.editor_get_current_note()                  *tiles.editor_get_current_note*
+ui.editor_get_current_note()                        *ui.editor_get_current_note*
      Get details of a current note
 
     Returns: ~
         (note_details|nil)
 
 
-tiles.editor_set_current_note({id})              *tiles.editor_set_current_note*
+ui.editor_set_current_note({id})                    *ui.editor_set_current_note*
      Sets note with id as the current note
      and opens it in the window.
 
@@ -600,7 +717,7 @@ tiles.editor_set_current_note({id})              *tiles.editor_set_current_note*
         {id}  (note_id)
 
 
-tiles.editor_show({winid})                                   *tiles.editor_show*
+ui.editor_show({winid})                                         *ui.editor_show*
      Open the editor UI.
 
     Parameters: ~
@@ -609,14 +726,14 @@ tiles.editor_show({winid})                                   *tiles.editor_show*
 
 ------------------------------------------------------------------------------
 
-                                                       *dbee.api.tiles.call_log*
+                                                          *dbee.api.ui.call_log*
 Call Log API
 
-tiles.call_log_refresh()                                *tiles.call_log_refresh*
+ui.call_log_refresh()                                      *ui.call_log_refresh*
      Refresh the call log.
 
 
-tiles.call_log_show({winid})                               *tiles.call_log_show*
+ui.call_log_show({winid})                                     *ui.call_log_show*
      Open the call log UI.
 
     Parameters: ~
@@ -625,14 +742,14 @@ tiles.call_log_show({winid})                               *tiles.call_log_show*
 
 ------------------------------------------------------------------------------
 
-                                                         *dbee.api.tiles.drawer*
+                                                            *dbee.api.ui.drawer*
 Drawer API
 
-tiles.drawer_refresh()                                    *tiles.drawer_refresh*
+ui.drawer_refresh()                                          *ui.drawer_refresh*
      Refresh the drawer.
 
 
-tiles.drawer_show({winid})                                   *tiles.drawer_show*
+ui.drawer_show({winid})                                         *ui.drawer_show*
      Open the drawer UI.
 
     Parameters: ~
@@ -641,36 +758,36 @@ tiles.drawer_show({winid})                                   *tiles.drawer_show*
 
 ------------------------------------------------------------------------------
 
-                                                         *dbee.api.tiles.result*
+                                                            *dbee.api.ui.result*
 Result API
 
-tiles.result_set_call({call})                            *tiles.result_set_call*
+ui.result_set_call({call})                                  *ui.result_set_call*
      Sets call's result to Result's buffer.
 
     Parameters: ~
         {call}  (CallDetails)
 
 
-tiles.result_get_call()                                  *tiles.result_get_call*
+ui.result_get_call()                                        *ui.result_get_call*
      Gets the currently displayed call.
 
     Returns: ~
         (CallDetails|nil)
 
 
-tiles.result_page_current()                          *tiles.result_page_current*
+ui.result_page_current()                                *ui.result_page_current*
      Display the currently selected page in results UI.
 
 
-tiles.result_page_next()                                *tiles.result_page_next*
+ui.result_page_next()                                      *ui.result_page_next*
      Go to next page in results UI and display it.
 
 
-tiles.result_page_prev()                                *tiles.result_page_prev*
+ui.result_page_prev()                                      *ui.result_page_prev*
      Go to previous page in results UI and display it.
 
 
-tiles.result_show({winid})                                   *tiles.result_show*
+ui.result_show({winid})                                         *ui.result_show*
      Open the result UI.
 
     Parameters: ~

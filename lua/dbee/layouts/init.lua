@@ -1,21 +1,21 @@
 local tools = require("dbee.layouts.tools")
 
----@mod dbee.tile_layout Tile Layout
+---@mod dbee.ref.layout UI Layout
 ---@brief [[
----Tile layout defines the layout of UI.
+---Defines the layout of UI windows.
 ---The default layout is already defined, but it's possible to define your own layout.
 ---
----Layout implementation should implement the |TileLayout| interface and show the tiles on screen
+---Layout implementation should implement the |Layout| interface and show the UI on screen
 ---as seen fit.
 ---@brief ]]
 
 ---Layout tiles that are passed to ̏|TileLayout| open method.
 ---@alias layout_tiles { drawer: DrawerTile, editor: EditorTile, result: ResultTile, call_log: CallLogTile }
 
--- Window layout defines how windows are opened.
----@class TileLayout
----@field open fun(self: TileLayout, tiles: layout_tiles) function to open ui.
----@field close fun(self: TileLayout) function to close ui.
+-- Layout that defines how windows are opened.
+---@class Layout
+---@field open fun(self: Layout, tiles: layout_tiles) function to open ui.
+---@field close fun(self: Layout) function to close ui.
 
 local layouts = {}
 
@@ -24,13 +24,13 @@ local layouts = {}
 -- Default layout uses a helper to save the existing window layout before opening any windows,
 -- then makes a new empty window for the editor and then opens result and drawer.
 -- When later calling close(), the previously saved layout is restored.
----@class DefaultTileLayout: TileLayout
+---@class DefaultLayout: Layout
 ---@field private egg? layout_egg
 ---@field private windows integer[]
 layouts.Default = {}
 
 ---Create a default layout.
----@return TileLayout
+---@return Layout
 function layouts.Default:new()
   local o = {
     egg = nil,

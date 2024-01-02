@@ -1,12 +1,10 @@
----@toc dbee.ref.contents
-
----@mod dbee.types Types
+---@mod dbee.ref.types Types
 ---@brief [[
 ---Overview of types used in DBee API.
 ---@brief ]]
 
 ---@divider -
----@tag dbee.types.helpers
+---@tag dbee.ref.types.helpers
 ---@brief [[
 ---Helper (predefined query) related types.
 ---@brief ]]
@@ -26,7 +24,7 @@
 ---@field materialization materialization
 
 ---@divider -
----@tag dbee.types.call
+---@tag dbee.ref.types.call
 ---@brief [[
 ---Call related types.
 ---@brief ]]
@@ -54,7 +52,7 @@
 ---@field timestamp_us integer time in microseconds
 
 ---@divider -
----@tag dbee.types.connection
+---@tag dbee.ref.types.connection
 ---@brief [[
 ---Connection related types.
 ---@brief ]]
@@ -70,7 +68,7 @@
 ---@field url string
 
 ---@divider -
----@tag dbee.types.structure
+---@tag dbee.ref.types.structure
 ---@brief [[
 ---Database structure related types.
 ---@brief ]]
@@ -91,7 +89,7 @@
 ---@field children DBStructure[]? child layout nodes
 
 ---@divider -
----@tag dbee.types.events
+---@tag dbee.ref.types.events
 ---@brief [[
 ---Event related types.
 ---@brief ]]

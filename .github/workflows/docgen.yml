@@ -65,7 +65,7 @@ jobs:
         shell: bash
         run: |
           curl -Lq https://github.com/numToStr/lemmy-help/releases/latest/download/lemmy-help-x86_64-unknown-linux-gnu.tar.gz | tar xz
-          ./lemmy-help lua/dbee/{doc,sources,layouts/init,api/core,api/tiles}.lua --expand-opt > doc/dbee-reference.txt
+          ./lemmy-help lua/dbee.lua lua/dbee/{config,doc,sources,layouts/init,api/core,api/ui}.lua --expand-opt > doc/dbee-reference.txt
       - name: Commit the Generated Docs
         uses: EndBug/add-and-commit@v9
         if: github.event_name == 'push'
