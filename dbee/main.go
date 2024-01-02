@@ -2,8 +2,10 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
+	"runtime/debug"
 
 	"github.com/neovim/go-client/nvim"
 
@@ -14,7 +16,25 @@ import (
 
 func main() {
 	generateManifest := flag.String("manifest", "", "Generate manifest to file (filename of manifest).")
+	getVersion := flag.Bool("version", false, "Get version and exit.")
 	flag.Parse()
+
+	// get version info
+	if *getVersion {
+		info, ok := debug.ReadBuildInfo()
+		if !ok {
+			fmt.Println("Build info not found")
+			os.Exit(1)
+		}
+		for _, inf := range info.Settings {
+			if inf.Key == "vcs.revision" {
+				fmt.Println(inf.Value)
+				return
+			}
+		}
+		fmt.Println("could not determine version of binary")
+		os.Exit(1)
+	}
 
 	stdout := os.Stdout
 	os.Stdout = os.Stderr

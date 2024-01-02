@@ -10,12 +10,17 @@ local function log_info(mes)
   print("[dbee install]: " .. mes)
 end
 
----@return string # installation path
-function M.path()
+---@return string _ path to install dir
+function M.dir()
   return vim.fn.stdpath("data") .. "/dbee/bin"
 end
 
----@return string # path of go source
+---@return string _ path to binary
+function M.bin()
+  return M.dir() .. "/dbee"
+end
+
+---@return string _ path of go source
 function M.source_path()
   local p, _ = debug.getinfo(1).source:sub(2):gsub("/lua/dbee/install/init.lua$", "/dbee")
   return p
@@ -73,8 +78,8 @@ local function get_job(command)
   local arch = uname.machine
   local osys = uname.sysname
   -- paths for final installation location
-  local install_dir = M.path()
-  local install_binary = install_dir .. "/dbee"
+  local install_dir = M.dir()
+  local install_binary = M.bin()
   -- paths for extracting archives
   local build_dir = vim.fn.stdpath("cache") .. "/dbee/build"
   local archive = build_dir .. "/dbee.tar.gz"
