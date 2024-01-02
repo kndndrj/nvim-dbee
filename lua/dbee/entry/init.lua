@@ -103,6 +103,21 @@ function M.setup(cfg)
   m.setup_called = true
 end
 
+---@return boolean
+function M.is_ui_open()
+  return m.ui_opened
+end
+
+---@return boolean
+function M.is_core_loaded()
+  return m.core_loaded
+end
+
+---@return boolean
+function M.is_ui_loaded()
+  return m.core_loaded
+end
+
 function M.toggle_ui()
   if m.ui_opened then
     M.close_ui()

@@ -34,6 +34,24 @@ function dbee.close()
   entry.close_ui()
 end
 
+---Check if dbee UI is open or not.
+---@return boolean
+function dbee.is_open()
+  return entry.is_ui_open()
+end
+
+---Check if dbee core has been loaded.
+---@return boolean
+function dbee.is_core_loaded()
+  return entry.is_core_loaded()
+end
+
+---Check if dbee UI has been loaded.
+---@return boolean
+function dbee.is_ui_loaded()
+  return entry.is_ui_loaded()
+end
+
 ---Execute a query on current connection.
 ---Convenience wrapper around some api functions that executes a query on
 ---current connection and pipes the output to result UI.
