@@ -335,7 +335,7 @@ available functions:
 
 The template syntax for functions is the following: `{{ <func> "<param>" }}`. If
 you are dealing with json, you need to escape double quotes, so it's sometimes
-nicer to use backticks instead (``{{ <func> `<param>` }}``)
+better to use backticks instead (`` {{ <func> `<param>` }} ``).
 
 Example:
 

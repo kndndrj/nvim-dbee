@@ -9,7 +9,7 @@ local tools = require("dbee.layouts.tools")
 ---as seen fit.
 ---@brief ]]
 
----Layout tiles that are passed to ̏|TileLayout| open method.
+---Layout tiles that are passed to ̏|Layout| open method.
 ---@alias layout_tiles { drawer: DrawerTile, editor: EditorTile, result: ResultTile, call_log: CallLogTile }
 
 -- Layout that defines how windows are opened.

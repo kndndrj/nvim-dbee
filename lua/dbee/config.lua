@@ -36,6 +36,7 @@ local config = {}
 
 ---@divider -
 
+-- DOCGEN_START
 ---Default configuration.
 ---@type Config config
 config.default = {
@@ -264,6 +265,7 @@ config.default = {
   -- window layout
   window_layout = require("dbee.layouts").Default:new(),
 }
+-- DOCGEN_END
 
 -- Validates provided input config
 ---@package
