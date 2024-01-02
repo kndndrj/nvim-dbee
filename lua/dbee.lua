@@ -34,6 +34,42 @@ function dbee.close()
   entry.close_ui()
 end
 
+---Execute a query on current connection.
+---Convenience wrapper around some api functions that executes a query on
+---current connection and pipes the output to result UI.
+---@param query string
+function dbee.execute(query)
+  local handler = entry.get_handler()
+  local result = entry.get_tiles().result
+
+  local conn = handler:get_current_connection()
+  if not conn then
+    error("no connection currently selected")
+  end
+
+  local call = handler:connection_execute(conn.id, query)
+  result:set_call(call)
+
+  entry.open_ui()
+end
+
+---Store currently displayed result.
+---Convenience wrapper around some api functions.
+---@param format string format of the output -> "csv"|"json"|"table"
+---@param output string where to pipe the results -> "file"|"yank"|"buffer"
+---@param opts { from: integer, to: integer, extra_arg: any }
+function dbee.store(format, output, opts)
+  local result = entry.get_tiles().result
+  local handler = entry.get_handler()
+
+  local call = result:get_call()
+  if not call then
+    error("no current call to store")
+  end
+
+  handler:call_store_result(call.id, format, output, opts)
+end
+
 ---Supported install commands.
 ---@alias install_command
 ---| '"wget"'

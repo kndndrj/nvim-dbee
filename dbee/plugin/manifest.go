@@ -10,7 +10,9 @@ return function()
       rpc = true,
       detach = true,
       on_stderr = function(_, data, _)
-        vim.print(data)
+        for _, line in ipairs(data) do
+          print(line)
+        end
       end,
     })
   end)
@@ -21,4 +23,5 @@ return function()
     { type = "{{ .Type }}", name = "{{ .Name }}", sync = {{ .Sync }}, opts = vim.empty_dict() },
   {{- end }}
   })
-end`
+end
+`

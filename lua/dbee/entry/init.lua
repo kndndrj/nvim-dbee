@@ -5,7 +5,7 @@ local CallLogTile = require("dbee.tiles.call_log")
 local Handler = require("dbee.handler")
 local install = require("dbee.install")
 local config = require("dbee.config")
-local register = require("dbee.__register")
+local register = require("dbee.entry.__register")
 local utils = require("dbee.utils")
 
 -- public and private module objects

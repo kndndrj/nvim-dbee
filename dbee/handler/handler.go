@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"strconv"
 	"time"
 
 	"github.com/neovim/go-client/nvim"
@@ -298,41 +299,11 @@ func (h *Handler) CallStoreResult(callID core.CallID, fmat, out string, from, to
 		return fmt.Errorf("store output: %q is not supported", fmat)
 	}
 
-	var writer io.Writer
-	switch out {
-	case "file":
-		if len(arg) < 1 || arg[0] == "" {
-			return fmt.Errorf("invalid output path")
-		}
-		path, ok := arg[0].(string)
-		if !ok {
-			return fmt.Errorf("invalid output path")
-		}
-
-		writer, err := os.Create(path)
-		if err != nil {
-			return err
-		}
-		defer writer.Close()
-	case "buffer":
-		if len(arg) < 1 {
-			return fmt.Errorf("invalid output path")
-		}
-		buf, ok := arg[0].(int)
-		if !ok {
-			return fmt.Errorf("invalid output path")
-		}
-		writer = newBuffer(h.vim, nvim.Buffer(buf))
-	case "yank":
-		register := ""
-		if len(arg) > 0 {
-			register, _ = arg[0].(string)
-		}
-
-		writer = newYankRegister(h.vim, register)
-	default:
-		return fmt.Errorf("store output: %q is not supported", out)
+	writer, cleanup, err := h.getStoreWriter(out, arg...)
+	if err != nil {
+		return err
 	}
+	defer cleanup()
 
 	res, err := stat.GetResult()
 	if err != nil {
@@ -350,4 +321,52 @@ func (h *Handler) CallStoreResult(callID core.CallID, fmat, out string, from, to
 	}
 
 	return nil
+}
+
+func (h *Handler) getStoreWriter(output string, arg ...any) (writer io.Writer, cleanup func(), err error) {
+	switch output {
+	case "file":
+		if len(arg) < 1 || arg[0] == "" {
+			return nil, func() {}, fmt.Errorf("no output path provided")
+		}
+
+		path, ok := arg[0].(string)
+		if !ok {
+			return nil, func() {}, fmt.Errorf("invalid output path: not a string")
+		}
+
+		writer, err := os.Create(path)
+		if err != nil {
+			return nil, func() {}, err
+		}
+
+		return writer, func() { writer.Close() }, nil
+	case "buffer":
+		if len(arg) < 1 {
+			return nil, func() {}, fmt.Errorf("no buffer provided")
+		}
+
+		buf, ok := arg[0].(int64)
+		if ok {
+			return newBuffer(h.vim, nvim.Buffer(buf)), func() {}, nil
+		}
+
+		bufstr, ok := arg[0].(string)
+		if ok {
+			buf, err := strconv.ParseInt(bufstr, 10, 64)
+			return newBuffer(h.vim, nvim.Buffer(buf)), func() {}, err
+		}
+
+		return nil, func() {}, fmt.Errorf("buffer number not an int")
+
+	case "yank":
+		register := ""
+		if len(arg) > 0 {
+			register, _ = arg[0].(string)
+		}
+
+		return newYankRegister(h.vim, register), func() {}, nil
+	}
+
+	return nil, func() {}, fmt.Errorf("store output: %q is not supported", output)
 }

@@ -177,7 +177,7 @@ func mountEndpoints(p *plugin.Plugin, h *handler.Handler) {
 			Opts   *struct {
 				From     int `msgpack:"from"`
 				To       int `msgpack:"to"`
-				ExtraArg any `msgpack:"buffer"`
+				ExtraArg any `msgpack:"extra_arg"`
 			}
 		},
 		) (any, error) {
