@@ -1,13 +1,12 @@
 local M = {}
 
+---Keymap options.
 ---@alias key_mapping { key: string, mode: string, opts: table, action: string|fun() }
 
--- configuration object
+-- Configuration object.
 ---@class Config
 ---@field sources Source[] list of connection sources
----@field extra_helpers table<string, table_helpers> extra table helpers to provide besides built-ins. example: { postgres = { List = "select..." }
----@field page_size integer
----@field progress_bar progress_config
+---@field extra_helpers table<string, table_helpers>
 ---@field drawer drawer_config
 ---@field editor editor_config
 ---@field result result_config

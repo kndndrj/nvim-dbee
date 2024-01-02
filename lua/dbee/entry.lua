@@ -6,6 +6,7 @@ local Handler = require("dbee.handler")
 local install = require("dbee.install")
 local config = require("dbee.config")
 local register = require("dbee.__register")
+local utils = require("dbee.utils")
 
 -- public and private module objects
 local M = {}
@@ -22,10 +23,37 @@ m.setup_called = false
 ---@type Config
 m.config = {}
 
+---TODO: remove
+---@param cfg Config
+local function check_old_config(cfg)
+  local deprecated_opts = {}
+  if cfg.page_size then
+    table.insert(deprecated_opts, "config.page_size")
+  end
+
+  if cfg.progress_bar then
+    table.insert(deprecated_opts, "config.progress_bar")
+  end
+
+  if cfg.ui then
+    table.insert(deprecated_opts, "config.ui")
+  end
+
+  if #deprecated_opts > 0 then
+    utils.log(
+      "warn",
+      "deprecated setup options detected: ["
+        .. table.concat(deprecated_opts, ", ")
+        .. "]\n see: github.com/kndndrj/nvim-dbee/issues/19 for breaking changes."
+    )
+  end
+end
+
 local function setup_handler()
   if m.core_loaded then
     return
   end
+  check_old_config(m.config)
 
   if not m.setup_called then
     error("setup() has not been called yet")
