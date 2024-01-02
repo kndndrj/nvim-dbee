@@ -12,10 +12,10 @@ type ConnectionParams struct {
 // Expand returns a copy of the original parameters with expanded fields
 func (p *ConnectionParams) Expand() *ConnectionParams {
 	return &ConnectionParams{
-		ID:   ConnectionID(expand(string(p.ID))),
-		Name: expand(p.Name),
-		Type: expand(p.Type),
-		URL:  expand(p.URL),
+		ID:   ConnectionID(expandOrDefault(string(p.ID))),
+		Name: expandOrDefault(p.Name),
+		Type: expandOrDefault(p.Type),
+		URL:  expandOrDefault(p.URL),
 	}
 }
 

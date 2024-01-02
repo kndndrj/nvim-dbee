@@ -2,39 +2,55 @@ package core
 
 import (
 	"bytes"
+	"errors"
 	"os"
+	"os/exec"
 	"strings"
 	"text/template"
 )
 
-func loadEnv() map[string]string {
-	envMap := make(map[string]string)
+func expand(value string) (string, error) {
+	tmpl, err := template.New("expand_variables").
+		Funcs(template.FuncMap{
+			"env": func(envvar string) string {
+				return os.Getenv(envvar)
+			},
+			"exec": func(line string) (string, error) {
+				if strings.Contains(line, " | ") {
+					out, err := exec.Command("sh", "-c", line).Output()
+					return strings.TrimSpace(string(out)), err
+				}
 
-	for _, v := range os.Environ() {
-		spl := strings.Split(v, "=")
-		envMap[spl[0]] = spl[1]
-	}
+				l := strings.Split(line, " ")
+				if len(l) < 1 {
+					return "", errors.New("no command provided")
+				}
+				cmd := l[0]
+				args := l[1:]
 
-	return envMap
-}
-
-func expand(value string) string {
-	tmpl, err := template.New("expand_variables").Parse(value)
+				out, err := exec.Command(cmd, args...).Output()
+				return strings.TrimSpace(string(out)), err
+			},
+		}).
+		Parse(value)
 	if err != nil {
-		return value
-	}
-
-	input := struct {
-		Env map[string]string
-	}{
-		Env: loadEnv(),
+		return "", err
 	}
 
 	var out bytes.Buffer
-	err = tmpl.Execute(&out, input)
+	err = tmpl.Execute(&out, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return out.String(), nil
+}
+
+// expandOrDefault silently suppresses errors.
+func expandOrDefault(value string) string {
+	ex, err := expand(value)
 	if err != nil {
 		return value
 	}
-
-	return out.String()
+	return ex
 }

@@ -327,7 +327,15 @@ If you don't want to have secrets laying around your disk in plain text, you can
 use the special placeholders in connection strings (this works using any method
 for specifying connections).
 
-NOTE: *Currently only envirnoment variables are supported*
+Each connection parameter is passed through go templating engine, which has two
+available functions:
+
+- `env` for retrieving environment variables and
+- `exec` for evaluating shell commands.
+
+The template syntax for functions is the following: `{{ <func> "<param>" }}`. If
+you are dealing with json, you need to escape double quotes, so it's sometimes
+nicer to use backticks instead (``{{ <func> `<param>` }}``)
 
 Example:
 
@@ -338,8 +346,8 @@ exporting secrets to environment:
 # Define connections
 export DBEE_CONNECTIONS='[
     {
-        "name": "{{ .Env.SECRET_DB_NAME }}",
-        "url": "postgres://{{ .Env.SECRET_DB_USER }}:{{ .Env.SECRET_DB_PASS }}@localhost:5432/{{ .Env.SECRET_DB_NAME }}?sslmode=disable",
+        "name": "{{ exec `echo Hidden Database` }}",
+        "url": "postgres://{{ env \"SECRET_DB_USER\" }}:{{ env `SECRET_DB_PASS` }}@localhost:5432/{{ env `SECRET_DB_NAME` }}?sslmode=disable",
         "type": "postgres"
     }
 ]'
@@ -355,7 +363,7 @@ connection:
 
 ```lua
 { {
-  name = "secretdb",
+  name = "Hidden Database",
   url = "postgres://secretuser:secretpass@localhost:5432/secretdb?sslmode=disable",
   type = "postgres",
 } }
