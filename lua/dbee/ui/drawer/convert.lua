@@ -1,17 +1,17 @@
 local utils = require("dbee.utils")
-local common = require("dbee.tiles.common")
+local common = require("dbee.ui.common")
 local NuiTree = require("nui.tree")
 
 local M = {}
 
 ---@param handler Handler
 ---@param conn ConnectionParams
----@param result ResultTile
----@return DrawerTileNode[]
+---@param result ResultUI
+---@return DrawerUINode[]
 local function connection_nodes(handler, conn, result)
   ---@param structs DBStructure[]
   ---@param parent_id string
-  ---@return DrawerTileNode[]
+  ---@return DrawerUINode[]
   local function to_tree_nodes(structs, parent_id)
     if not structs or structs == vim.NIL then
       return {}
@@ -21,7 +21,7 @@ local function connection_nodes(handler, conn, result)
       return k1.type .. k1.name < k2.type .. k2.name
     end)
 
-    ---@type DrawerTileNode[]
+    ---@type DrawerUINode[]
     local nodes = {}
 
     for _, struct in ipairs(structs) do
@@ -31,7 +31,7 @@ local function connection_nodes(handler, conn, result)
         name = struct.name,
         schema = struct.schema,
         type = struct.type,
-      }, to_tree_nodes(struct.children, node_id)) --[[@as DrawerTileNode]]
+      }, to_tree_nodes(struct.children, node_id)) --[[@as DrawerUINode]]
 
       -- table helpers
       if struct.type == "table" or struct.type == "view" then
@@ -82,7 +82,7 @@ local function connection_nodes(handler, conn, result)
           end,
         }
       end,
-    } --[[@as DrawerTileNode]]
+    } --[[@as DrawerUINode]]
     table.insert(nodes, 1, ly)
   end
 
@@ -90,16 +90,16 @@ local function connection_nodes(handler, conn, result)
 end
 
 ---@param handler Handler
----@param result ResultTile
----@return DrawerTileNode[]
+---@param result ResultUI
+---@return DrawerUINode[]
 local function handler_real_nodes(handler, result)
-  ---@type DrawerTileNode[]
+  ---@type DrawerUINode[]
   local nodes = {}
 
   for _, source in ipairs(handler:get_sources()) do
     local source_id = source:name()
 
-    ---@type DrawerTileNode[]
+    ---@type DrawerUINode[]
     local children = {}
 
     -- source can save edits
@@ -130,7 +130,7 @@ local function handler_real_nodes(handler, result)
               end,
             })
           end,
-        } --[[@as DrawerTileNode]]
+        } --[[@as DrawerUINode]]
       )
     end
 
@@ -151,7 +151,7 @@ local function handler_real_nodes(handler, result)
               end,
             })
           end,
-        } --[[@as DrawerTileNode]]
+        } --[[@as DrawerUINode]]
       )
     end
 
@@ -209,7 +209,7 @@ local function handler_real_nodes(handler, result)
         lazy_children = function()
           return connection_nodes(handler, conn, result)
         end,
-      } --[[@as DrawerTileNode]]
+      } --[[@as DrawerUINode]]
 
       table.insert(children, node)
     end
@@ -219,7 +219,7 @@ local function handler_real_nodes(handler, result)
         id = "__source__" .. source_id,
         name = source_id,
         type = "source",
-      }, children) --[[@as DrawerTileNode]]
+      }, children) --[[@as DrawerUINode]]
 
       if utils.once("handler_expand_once_id" .. source_id) then
         node:expand()
@@ -232,7 +232,7 @@ local function handler_real_nodes(handler, result)
   return nodes
 end
 
----@return DrawerTileNode[]
+---@return DrawerUINode[]
 local function handler_help_nodes()
   local node = NuiTree.Node({
     {
@@ -261,8 +261,8 @@ local function handler_help_nodes()
 end
 
 ---@param handler Handler
----@param result ResultTile
----@return DrawerTileNode[]
+---@param result ResultUI
+---@return DrawerUINode[]
 function M.handler_nodes(handler, result)
   -- in case there are no sources defined, return helper nodes
   if #handler:get_sources() < 1 then
@@ -272,20 +272,20 @@ function M.handler_nodes(handler, result)
 end
 
 -- whitespace between nodes
----@return DrawerTileNode
+---@return DrawerUINode
 function M.separator_node()
   return NuiTree.Node {
     id = "__separator_node__" .. tostring(math.random()),
     name = "",
     type = "",
-  } --[[@as DrawerTileNode]]
+  } --[[@as DrawerUINode]]
 end
 
 ---@param mappings key_mapping[]
----@return DrawerTileNode
+---@return DrawerUINode
 function M.help_node(mappings)
   -- help node
-  ---@type DrawerTileNode[]
+  ---@type DrawerUINode[]
   local children = {}
   for _, km in ipairs(mappings) do
     if type(km.action) == "string" then
@@ -308,7 +308,7 @@ function M.help_node(mappings)
     id = "__help_node__",
     name = "help",
     type = "help",
-  }, children) --[[@as DrawerTileNode]]
+  }, children) --[[@as DrawerUINode]]
 
   if utils.once("help_expand_once_id") then
     node:expand()
@@ -338,12 +338,12 @@ local function modified_suffix(bufnr, refresh)
   return suffix
 end
 
----@param editor EditorTile
+---@param editor EditorUI
 ---@param namespace namespace_id
 ---@param refresh fun() function that refreshes the tree
----@return DrawerTileNode[]
+---@return DrawerUINode[]
 local function editor_namespace_nodes(editor, namespace, refresh)
-  ---@type DrawerTileNode[]
+  ---@type DrawerUINode[]
   local nodes = {}
 
   table.insert(
@@ -366,7 +366,7 @@ local function editor_namespace_nodes(editor, namespace, refresh)
           end,
         }
       end,
-    } --[[@as DrawerTileNode]]
+    } --[[@as DrawerUINode]]
   )
 
   -- global notes
@@ -404,7 +404,7 @@ local function editor_namespace_nodes(editor, namespace, refresh)
           end,
         }
       end,
-    } --[[@as DrawerTileNode]]
+    } --[[@as DrawerUINode]]
 
     table.insert(nodes, node)
   end
@@ -412,10 +412,10 @@ local function editor_namespace_nodes(editor, namespace, refresh)
   return nodes
 end
 
----@param editor EditorTile
+---@param editor EditorUI
 ---@param current_connection_id connection_id
 ---@param refresh fun() function that refreshes the tree
----@return DrawerTileNode[]
+---@return DrawerUINode[]
 function M.editor_nodes(editor, current_connection_id, refresh)
   local nodes = {
     NuiTree.Node({

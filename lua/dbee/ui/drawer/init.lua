@@ -1,28 +1,28 @@
 local NuiTree = require("nui.tree")
 local NuiLine = require("nui.line")
-local common = require("dbee.tiles.common")
-local menu = require("dbee.tiles.drawer.menu")
-local convert = require("dbee.tiles.drawer.convert")
-local expansion = require("dbee.tiles.drawer.expansion")
+local common = require("dbee.ui.common")
+local menu = require("dbee.ui.drawer.menu")
+local convert = require("dbee.ui.drawer.convert")
+local expansion = require("dbee.ui.drawer.expansion")
 
 -- action function of drawer nodes
 ---@alias drawer_node_action fun(cb: fun(), select: menu_select, input: menu_input)
 
 -- A single line in drawer tree
----@class DrawerTileNode: NuiTree.Node
+---@class DrawerUINode: NuiTree.Node
 ---@field id string unique identifier
 ---@field name string display name
 ---@field type ""|"table"|"history"|"note"|"connection"|"database_switch"|"add"|"edit"|"remove"|"help"|"source"|"view" type of node
 ---@field action_1? drawer_node_action primary action if function takes a second selection parameter, pick_items get picked before the call
 ---@field action_2? drawer_node_action secondary action if function takes a second selection parameter, pick_items get picked before the call
 ---@field action_3? drawer_node_action tertiary action if function takes a second selection parameter, pick_items get picked before the call
----@field lazy_children? fun():DrawerTileNode[] lazy loaded child nodes
+---@field lazy_children? fun():DrawerUINode[] lazy loaded child nodes
 
----@class DrawerTile
+---@class DrawerUI
 ---@field private tree NuiTree
 ---@field private handler Handler
----@field private editor EditorTile
----@field private result ResultTile
+---@field private editor EditorUI
+---@field private result ResultUI
 ---@field private mappings key_mapping[]
 ---@field private candies table<string, Candy> map of eye-candy stuff (icons, highlight)
 ---@field private disable_help boolean show help or not
@@ -32,16 +32,16 @@ local expansion = require("dbee.tiles.drawer.expansion")
 ---@field private switch_handle fun(bufnr: integer)
 ---@field private current_conn_id? connection_id current active connection
 ---@field private current_note_id? note_id current active note
-local DrawerTile = {}
+local DrawerUI = {}
 
 ---@param handler Handler
----@param editor EditorTile
----@param result ResultTile
+---@param editor EditorUI
+---@param result ResultUI
 ---@param quit_handle? fun()
 ---@param switch_handle? fun(bufnr: integer)
 ---@param opts? drawer_config
----@return DrawerTile
-function DrawerTile:new(handler, editor, result, quit_handle, switch_handle, opts)
+---@return DrawerUI
+function DrawerUI:new(handler, editor, result, quit_handle, switch_handle, opts)
   opts = opts or {}
 
   if not handler then
@@ -106,7 +106,7 @@ end
 -- event listener for current connection change
 ---@private
 ---@param data { conn_id: connection_id }
-function DrawerTile:on_current_connection_changed(data)
+function DrawerUI:on_current_connection_changed(data)
   if self.current_conn_id == data.conn_id then
     return
   end
@@ -117,7 +117,7 @@ end
 -- event listener for current note change
 ---@private
 ---@param data { note_id: note_id }
-function DrawerTile:on_current_note_changed(data)
+function DrawerUI:on_current_note_changed(data)
   if self.current_note_id == data.note_id then
     return
   end
@@ -128,7 +128,7 @@ end
 ---@private
 ---@param bufnr integer
 ---@return NuiTree tree
-function DrawerTile:create_tree(bufnr)
+function DrawerUI:create_tree(bufnr)
   return NuiTree {
     bufnr = bufnr,
     prepare_node = function(node)
@@ -184,7 +184,7 @@ end
 
 ---@private
 ---@return table<string, fun()>
-function DrawerTile:get_actions()
+function DrawerUI:get_actions()
   local function collapse_node(node)
     if node:collapse() then
       self.tree:render()
@@ -255,21 +255,21 @@ function DrawerTile:get_actions()
       self:refresh()
     end,
     action_1 = function()
-      local node = self.tree:get_node() --[[@as DrawerTileNode]]
+      local node = self.tree:get_node() --[[@as DrawerUINode]]
       if not node then
         return
       end
       perform_action(node.action_1)
     end,
     action_2 = function()
-      local node = self.tree:get_node() --[[@as DrawerTileNode]]
+      local node = self.tree:get_node() --[[@as DrawerUINode]]
       if not node then
         return
       end
       perform_action(node.action_2)
     end,
     action_3 = function()
-      local node = self.tree:get_node() --[[@as DrawerTileNode]]
+      local node = self.tree:get_node() --[[@as DrawerUINode]]
       if not node then
         return
       end
@@ -303,9 +303,9 @@ function DrawerTile:get_actions()
   }
 end
 
-function DrawerTile:refresh()
+function DrawerUI:refresh()
   -- assemble tree layout
-  ---@type DrawerTileNode[]
+  ---@type DrawerUINode[]
   local nodes = {}
   local editor_nodes = convert.editor_nodes(self.editor, self.current_conn_id, function()
     self:refresh()
@@ -331,7 +331,7 @@ function DrawerTile:refresh()
 end
 
 ---@param winid integer
-function DrawerTile:show(winid)
+function DrawerUI:show(winid)
   self.winid = winid
 
   -- configure window options
@@ -351,4 +351,4 @@ function DrawerTile:show(winid)
   self:refresh()
 end
 
-return DrawerTile
+return DrawerUI

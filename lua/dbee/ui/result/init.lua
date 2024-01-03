@@ -1,9 +1,9 @@
 local utils = require("dbee.utils")
-local progress = require("dbee.tiles.result.progress")
-local common = require("dbee.tiles.common")
+local progress = require("dbee.ui.result.progress")
+local common = require("dbee.ui.common")
 
 -- ResultTile represents the part of ui with displayed results
----@class ResultTile
+---@class ResultUI
 ---@field private handler Handler
 ---@field private winid? integer
 ---@field private bufnr integer
@@ -21,7 +21,7 @@ local ResultTile = {}
 ---@param quit_handle? fun()
 ---@param switch_handle? fun(bufnr: integer)
 ---@param opts? result_config
----@return ResultTile
+---@return ResultUI
 function ResultTile:new(handler, quit_handle, switch_handle, opts)
   opts = opts or {}
   quit_handle = quit_handle or function() end

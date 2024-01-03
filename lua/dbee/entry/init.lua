@@ -1,7 +1,7 @@
-local DrawerTile = require("dbee.tiles.drawer")
-local EditorTile = require("dbee.tiles.editor")
-local ResultTile = require("dbee.tiles.result")
-local CallLogTile = require("dbee.tiles.call_log")
+local DrawerUI = require("dbee.ui.drawer")
+local EditorUI = require("dbee.ui.editor")
+local ResultUI = require("dbee.ui.result")
+local CallLogUI = require("dbee.ui.call_log")
 local Handler = require("dbee.handler")
 local install = require("dbee.install")
 local config = require("dbee.config")
@@ -71,7 +71,7 @@ local function setup_handler()
   m.core_loaded = true
 end
 
-local function setup_tiles()
+local function setup_ui()
   if m.ui_loaded then
     return true
   end
@@ -82,10 +82,10 @@ local function setup_tiles()
     m.editor:set_buf(bufnr)
   end
 
-  m.result = ResultTile:new(m.handler, M.close_ui, switch, m.config.result)
-  m.call_log = CallLogTile:new(m.handler, m.result, M.close_ui, switch, m.config.call_log)
-  m.editor = EditorTile:new(m.handler, m.result, M.close_ui, m.config.editor)
-  m.drawer = DrawerTile:new(m.handler, m.editor, m.result, M.close_ui, switch, m.config.drawer)
+  m.result = ResultUI:new(m.handler, M.close_ui, switch, m.config.result)
+  m.call_log = CallLogUI:new(m.handler, m.result, M.close_ui, switch, m.config.call_log)
+  m.editor = EditorUI:new(m.handler, m.result, M.close_ui, m.config.editor)
+  m.drawer = DrawerUI:new(m.handler, m.editor, m.result, M.close_ui, switch, m.config.drawer)
 
   m.ui_loaded = true
 end
@@ -127,7 +127,7 @@ function M.toggle_ui()
 end
 
 function M.open_ui()
-  setup_tiles()
+  setup_ui()
 
   if m.ui_opened then
     return
@@ -159,9 +159,9 @@ function M.get_handler()
   return m.handler
 end
 
----@return layout_tiles
-function M.get_tiles()
-  setup_tiles()
+---@return layout_uis
+function M.get_ui()
+  setup_ui()
 
   return {
     drawer = m.drawer,

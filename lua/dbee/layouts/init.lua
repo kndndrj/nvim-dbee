@@ -9,12 +9,12 @@ local tools = require("dbee.layouts.tools")
 ---as seen fit.
 ---@brief ]]
 
----Layout tiles that are passed to ̏|Layout| open method.
----@alias layout_tiles { drawer: DrawerTile, editor: EditorTile, result: ResultTile, call_log: CallLogTile }
+---Layout UIs that are passed to ̏|Layout| open method.
+---@alias layout_uis { drawer: DrawerUI, editor: EditorUI, result: ResultUI, call_log: CallLogUI }
 
 -- Layout that defines how windows are opened.
 ---@class Layout
----@field open fun(self: Layout, tiles: layout_tiles) function to open ui.
+---@field open fun(self: Layout, uis: layout_uis) function to open ui.
 ---@field close fun(self: Layout) function to close ui.
 
 local layouts = {}
@@ -42,8 +42,8 @@ function layouts.Default:new()
 end
 
 ---@package
----@param tiles layout_tiles
-function layouts.Default:open(tiles)
+---@param uis layout_uis
+function layouts.Default:open(uis)
   -- save layout before opening ui
   self.egg = tools.save()
 
@@ -53,25 +53,25 @@ function layouts.Default:open(tiles)
   tools.make_only(0)
   local editor_win = vim.api.nvim_get_current_win()
   table.insert(self.windows, editor_win)
-  tiles.editor:show(editor_win)
+  uis.editor:show(editor_win)
 
   -- result
   vim.cmd("bo 15split")
   local win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
-  tiles.result:show(win)
+  uis.result:show(win)
 
   -- drawer
   vim.cmd("to 40vsplit")
   win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
-  tiles.drawer:show(win)
+  uis.drawer:show(win)
 
   -- call log
   vim.cmd("belowright 15split")
   win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
-  tiles.call_log:show(win)
+  uis.call_log:show(win)
 
   -- set cursor to drawer
   vim.api.nvim_set_current_win(editor_win)

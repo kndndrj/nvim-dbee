@@ -58,7 +58,7 @@ end
 ---@param query string
 function dbee.execute(query)
   local handler = entry.get_handler()
-  local result = entry.get_tiles().result
+  local result = entry.get_ui().result
 
   local conn = handler:get_current_connection()
   if not conn then
@@ -77,7 +77,7 @@ end
 ---@param output string where to pipe the results -> "file"|"yank"|"buffer"
 ---@param opts { from: integer, to: integer, extra_arg: any }
 function dbee.store(format, output, opts)
-  local result = entry.get_tiles().result
+  local result = entry.get_ui().result
   local handler = entry.get_handler()
 
   local call = result:get_call()

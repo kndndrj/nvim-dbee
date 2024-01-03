@@ -240,8 +240,8 @@ Here are a few steps to quickly get started:
   already be present. If there are more than `page_size` results, you can "page"
   thrugh them using one of the following:
 
-  - Using `require("dbee")api.tiles.result_page_next()` and
-    `require("dbee")api.tiles.result_page_prev()` from anywhere (even if your
+  - Using `require("dbee")api.ui.result_page_next()` and
+    `require("dbee")api.ui.result_page_prev()` from anywhere (even if your
     cursor is outside the result buffer).
   - Using `L` for next and `H` for previous page if the cursor is located inside
     the results buffer.
@@ -395,13 +395,13 @@ connection:
 Dbee comes with it's own API interface. It is split into two parts:
 
 - core (interacting with core of the plugin),
-- tiles (interacting with ui of the plugin).
+- ui (interacting with ui of the plugin).
 
 You can access it like this:
 
 ```lua
 require("dbee").api.core.some_func()
-require("dbee").api.tiles.some_func()
+require("dbee").api.ui.some_func()
 ```
 
 ## Projector Integration

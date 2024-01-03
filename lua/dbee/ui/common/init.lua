@@ -1,5 +1,5 @@
 local utils = require("dbee.utils")
-local floats = require("dbee.tiles.common.floats")
+local floats = require("dbee.ui.common.floats")
 
 local M = {}
 

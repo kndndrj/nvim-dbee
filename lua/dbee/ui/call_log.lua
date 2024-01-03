@@ -1,11 +1,11 @@
 local NuiLine = require("nui.line")
 local NuiTree = require("nui.tree")
 local utils = require("dbee.utils")
-local common = require("dbee.tiles.common")
+local common = require("dbee.ui.common")
 
 -- CallLogTile is a call history.
----@class CallLogTile
----@field private result ResultTile
+---@class CallLogUI
+---@field private result ResultUI
 ---@field private handler Handler
 ---@field private tree NuiTree
 ---@field private winid? integer
@@ -17,11 +17,11 @@ local common = require("dbee.tiles.common")
 local CallLogTile = {}
 
 ---@param handler Handler
----@param result ResultTile
+---@param result ResultUI
 ---@param quit_handle? fun()
 ---@param switch_handle? fun(bufnr: integer)
 ---@param opts call_log_config
----@return CallLogTile
+---@return CallLogUI
 function CallLogTile:new(handler, result, quit_handle, switch_handle, opts)
   opts = opts or {}
   quit_handle = quit_handle or function() end
@@ -38,7 +38,7 @@ function CallLogTile:new(handler, result, quit_handle, switch_handle, opts)
     candies = opts.candies or {}
   end
 
-  ---@type CallLogTile
+  ---@type CallLogUI
   local o = {
     handler = handler,
     result = result,

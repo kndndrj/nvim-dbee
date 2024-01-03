@@ -7,7 +7,7 @@ function M.set(tree, expansion)
   -- first pass: load lazy_loaded children
   for id, t in pairs(expansion) do
     if t then
-      local node = tree:get_node(id) --[[@as DrawerTileNode]]
+      local node = tree:get_node(id) --[[@as DrawerUINode]]
       if node then
         -- if function for getting layout exist, call it
         if type(node.lazy_children) == "function" then
@@ -20,7 +20,7 @@ function M.set(tree, expansion)
   -- second pass: expand nodes
   for id, t in pairs(expansion) do
     if t then
-      local node = tree:get_node(id) --[[@as DrawerTileNode]]
+      local node = tree:get_node(id) --[[@as DrawerUINode]]
       if node then
         node:expand()
       end

@@ -1,15 +1,15 @@
 local utils = require("dbee.utils")
-local common = require("dbee.tiles.common")
-local welcome = require("dbee.tiles.editor.welcome")
+local common = require("dbee.ui.common")
+local welcome = require("dbee.ui.editor.welcome")
 
 ---@alias namespace_id "global"|string
 
 ---@alias note_id string
 ---@alias note_details { id: note_id, name: string, file: string, bufnr: integer? }
 
----@class EditorTile
+---@class EditorUI
 ---@field private handler Handler
----@field private result ResultTile
+---@field private result ResultUI
 ---@field private quit_handle fun()
 ---@field private winid? integer
 ---@field private mappings key_mapping[]
@@ -20,10 +20,10 @@ local welcome = require("dbee.tiles.editor.welcome")
 local EditorTile = {}
 
 ---@param handler Handler
----@param result ResultTile
+---@param result ResultUI
 ---@param quit_handle? fun()
 ---@param opts? editor_config
----@return EditorTile
+---@return EditorUI
 function EditorTile:new(handler, result, quit_handle, opts)
   opts = opts or {}
 
@@ -35,7 +35,7 @@ function EditorTile:new(handler, result, quit_handle, opts)
   end
 
   -- class object
-  ---@type EditorTile
+  ---@type EditorUI
   local o = {
     handler = handler,
     result = result,

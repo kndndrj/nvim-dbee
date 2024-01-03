@@ -14,7 +14,7 @@ The following diagram shows a high level overview of lua packages. Note that a
 lot of connections are removed for diagram clarity.
 
 ```
-                                       tiles
+                                        ui
                                     ┌──────────┐
                              ┌─────►│ Result   ├──────┐
                              │      └──────────┘      │
@@ -41,12 +41,11 @@ lot of connections are removed for diagram clarity.
 
 Description:
 
-- The "dbee" package consists of 2 major functional packages, 1 tiles (ui)
-  package and the other handler (core) package.
+- The "dbee" package consists of 2 major functional packages, ui and handler (core).
 
   - `handler` or core package is a wrapper around the go backend handler. The
     only extra thing lua handler does on top is information about sources.
-  - `tiles` or ui package consists of the following packages:
+  - `ui` package consists of the following packages:
     - `Drawer` represents the tree view. It uses the handler and editor to
       provide the view of connections and notes.
     - `Editor` represents the notepad view. It manages notes per namespace
