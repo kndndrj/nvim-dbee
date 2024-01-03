@@ -8,6 +8,7 @@ Table of Contents                                     *dbee-table-of-contents*
   - Configuration                             |dbee-neovim-dbee-configuration|
   - Usage                                             |dbee-neovim-dbee-usage|
   - API                                                 |dbee-neovim-dbee-api|
+  - Projector Integration             |dbee-neovim-dbee-projector-integration|
 2. DBee Architecture Overview                |dbee-dbee-architecture-overview|
   - Lua Architecture        |dbee-dbee-architecture-overview-lua-architecture|
   - Go Architecture          |dbee-dbee-architecture-overview-go-architecture|
@@ -22,6 +23,8 @@ Table of Contents                                     *dbee-table-of-contents*
 **Backend in Go!**
 
 **Frontend in Lua!**
+
+**Doesn’t rely on CLI tools!**
 
 **Get Results FAST With Under-the-hood Iterator!**
 
@@ -125,7 +128,10 @@ You can pass an optional table parameter to `setup()` function.
 Here are the defaults:
 
 >lua
-    M.default = {
+    ---Default configuration.
+    ---To see defaults, run :lua= require"dbee.config".default
+    ---@type Config config
+    config.default = {
       -- loads connections from files and environment variables
       sources = {
         require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
@@ -363,7 +369,13 @@ Call the `setup()` function with an optional config parameter.
     require("dbee").open()
     require("dbee").close()
     require("dbee").toggle()
+    -- Run a query on the currently active connection.
+    require("dbee").execute(query)
+    -- Store the current result to file/buffer/yank-register (see "Getting Started").
+    require("dbee").store(format, output, opts)
 <
+
+The same functions are also available through the `:Dbee` user command.
 
 
 GETTING STARTED ~
@@ -409,8 +421,8 @@ Here are a few steps to quickly get started:
     `page_size` parameter in config (100 by default), all results should already be
     present. If there are more than `page_size` results, you can "page" thrugh them
     using one of the following:
-    - Using `require("dbee")api.tiles.result_page_next()` and
-        `require("dbee")api.tiles.result_page_prev()` from anywhere (even if your
+    - Using `require("dbee")api.ui.result_page_next()` and
+        `require("dbee")api.ui.result_page_prev()` from anywhere (even if your
         cursor is outside the result buffer).
     - Using `L` for next and `H` for previous page if the cursor is located inside
         the results buffer.
@@ -420,7 +432,21 @@ Here are a few steps to quickly get started:
     - `yaJ` to yank all rows as json
     - `yaC` to yank all rows as CSV
 - The current result (of the active connection) can also be saved to a file,
-    yank-register or buffer using the appropriate API function (see |dbee-api|).
+    yank-register or buffer using `require("dbee").store()` lua function or `:Dbee
+    store` Ex command. Here are some examples:
+    >lua
+        -- All rows as CSV to current buffer:
+        require("dbee").store("csv", "buffer", { extra_arg = 0 })
+        -- Results from row 2 to row 7 as json to file (index is zero based):
+        require("dbee").store("json", "file", { from = 2, to = 7, extra_arg = "path/to/file.json"  })
+        -- Yank the first row as table
+        require("dbee").store("table", "yank", { from = 0, to = 1 })
+        -- Yank the last 2 rows as CSV
+        -- (negative indices are interpreted as length+1+index - same as nvim_buf_get_lines())
+        -- Be aware that using negative indices requires for the
+        -- iterator of the result to be drained completely, which might affect large result sets.
+        require("dbee").store("csv", "yank", { from = -3, to = -1 })
+    <
 - Once you are done or you want to go back to where you were, you can call
     `require("dbee").close()`.
 
@@ -487,16 +513,8 @@ Another option is to use "edit" item in the tree and just edit the source
 manually.
 
 If you aren’t satisfied with the default capabilities, you can implement your
-own source. You just need to fill the following interface and pass it to config
-at setup.
-
->lua
-    ---@class Source
-    ---@field name fun(self: Source):string function to return the name of the source
-    ---@field load fun(self: Source):connection_details[] function to load connections from external source
-    ---@field save? fun(self: Source, conns: connection_details[], action: "add"|"delete") function to save connections to external source (optional)
-    ---@field file? fun(self: Source):string function which returns a source file to edit (optional)
-<
+own source. You just need to fill the `Source` interface and pass it to config
+at setup (`:h dbee.sources`).
 
 
 SECRETS
@@ -505,7 +523,15 @@ If you don’t want to have secrets laying around your disk in plain text, you
 can use the special placeholders in connection strings (this works using any
 method for specifying connections).
 
-NOTE: _Currently only envirnoment variables are supported_
+Each connection parameter is passed through go templating engine, which has two
+available functions:
+
+- `env` for retrieving environment variables and
+- `exec` for evaluating shell commands.
+
+The template syntax for functions is the following: `{{ <func> "<param>" }}`.
+If you are dealing with json, you need to escape double quotes, so it’s
+sometimes better to use backticks instead (`{{ <func> `<param>` }}`).
 
 Example:
 
@@ -516,8 +542,8 @@ and exporting secrets to environment:
     # Define connections
     export DBEE_CONNECTIONS='[
         {
-            "name": "{{ .Env.SECRET_DB_NAME }}",
-            "url": "postgres://{{ .Env.SECRET_DB_USER }}:{{ .Env.SECRET_DB_PASS }}@localhost:5432/{{ .Env.SECRET_DB_NAME }}?sslmode=disable",
+            "name": "{{ exec `echo Hidden Database` }}",
+            "url": "postgres://{{ env \"SECRET_DB_USER\" }}:{{ env `SECRET_DB_PASS` }}@localhost:5432/{{ env `SECRET_DB_NAME` }}?sslmode=disable",
             "type": "postgres"
         }
     ]'
@@ -533,7 +559,7 @@ connection:
 
 >lua
     { {
-      name = "secretdb",
+      name = "Hidden Database",
       url = "postgres://secretuser:secretpass@localhost:5432/secretdb?sslmode=disable",
       type = "postgres",
     } }
@@ -545,14 +571,24 @@ API                                                     *dbee-neovim-dbee-api*
 Dbee comes with it’s own API interface. It is split into two parts:
 
 - core (interacting with core of the plugin),
-- tiles (interacting with ui of the plugin).
+- ui (interacting with ui of the plugin).
 
 You can access it like this:
 
 >lua
     require("dbee").api.core.some_func()
-    require("dbee").api.tiles.some_func()
+    require("dbee").api.ui.some_func()
 <
+
+
+PROJECTOR INTEGRATION                 *dbee-neovim-dbee-projector-integration*
+
+DBee is compatible with my other plugin nvim-projector
+<https://github.com/kndndrj/nvim-projector>, a
+code-runner/project-configurator.
+
+To use dbee with it, use this extension
+<https://github.com/kndndrj/projector-dbee>.
 
 
 ==============================================================================
@@ -573,7 +609,7 @@ The following diagram shows a high level overview of lua packages. Note that a
 lot of connections are removed for diagram clarity.
 
 >
-                                           tiles
+                                            ui
                                         ┌──────────┐
                                  ┌─────►│ Result   ├──────┐
                                  │      └──────────┘      │
@@ -600,11 +636,11 @@ lot of connections are removed for diagram clarity.
 
 Description:
 
-- The "dbee" package consists of 2 major functional packages, 1 tiles (ui)
-    package and the other handler (core) package.
+- The "dbee" package consists of 2 major functional packages, ui and handler
+    (core).
     - `handler` or core package is a wrapper around the go backend handler. The
         only extra thing lua handler does on top is information about sources.
-    - `tiles` or ui package consists of the following packages:
+    - `ui` package consists of the following packages:
         - `Drawer` represents the tree view. It uses the handler and editor to
             provide the view of connections and notes.
         - `Editor` represents the notepad view. It manages notes per namespace
@@ -669,11 +705,6 @@ BUILDERS PACKAGE
 Another subpackage of `core`, which holds convenience functions for creating
 some of the most used constructs. An example are multiple implementations of
 the `ResultStream` interface.
-
-==============================================================================
-3. Links                                                          *dbee-links*
-
-1. *Screenshot*: assets/screenshot.jpg
 
 Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
 
