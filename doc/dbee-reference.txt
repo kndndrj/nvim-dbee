@@ -4,10 +4,10 @@ Table of Contents                                            *dbee.ref.contents*
 Dbee Reference ······················································ |dbee.ref|
 Dbee Configuration ··········································· |dbee.ref.config|
 Types ························································· |dbee.ref.types|
-Sources ························································· |dbee.sources|
+Sources ····················································· |dbee.ref.sources|
 UI Layout ···················································· |dbee.ref.layout|
-Dbee Core API ·················································· |dbee.api.core|
-Dbee UI API ······················································ |dbee.api.ui|
+Dbee Core API ·············································· |dbee.ref.api.core|
+Dbee UI API ·················································· |dbee.ref.api.ui|
 
 ==============================================================================
 Dbee Reference                                                        *dbee.ref*
@@ -32,6 +32,46 @@ dbee.open()                                                          *dbee.open*
 
 dbee.close()                                                        *dbee.close*
     Close dbee UI.
+
+
+dbee.is_open()                                                    *dbee.is_open*
+    Check if dbee UI is open or not.
+
+    Returns: ~
+        (boolean)
+
+
+dbee.is_core_loaded()                                      *dbee.is_core_loaded*
+    Check if dbee core has been loaded.
+
+    Returns: ~
+        (boolean)
+
+
+dbee.is_ui_loaded()                                          *dbee.is_ui_loaded*
+    Check if dbee UI has been loaded.
+
+    Returns: ~
+        (boolean)
+
+
+dbee.execute({query})                                             *dbee.execute*
+    Execute a query on current connection.
+    Convenience wrapper around some api functions that executes a query on
+    current connection and pipes the output to result UI.
+
+    Parameters: ~
+        {query}  (string)
+
+
+dbee.store({format}, {output}, {opts})                              *dbee.store*
+    Store currently displayed result.
+    Convenience wrapper around some api functions.
+
+    Parameters: ~
+        {format}  (string)                                   format of the output -> "csv"|"json"|"table"
+        {output}  (string)                                   where to pipe the results -> "file"|"yank"|"buffer"
+        {opts}    ({from:integer,to:integer,extra_arg:any})
 
 
 install_command                                                *install_command*
@@ -119,6 +159,7 @@ drawer_config                                                    *drawer_config*
 
 config.default                                                  *config.default*
     Default configuration.
+    To see defaults, run :lua= require"dbee.config".default
 
     Type: ~
         (Config)  config
@@ -273,7 +314,7 @@ event_listener                                                  *event_listener*
 
 
 ==============================================================================
-Sources                                                           *dbee.sources*
+Sources                                                       *dbee.ref.sources*
 
 Sources can be created by implementing the Source interface.
 Some methods are optional and are related to updating/editing functionality.
@@ -369,18 +410,18 @@ The default layout is already defined, but it's possible to define your own layo
 Layout implementation should implement the |Layout| interface and show the UI on screen
 as seen fit.
 
-layout_tiles                                                      *layout_tiles*
-    Layout tiles that are passed to ̏|TileLayout| open method.
+layout_uis                                                          *layout_uis*
+    Layout UIs that are passed to ̏|Layout| open method.
 
     Type: ~
-        {drawer:DrawerTile,editor:EditorTile,result:ResultTile,call_log:CallLogTile}
+        {drawer:DrawerUI,editor:EditorUI,result:ResultUI,call_log:CallLogUI}
 
 
 Layout                                                                  *Layout*
 
     Fields: ~
-        {open}   (fun(self:Layout,tiles:layout_tiles))  function to open ui.
-        {close}  (fun(self:Layout))                     function to close ui.
+        {open}   (fun(self:Layout,uis:layout_uis))  function to open ui.
+        {close}  (fun(self:Layout))                 function to close ui.
 
 
 ------------------------------------------------------------------------------
@@ -399,7 +440,7 @@ layouts.Default:new()                                      *layouts.Default:new*
 
 
 ==============================================================================
-Dbee Core API                                                    *dbee.api.core*
+Dbee Core API                                                *dbee.ref.api.core*
 
 This module contains functions to operate on the backend side.
 
@@ -617,12 +658,12 @@ core.call_store_result({id}, {format}, {output}, {opts})
 
 
 ==============================================================================
-Dbee UI API                                                        *dbee.api.ui*
+Dbee UI API                                                    *dbee.ref.api.ui*
 
-Tiles API module for nvim dbee.
+UI API module for nvim dbee.
 
 This module contains functions to operate with UI tiles.
-Functions are prefixed with a tile name:
+Functions are prefixed with a ui name:
 - editor
 - result
 - drawer
@@ -635,7 +676,7 @@ require("dbee").api.ui.func()
 
 ------------------------------------------------------------------------------
 
-                                                            *dbee.api.ui.editor*
+                                                        *dbee.ref.api.ui.editor*
 Editor API
 
                                              *ui.editor_register_event_listener*
@@ -726,7 +767,7 @@ ui.editor_show({winid})                                         *ui.editor_show*
 
 ------------------------------------------------------------------------------
 
-                                                          *dbee.api.ui.call_log*
+                                                      *dbee.ref.api.ui.call_log*
 Call Log API
 
 ui.call_log_refresh()                                      *ui.call_log_refresh*
@@ -742,7 +783,7 @@ ui.call_log_show({winid})                                     *ui.call_log_show*
 
 ------------------------------------------------------------------------------
 
-                                                            *dbee.api.ui.drawer*
+                                                        *dbee.ref.api.ui.drawer*
 Drawer API
 
 ui.drawer_refresh()                                          *ui.drawer_refresh*
@@ -758,7 +799,7 @@ ui.drawer_show({winid})                                         *ui.drawer_show*
 
 ------------------------------------------------------------------------------
 
-                                                            *dbee.api.ui.result*
+                                                        *dbee.ref.api.ui.result*
 Result API
 
 ui.result_set_call({call})                                  *ui.result_set_call*
