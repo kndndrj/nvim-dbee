@@ -38,6 +38,7 @@ local config = {}
 
 -- DOCGEN_START
 ---Default configuration.
+---To see defaults, run :lua= require"dbee.config".default
 ---@type Config config
 config.default = {
   -- loads connections from files and environment variables

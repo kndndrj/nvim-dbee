@@ -41,7 +41,8 @@ lot of connections are removed for diagram clarity.
 
 Description:
 
-- The "dbee" package consists of 2 major functional packages, ui and handler (core).
+- The "dbee" package consists of 2 major functional packages, ui and handler
+  (core).
 
   - `handler` or core package is a wrapper around the go backend handler. The
     only extra thing lua handler does on top is information about sources.

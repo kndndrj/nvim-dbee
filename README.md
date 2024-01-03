@@ -21,13 +21,19 @@
 
 **Frontend in Lua!**
 
+**Doesn't rely on CLI tools!**
+
 **Get Results FAST With Under-the-hood Iterator!**
 
 **Bees Love It!**
 
 ***Alpha Software - Expect Breaking Changes!***
 
+<!-- DOCGEN_IGNORE_START -->
+
 ![Screenshot](assets/screenshot.jpg)
+
+<!-- DOCGEN_IGNORE_END -->
 
 ## Installation
 
