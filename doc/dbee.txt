@@ -1,1 +1,711 @@
+*dbee.txt*                                          Database Client for NeoVim
 
+==============================================================================
+Table of Contents                                     *dbee-table-of-contents*
+
+1. Neovim DBee                                              |dbee-neovim-dbee|
+  - Installation                               |dbee-neovim-dbee-installation|
+  - Configuration                             |dbee-neovim-dbee-configuration|
+  - Usage                                             |dbee-neovim-dbee-usage|
+  - API                                                 |dbee-neovim-dbee-api|
+  - Projector Integration             |dbee-neovim-dbee-projector-integration|
+2. DBee Architecture Overview                |dbee-dbee-architecture-overview|
+  - Lua Architecture        |dbee-dbee-architecture-overview-lua-architecture|
+  - Go Architecture          |dbee-dbee-architecture-overview-go-architecture|
+
+==============================================================================
+1. Neovim DBee                                              *dbee-neovim-dbee*
+
+**Database Client for NeoVim!**
+
+**Execute Your Favourite Queries From the Comfort of Your Editor!**
+
+**Backend in Go!**
+
+**Frontend in Lua!**
+
+**Doesn’t rely on CLI tools!**
+
+**Get Results FAST With Under-the-hood Iterator!**
+
+**Bees Love It!**
+
+**Alpha Software - Expect Breaking Changes!**
+
+
+INSTALLATION                                   *dbee-neovim-dbee-installation*
+
+- packer.nvim:
+    >lua
+        use {
+          "kndndrj/nvim-dbee",
+          requires = {
+            "MunifTanjim/nui.nvim",
+          },
+          run = function()
+            -- Install tries to automatically detect the install method.
+            -- if it fails, try calling it with one of these parameters:
+            --    "curl", "wget", "bitsadmin", "go"
+            require("dbee").install()
+          end,
+          config = function()
+            require("dbee").setup(--[[optional config]])
+          end
+        }
+    <
+- lazy.nvim:
+    >lua
+        {
+          "kndndrj/nvim-dbee",
+          dependencies = {
+            "MunifTanjim/nui.nvim",
+          },
+          build = function()
+            -- Install tries to automatically detect the install method.
+            -- if it fails, try calling it with one of these parameters:
+            --    "curl", "wget", "bitsadmin", "go"
+            require("dbee").install()
+          end,
+          config = function()
+            require("dbee").setup(--[[optional config]])
+          end,
+        },
+    <
+
+
+PLATFORM SUPPORT ~
+
+This project aims to be as cross-platform as possible, but there are some
+limitations (for example some of the go dependencies only work on certain
+platforms). To address this issue, the client implementations are detached from
+the main logic and they register themselves to dbee backend on plugin start.
+This allows the use of build constraints, which we use to exclued certain
+client implementations on certain platforms.
+
+The CI pipeline tries building the binary for GOARCH/GOOS combinations
+specified in targets.json <ci/targets.json> - if the builds succeed, they are
+stored in a remote bucket <https://github.com/kndndrj/nvim-dbee-bucket> on a
+separate branch per run. Additionally, the install manifest
+<lua/dbee/install/__manifest.lua> gets created.
+
+To increase cgo cross-platform support, the pipeline uses zig as a C compiler.
+
+To check if your platform is currently supported, check out the mentioned
+manifest and the targets file.
+
+
+MANUAL BINARY INSTALLATION ~
+
+The installation examples include the `build`/`run` functions, which get
+triggered once the plugin updates. This should be sufficient for the majority
+of users. If that doesn’t include you, then you have a few options:
+
+- just install with the `"go"` option (this performs `go build` under the hood):
+    >lua
+        require("dbee").install("go")
+    <
+- Download an already compiled binary from one of urls in the install manifest
+    <lua/dbee/install/__manifest.lua>
+- `go install` (the install location will vary depending on your local go
+    configuration):
+    >sh
+        go install github.com/kndndrj/nvim-dbee/dbee@<version>
+    <
+- Clone and build
+    >sh
+        # Clone the repository and cd into the "go subfolder"
+        git clone <this_repo>
+        cd <this_repo>/dbee
+        # Build the binary (optional output path)
+        go build [-o ~/.local/share/nvim/dbee/bin/dbee]
+    <
+
+
+CONFIGURATION                                 *dbee-neovim-dbee-configuration*
+
+You can pass an optional table parameter to `setup()` function.
+
+Here are the defaults:
+
+>lua
+    ---Default configuration.
+    ---To see defaults, run :lua= require"dbee.config".default
+    ---@type Config config
+    config.default = {
+      -- loads connections from files and environment variables
+      sources = {
+        require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
+        require("dbee.sources").FileSource:new(vim.fn.stdpath("cache") .. "/dbee/persistence.json"),
+      },
+      -- extra table helpers per connection type
+      -- every helper value is a go-template with values set for
+      -- "Table", "Schema" and "Materialization"
+      extra_helpers = {
+        -- example:
+        -- ["postgres"] = {
+        --   ["List All"] = "select * from {{ .Table }}",
+        -- },
+      },
+      -- drawer window config
+      drawer = {
+        -- show help or not
+        disable_help = false,
+        -- mappings for the buffer
+        mappings = {
+          -- quit the dbee interface
+          { key = "q", mode = "n", action = "quit" },
+          -- manually refresh drawer
+          { key = "r", mode = "n", action = "refresh" },
+          -- actions perform different stuff depending on the node:
+          -- action_1 opens a note or executes a helper
+          { key = "<CR>", mode = "n", action = "action_1" },
+          -- action_2 renames a note or sets the connection as active manually
+          { key = "cw", mode = "n", action = "action_2" },
+          -- action_3 deletes a note or connection (removes connection from the file if you configured it like so)
+          { key = "dd", mode = "n", action = "action_3" },
+          -- these are self-explanatory:
+          -- { key = "c", mode = "n", action = "collapse" },
+          -- { key = "e", mode = "n", action = "expand" },
+          { key = "o", mode = "n", action = "toggle" },
+          -- mappings for menu popups:
+          { key = "<CR>", mode = "n", action = "menu_confirm" },
+          { key = "y", mode = "n", action = "menu_yank" },
+          { key = "<Esc>", mode = "n", action = "menu_close" },
+          { key = "q", mode = "n", action = "menu_close" },
+        },
+        -- icon settings:
+        disable_candies = false,
+        candies = {
+          -- these are what's available for now:
+          history = {
+            icon = "",
+            icon_highlight = "Constant",
+            text_highlight = "",
+          },
+          note = {
+            icon = "",
+            icon_highlight = "Character",
+            text_highlight = "",
+          },
+          connection = {
+            icon = "󱘖",
+            icon_highlight = "SpecialChar",
+            text_highlight = "",
+          },
+          database_switch = {
+            icon = "",
+            icon_highlight = "Character",
+          },
+          table = {
+            icon = "",
+            icon_highlight = "Conditional",
+            text_highlight = "",
+          },
+          view = {
+            icon = "",
+            icon_highlight = "Debug",
+            text_highlight = "",
+          },
+          add = {
+            icon = "",
+            icon_highlight = "String",
+            text_highlight = "String",
+          },
+          edit = {
+            icon = "󰏫",
+            icon_highlight = "Directory",
+            text_highlight = "Directory",
+          },
+          remove = {
+            icon = "󰆴",
+            icon_highlight = "SpellBad",
+            text_highlight = "SpellBad",
+          },
+          help = {
+            icon = "󰋖",
+            icon_highlight = "Title",
+            text_highlight = "Title",
+          },
+          source = {
+            icon = "󰃖",
+            icon_highlight = "MoreMsg",
+            text_highlight = "MoreMsg",
+          },
+    
+          -- if there is no type
+          -- use this for normal nodes...
+          none = {
+            icon = " ",
+          },
+          -- ...and use this for nodes with children
+          none_dir = {
+            icon = "",
+            icon_highlight = "NonText",
+          },
+    
+          -- chevron icons for expanded/closed nodes
+          node_expanded = {
+            icon = "",
+            icon_highlight = "NonText",
+          },
+          node_closed = {
+            icon = "",
+            icon_highlight = "NonText",
+          },
+        },
+      },
+    
+      -- results window config
+      result = {
+        -- number of rows in the results set to display per page
+        page_size = 100,
+    
+        -- progress (loading) screen options
+        progress = {
+          -- spinner to use in progress display
+          spinner = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" },
+          -- prefix to display before the timer
+          text_prefix = "Executing...",
+        },
+    
+        -- mappings for the buffer
+        mappings = {
+          -- next/previous page
+          { key = "L", mode = "", action = "page_next" },
+          { key = "H", mode = "", action = "page_prev" },
+          -- yank rows as csv/json
+          { key = "yaj", mode = "n", action = "yank_current_json" },
+          { key = "yaj", mode = "v", action = "yank_selection_json" },
+          { key = "yaJ", mode = "", action = "yank_all_json" },
+          { key = "yac", mode = "n", action = "yank_current_csv" },
+          { key = "yac", mode = "v", action = "yank_selection_csv" },
+          { key = "yaC", mode = "", action = "yank_all_csv" },
+    
+          -- cancel current call execution
+          { key = "<C-c>", mode = "", action = "cancel_call" },
+        },
+      },
+    
+      -- editor window config
+      editor = {
+        -- mappings for the buffer
+        mappings = {
+          -- run what's currently selected on the active connection
+          { key = "BB", mode = "v", action = "run_selection" },
+          -- run the whole file on the active connection
+          { key = "BB", mode = "n", action = "run_file" },
+        },
+      },
+    
+      -- call log window config
+      call_log = {
+        -- mappings for the buffer
+        mappings = {
+          -- show the result of the currently selected call record
+          { key = "<CR>", mode = "", action = "show_result" },
+          -- cancel the currently selected call (if its still executing)
+          { key = "<C-c>", mode = "", action = "cancel_call" },
+        },
+    
+        -- candies (icons and highlights)
+        disable_candies = false,
+        candies = {
+          -- all of these represent call states
+          unknown = {
+            icon = "", -- this or first letters of state
+            icon_highlight = "NonText", -- highlight of the state
+            text_highlight = "", -- highlight of the rest of the line
+          },
+          executing = {
+            icon = "󰑐",
+            icon_highlight = "Constant",
+            text_highlight = "Constant",
+          },
+          executing_failed = {
+            icon = "󰑐",
+            icon_highlight = "Error",
+            text_highlight = "",
+          },
+          retrieving = {
+            icon = "",
+            icon_highlight = "String",
+            text_highlight = "String",
+          },
+          retrieving_failed = {
+            icon = "",
+            icon_highlight = "Error",
+            text_highlight = "",
+          },
+          archived = {
+            icon = "",
+            icon_highlight = "Title",
+            text_highlight = "",
+          },
+          archive_failed = {
+            icon = "",
+            icon_highlight = "Error",
+            text_highlight = "",
+          },
+          canceled = {
+            icon = "",
+            icon_highlight = "Error",
+            text_highlight = "",
+          },
+        },
+      },
+    
+      -- window layout
+      window_layout = require("dbee.layouts").Default:new(),
+    }
+<
+
+
+USAGE                                                 *dbee-neovim-dbee-usage*
+
+Call the `setup()` function with an optional config parameter.
+
+>lua
+    -- Open/close/toggle the UI.
+    require("dbee").open()
+    require("dbee").close()
+    require("dbee").toggle()
+    -- Run a query on the currently active connection.
+    require("dbee").execute(query)
+    -- Store the current result to file/buffer/yank-register (see "Getting Started").
+    require("dbee").store(format, output, opts)
+<
+
+The same functions are also available through the `:Dbee` user command.
+
+
+GETTING STARTED ~
+
+Here are a few steps to quickly get started:
+
+- call the `setup()` function in your `init.lua`
+- Specify connections using one or more sources (reffer to |dbee-this-section|).
+- When you restart the editor, call `lua require("dbee").open()` to open the UI.
+- Navigate to the drawer (tree) and use the following key-bindings to perform
+    different actions depending on the context (the mappings can all be changed in
+    the config):
+    - All nodes:
+        - Press `o` to toggle the tree node.
+        - Press `r` to manually refresh the tree.
+    - Connections:
+        - Press `cw` to edit the connection
+        - Press `dd` to delete it (if source supports saving, it’s also removed from
+            there - see more below.)
+        - Press `<CR>` to perform an action - view history or look at helper
+            queries. Pressing `<CR>` directly on the connection node will set it as
+            the active one
+    - Scratchpads:
+        - Press `<CR>` on the `new` node to create a new scratchpad.
+        - When you try to save it to disk (`:w`), the path is automatically filled
+            for you. You can change the name to anything you want, if you save it to
+            the suggested directory, it will load the next time you open DBee.
+        - Press `cw` to rename the scratchpad.
+        - Press `dd` to delete it (also from disk).
+        - Pressing `<CR>` on an existing scratchpad in the drawer will open it in
+            the editor pane.
+    - Help:
+        - Just view the key bindings.
+- Once you selected the connection and created a scratchpad, you can navigate to
+    the editor pane (top-right by default) and start writing queries. In editor
+    pane, you can use the following actions:
+    - Highlight some text in visual mode and press `BB` - this will run the
+        selected query on the active connection.
+    - If you press `BB` in normal mode, you run the whole scratchpad on the active
+        connection.
+- If the request was successful, the results should appear in the "result" buffer
+    (bottom right by default). If the total number of results was lower than the
+    `page_size` parameter in config (100 by default), all results should already be
+    present. If there are more than `page_size` results, you can "page" thrugh them
+    using one of the following:
+    - Using `require("dbee")api.ui.result_page_next()` and
+        `require("dbee")api.ui.result_page_prev()` from anywhere (even if your
+        cursor is outside the result buffer).
+    - Using `L` for next and `H` for previous page if the cursor is located inside
+        the results buffer.
+- Once in the "result" buffer, you can yank the results with the following keys:
+    - `yaj` yank current row as json (or row range in visual mode)
+    - `yac` yank current row as CSV (or row range in visual mode)
+    - `yaJ` to yank all rows as json
+    - `yaC` to yank all rows as CSV
+- The current result (of the active connection) can also be saved to a file,
+    yank-register or buffer using `require("dbee").store()` lua function or `:Dbee
+    store` Ex command. Here are some examples:
+    >lua
+        -- All rows as CSV to current buffer:
+        require("dbee").store("csv", "buffer", { extra_arg = 0 })
+        -- Results from row 2 to row 7 as json to file (index is zero based):
+        require("dbee").store("json", "file", { from = 2, to = 7, extra_arg = "path/to/file.json"  })
+        -- Yank the first row as table
+        require("dbee").store("table", "yank", { from = 0, to = 1 })
+        -- Yank the last 2 rows as CSV
+        -- (negative indices are interpreted as length+1+index - same as nvim_buf_get_lines())
+        -- Be aware that using negative indices requires for the
+        -- iterator of the result to be drained completely, which might affect large result sets.
+        require("dbee").store("csv", "yank", { from = -3, to = -1 })
+    <
+- Once you are done or you want to go back to where you were, you can call
+    `require("dbee").close()`.
+
+
+SPECIFYING CONNECTIONS ~
+
+Connection represents an instance of the database client (i.e. one database).
+This is how it looks like:
+
+>lua
+    {
+      id = "optional_identifier" -- only mandatory if you edit a file by hand. IT'S YOUR JOB TO KEEP THESE UNIQUE!
+      name = "My Database",
+      type = "sqlite", -- type of database driver
+      url = "~/path/to/mydb.db",
+    }
+<
+
+The connections are loaded to dbee using so-called "sources". They can be added
+to dbee using the `setup()` function:
+
+>lua
+      require("dbee").setup {
+        sources = {
+          require("dbee.sources").MemorySource:new({
+            {
+              name = "...",
+              type = "...",
+              url = "...",
+            },
+            -- ...
+          }),
+          require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
+          require("dbee.sources").FileSource:new(vim.fn.stdpath("cache") .. "/dbee/persistence.json"),
+        },
+        -- ...
+      },
+<
+
+The above sources are just built-ins. Here is a short description of them:
+
+- `MemorySource` just loads the connections you give it as an argument.
+- `EnvSource` loads connection from an environment variable Just export the
+    variable you gave to the loader and you are good to go:
+    >sh
+          export DBEE_CONNECTIONS='[
+              {
+                  "name": "DB from env",
+                  "url": "mysql://...",
+                  "type": "mysql"
+              }
+          ]'
+    <
+- `FileSource` loads connections from a given json file. It also supports editing
+    and adding connections interactively
+
+If the source supports saving and editing you can add connections manually
+using the "add" item in the drawer. Fill in the values and write the buffer
+(`:w`) to save the connection. By default, this will save the connection to the
+global connections file and will persist over restarts (because default
+`FileSource` supports saving)
+
+Another option is to use "edit" item in the tree and just edit the source
+manually.
+
+If you aren’t satisfied with the default capabilities, you can implement your
+own source. You just need to fill the `Source` interface and pass it to config
+at setup (`:h dbee.sources`).
+
+
+SECRETS
+
+If you don’t want to have secrets laying around your disk in plain text, you
+can use the special placeholders in connection strings (this works using any
+method for specifying connections).
+
+Each connection parameter is passed through go templating engine, which has two
+available functions:
+
+- `env` for retrieving environment variables and
+- `exec` for evaluating shell commands.
+
+The template syntax for functions is the following: `{{ <func> "<param>" }}`.
+If you are dealing with json, you need to escape double quotes, so it’s
+sometimes better to use backticks instead (`{{ <func> `<param>` }}`).
+
+Example:
+
+Using the `DBEE_CONNECTIONS` environment variable for specifying connections
+and exporting secrets to environment:
+
+>sh
+    # Define connections
+    export DBEE_CONNECTIONS='[
+        {
+            "name": "{{ exec `echo Hidden Database` }}",
+            "url": "postgres://{{ env \"SECRET_DB_USER\" }}:{{ env `SECRET_DB_PASS` }}@localhost:5432/{{ env `SECRET_DB_NAME` }}?sslmode=disable",
+            "type": "postgres"
+        }
+    ]'
+    
+    # Export secrets
+    export SECRET_DB_NAME="secretdb"
+    export SECRET_DB_USER="secretuser"
+    export SECRET_DB_PASS="secretpass"
+<
+
+If you start neovim in the same shell, this will evaluate to the following
+connection:
+
+>lua
+    { {
+      name = "Hidden Database",
+      url = "postgres://secretuser:secretpass@localhost:5432/secretdb?sslmode=disable",
+      type = "postgres",
+    } }
+<
+
+
+API                                                     *dbee-neovim-dbee-api*
+
+Dbee comes with it’s own API interface. It is split into two parts:
+
+- core (interacting with core of the plugin),
+- ui (interacting with ui of the plugin).
+
+You can access it like this:
+
+>lua
+    require("dbee").api.core.some_func()
+    require("dbee").api.ui.some_func()
+<
+
+
+PROJECTOR INTEGRATION                 *dbee-neovim-dbee-projector-integration*
+
+DBee is compatible with my other plugin nvim-projector
+<https://github.com/kndndrj/nvim-projector>, a
+code-runner/project-configurator.
+
+To use dbee with it, use this extension
+<https://github.com/kndndrj/projector-dbee>.
+
+
+==============================================================================
+2. DBee Architecture Overview                *dbee-dbee-architecture-overview*
+
+The plugin is created from 2 parts:
+
+- Go backend that interacts with databases,
+- Lua frontend which wraps the backend with neat nvim integration.
+
+These two parts should have clearly defined borders and not "leak"
+responsibilities.
+
+
+LUA ARCHITECTURE            *dbee-dbee-architecture-overview-lua-architecture*
+
+The following diagram shows a high level overview of lua packages. Note that a
+lot of connections are removed for diagram clarity.
+
+>
+                                            ui
+                                        ┌──────────┐
+                                 ┌─────►│ Result   ├──────┐
+                                 │      └──────────┘      │
+                                 │                        │
+                                 │      ┌──────────┐      │
+                                 ├─────►│ Editor   ├──────┤        core
+    ┌──────────┐   ┌──────────┐  │      └──────────┘      │     ┌──────────┐
+    │ API      ├──►│ entry    ├──┤                        ├────►│ Handler  ├───► Go
+    └──────────┘   └──────────┘  │      ┌──────────┐      │     └──────────┘
+                                 ├─────►│ Drawer   ├──────┤
+                                 │      └──────────┘      │
+                                 │                        │
+                                 │      ┌──────────┐      │
+                                 └─────►│ Call Log ├──────┘
+                                        └──────────┘
+    
+                   ┌──────────┐   ┌──────────┐
+                   │ sources  │   │ layouts  │
+                   └──────────┘   └──────────┘
+                   ┌──────────┐
+                   │ install  │
+                   └──────────┘
+<
+
+Description:
+
+- The "dbee" package consists of 2 major functional packages, ui and handler
+    (core).
+    - `handler` or core package is a wrapper around the go backend handler. The
+        only extra thing lua handler does on top is information about sources.
+    - `ui` package consists of the following packages:
+        - `Drawer` represents the tree view. It uses the handler and editor to
+            provide the view of connections and notes.
+        - `Editor` represents the notepad view. It manages notes per namespace
+            (namespace is an arbitrary name - Drawer uses it to have connection-local
+            notes).
+        - `Result` represents the results view.
+        - `Call Log` represents the history of calls vie view and supports managing
+            past calls.
+- `install` package is independent of the other packages and is used for
+    installation of the compiled go binary using the manifest generated by the CI
+    pipeline.
+- `sources` package holds an implementation of some of the most common sources.
+- `layouts` package holds the implementation of the default window layout.
+
+
+GO ARCHITECTURE              *dbee-dbee-architecture-overview-go-architecture*
+
+As We said, the Go backend is accessed exclusively through `handler` in lua.
+The way the communication workd both ways is that lua can call the handler
+method directly and go triggers events that lua then listens to.
+
+An example of this event based message passing is executing a query on
+connection:
+
+- lua registers an event listener to display results.
+- lua calls go execute method, which returns call details immediately.
+- lua then waits for call to yield some results, to display them.
+
+One way of looking at the handler package in go is that it’s just an
+implementation specific use case of the `core` go package.
+
+
+CORE PACKAGE ~
+
+Here is the godoc <https://pkg.go.dev/github.com/kndndrj/nvim-dbee/dbee/core>
+of the core package.
+
+Main construct is a `Connection`. It takes the parameters to connect to the
+database and an adapter for the database. Adapter is a provider for specific
+databases, which can return a database driver and returns common database
+queries (helpers).
+
+Then the connection can execute queries using a driver. This procudes a `Call`.
+A call represents a single call to the database and holds it’s state.
+
+Database call returns a result, which transforms the iterator returned from
+driver to different formats using a formatter.
+
+
+ADAPTERS PACKAGE
+
+One of the subpackages of core package is `adapters`. It contains
+implemetations of multiple database drivers and adapters. One special thing it
+does is that it has it’s own method to create a connection. This is done so
+that individual adapters can register themselves on startup in their init
+functions (so that we can exclude some adapters on certain
+architectures/os-es).
+
+
+BUILDERS PACKAGE
+
+Another subpackage of `core`, which holds convenience functions for creating
+some of the most used constructs. An example are multiple implementations of
+the `ResultStream` interface.
+
+Generated by panvimdoc <https://github.com/kdheepak/panvimdoc>
+
+vim:tw=78:ts=8:noet:ft=help:norl:
