@@ -155,9 +155,9 @@ func getPGStructure(rows core.ResultStream) ([]*core.Structure, error) {
 // getPGStructureType returns the structure type based on the provided string.
 func getPGStructureType(typ string) core.StructureType {
 	switch typ {
-	case "TABLE", "BASE TABLE":
+	case "TABLE", "BASE TABLE", "FOREIGN", "FOREIGN TABLE":
 		return core.StructureTypeTable
-	case "VIEW":
+	case "VIEW", "SYSTEM VIEW":
 		return core.StructureTypeView
 	default:
 		return core.StructureTypeNone
