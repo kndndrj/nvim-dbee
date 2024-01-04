@@ -1,7 +1,5 @@
 local M = {}
 
----@alias install_command "wget"|"curl"|"bitsadmin"|"go"|"cgo"
-
 -- NOTE: don't use vim.notify in loop callbacks
 local function log_error(mes)
   print("[dbee install - error]: " .. mes)
@@ -10,12 +8,17 @@ local function log_info(mes)
   print("[dbee install]: " .. mes)
 end
 
----@return string # installation path
-function M.path()
+---@return string _ path to install dir
+function M.dir()
   return vim.fn.stdpath("data") .. "/dbee/bin"
 end
 
----@return string # path of go source
+---@return string _ path to binary
+function M.bin()
+  return M.dir() .. "/dbee"
+end
+
+---@return string _ path of go source
 function M.source_path()
   local p, _ = debug.getinfo(1).source:sub(2):gsub("/lua/dbee/install/init.lua$", "/dbee")
   return p
@@ -72,37 +75,54 @@ local function get_job(command)
   local uname = vim.loop.os_uname()
   local arch = uname.machine
   local osys = uname.sysname
-  local install_dir = M.path()
-  local install_binary = install_dir .. "/dbee"
+  -- paths for final installation location
+  local install_dir = M.dir()
+  local install_binary = M.bin()
+  -- paths for extracting archives
+  local build_dir = vim.fn.stdpath("cache") .. "/dbee/build"
+  local archive = build_dir .. "/dbee.tar.gz"
 
-  -- make install dir
+  -- make install and build dirs
   vim.fn.mkdir(install_dir, "p")
-
-  local chmod = {
-    cmd = "chmod",
-    args = { "+x", install_binary },
-    env = {},
-  }
+  vim.fn.mkdir(build_dir, "p")
 
   local jobs_list = {
     wget = function()
       return {
         {
           cmd = "wget",
-          args = { "-qO", install_binary, get_url(osys, arch) },
+          args = { "-qO", archive, get_url(osys, arch) },
           env = {},
         },
-        chmod,
+        {
+          cmd = "tar",
+          args = { "-xzf", archive, "-C", install_dir },
+          env = {},
+        },
+        {
+          cmd = "chmod",
+          args = { "+x", install_binary },
+          env = {},
+        },
       }
     end,
     curl = function()
       return {
         {
           cmd = "curl",
-          args = { "-sfLo", install_binary, get_url(osys, arch) },
+          args = { "-sfLo", archive, get_url(osys, arch) },
           env = {},
         },
-        chmod,
+        {
+          cmd = "tar",
+          args = { "-xzf", archive, "-C", install_dir },
+          env = {},
+        },
+        {
+          cmd = "chmod",
+          args = { "+x", install_binary },
+          env = {},
+        },
       }
     end,
     bitsadmin = function()
@@ -141,7 +161,7 @@ local function get_job(command)
     local jobs = jobs_list[command]() or {}
     for _, j in ipairs(jobs) do
       if vim.fn.executable(j.cmd) ~= 1 then
-        error('"' .. command .. '" is not a supported installation method')
+        error('"' .. command .. '" is not executable')
       end
     end
     return jobs

@@ -10,9 +10,9 @@ on:
       - '**'
 
 jobs:
-  generate-docs:
+  readme-docs:
     runs-on: ubuntu-22.04
-    name: Generate Documentation
+    name: Generate Docs from Readme
     env:
       TEMP_README: "__temp_readme.md"
     steps:
@@ -54,4 +54,24 @@ jobs:
           author_name: Github Actions
           author_email: actions@github.com
           message: "[docgen] Update doc/dbee.txt"
+          pull: --rebase --autostash
+
+  reference-docs:
+    name: Generate Reference Docs
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: Generating help
+        shell: bash
+        run: |
+          curl -Lq https://github.com/numToStr/lemmy-help/releases/latest/download/lemmy-help-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          ./lemmy-help lua/dbee.lua lua/dbee/{config,doc,sources,layouts/init,api/core,api/ui}.lua --expand-opt > doc/dbee-reference.txt
+      - name: Commit the Generated Docs
+        uses: EndBug/add-and-commit@v9
+        if: github.event_name == 'push'
+        with:
+          add: doc/dbee-reference.txt
+          author_name: Github Actions
+          author_email: actions@github.com
+          message: "[docgen] Update doc/dbee-reference.txt"
           pull: --rebase --autostash

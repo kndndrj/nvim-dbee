@@ -1,6 +1,6 @@
 module github.com/kndndrj/nvim-dbee/dbee
 
-go 1.20
+go 1.21
 
 require (
 	cloud.google.com/go/bigquery v1.51.2
@@ -13,10 +13,10 @@ require (
 	github.com/neovim/go-client v1.2.1
 	github.com/redis/go-redis/v9 v9.0.2
 	github.com/sijms/go-ora/v2 v2.7.6
+	github.com/stretchr/testify v1.8.4
 	go.mongodb.org/mongo-driver v1.11.6
 	golang.org/x/sync v0.1.0
 	google.golang.org/api v0.118.0
-	gotest.tools v2.2.0+incompatible
 	modernc.org/sqlite v1.21.1
 )
 
@@ -66,7 +66,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
-	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.1 // indirect
 	github.com/xdg-go/stringprep v1.0.3 // indirect

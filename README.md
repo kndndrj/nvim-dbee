@@ -7,6 +7,8 @@
 ![Backend](https://img.shields.io/badge/go-backend-lightblue?style=for-the-badge&logo=go&logoColor=white)
 ![Frontend](https://img.shields.io/badge/lua-frontend-blue?style=for-the-badge&logo=lua&logoColor=white)
 
+[!["Buy Me A Coffee"](https://www.buymeacoffee.com/assets/img/custom_images/yellow_img.png)](https://www.buymeacoffee.com/kndndrj)
+
 <!-- DOCGEN_IGNORE_END -->
 
 # Neovim DBee
@@ -19,15 +21,19 @@
 
 **Frontend in Lua!**
 
-**Get Results FAST With Under-the-hood Iterator!**
+**Doesn't rely on CLI tools!**
 
-**Integrates with nvim-projector!**
+**Get Results FAST With Under-the-hood Iterator!**
 
 **Bees Love It!**
 
 ***Alpha Software - Expect Breaking Changes!***
 
+<!-- DOCGEN_IGNORE_START -->
+
 ![Screenshot](assets/screenshot.jpg)
+
+<!-- DOCGEN_IGNORE_END -->
 
 ## Installation
 
@@ -114,8 +120,7 @@ The installation examples include the `build`/`run` functions, which get
 triggered once the plugin updates. This should be sufficient for the majority of
 users. If that doesn't include you, then you have a few options:
 
-- just install with the `"go"` option (this performs `go install` under the
-  hood):
+- just install with the `"go"` option (this performs `go build` under the hood):
   ```lua
   require("dbee").install("go")
   ```
@@ -156,9 +161,7 @@ Here are the defaults:
 
 ## Usage
 
-Call the `setup()` function with an optional config parameter. If you are not
-using your plugin manager to lazy load for you, make sure to specify
-`{ lazy = true }` in the config.
+Call the `setup()` function with an optional config parameter.
 
 <!-- DOCGEN_IGNORE_START -->
 
@@ -171,15 +174,13 @@ using your plugin manager to lazy load for you, make sure to specify
 require("dbee").open()
 require("dbee").close()
 require("dbee").toggle()
--- Next/previous page of the results (there are the same mappings that work just inside the results buffer
--- available in config).
-require("dbee").next()
-require("dbee").prev()
--- Run a query on the active connection directly.
+-- Run a query on the currently active connection.
 require("dbee").execute(query)
 -- Store the current result to file/buffer/yank-register (see "Getting Started").
 require("dbee").store(format, output, opts)
 ```
+
+The same functions are also available through the `:Dbee` user command.
 
 <!-- DOCGEN_IGNORE_START -->
 
@@ -240,13 +241,14 @@ Here are a few steps to quickly get started:
     connection.
 
 - If the request was successful, the results should appear in the "result"
-  buffer (bottom one by default). If the total number of results was lower than
-  the `page_size` parameter in config (100 by default), all results should
+  buffer (bottom right by default). If the total number of results was lower
+  than the `page_size` parameter in config (100 by default), all results should
   already be present. If there are more than `page_size` results, you can "page"
   thrugh them using one of the following:
 
-  - Using `require("dbee").next()` and `require("dbee").prev()` from anywhere
-    (even if your cursor is outside the result buffer).
+  - Using `require("dbee")api.ui.result_page_next()` and
+    `require("dbee")api.ui.result_page_prev()` from anywhere (even if your
+    cursor is outside the result buffer).
   - Using `L` for next and `H` for previous page if the cursor is located inside
     the results buffer.
 
@@ -258,8 +260,8 @@ Here are a few steps to quickly get started:
   - `yaC` to yank all rows as CSV
 
 - The current result (of the active connection) can also be saved to a file,
-  yank-register or buffer using `require("dbee").store()` command. Some
-  examples:
+  yank-register or buffer using `require("dbee").store()` lua function or
+  `:Dbee store` Ex command. Here are some examples:
 
   ```lua
   -- All rows as CSV to current buffer:
@@ -311,9 +313,6 @@ to dbee using the `setup()` function:
     },
     -- ...
   },
-  -- ... the rest of your config
-  }
-
 ```
 
 The above sources are just built-ins. Here is a short description of them:
@@ -346,16 +345,8 @@ Another option is to use "edit" item in the tree and just edit the source
 manually.
 
 If you aren't satisfied with the default capabilities, you can implement your
-own source. You just need to fill the following interface and pass it to config
-at setup.
-
-```lua
----@class Source
----@field name fun(self: Source):string function to return the name of the source
----@field load fun(self: Source):connection_details[] function to load connections from external source
----@field save? fun(self: Source, conns: connection_details[], action: "add"|"delete") function to save connections to external source (optional)
----@field file? fun(self: Source):string function which returns a source file to edit (optional)
-```
+own source. You just need to fill the `Source` interface and pass it to config
+at setup (`:h dbee.sources`).
 
 #### Secrets
 
@@ -363,7 +354,15 @@ If you don't want to have secrets laying around your disk in plain text, you can
 use the special placeholders in connection strings (this works using any method
 for specifying connections).
 
-NOTE: *Currently only envirnoment variables are supported*
+Each connection parameter is passed through go templating engine, which has two
+available functions:
+
+- `env` for retrieving environment variables and
+- `exec` for evaluating shell commands.
+
+The template syntax for functions is the following: `{{ <func> "<param>" }}`. If
+you are dealing with json, you need to escape double quotes, so it's sometimes
+better to use backticks instead (`` {{ <func> `<param>` }} ``).
 
 Example:
 
@@ -374,8 +373,8 @@ exporting secrets to environment:
 # Define connections
 export DBEE_CONNECTIONS='[
     {
-        "name": "{{ env.SECRET_DB_NAME }}",
-        "url": "postgres://{{ env.SECRET_DB_USER }}:{{ env.SECRET_DB_PASS }}@localhost:5432/{{ env.SECRET_DB_NAME }}?sslmode=disable",
+        "name": "{{ exec `echo Hidden Database` }}",
+        "url": "postgres://{{ env \"SECRET_DB_USER\" }}:{{ env `SECRET_DB_PASS` }}@localhost:5432/{{ env `SECRET_DB_NAME` }}?sslmode=disable",
         "type": "postgres"
     }
 ]'
@@ -391,10 +390,24 @@ connection:
 
 ```lua
 { {
-  name = "secretdb",
+  name = "Hidden Database",
   url = "postgres://secretuser:secretpass@localhost:5432/secretdb?sslmode=disable",
   type = "postgres",
 } }
+```
+
+## API
+
+Dbee comes with it's own API interface. It is split into two parts:
+
+- core (interacting with core of the plugin),
+- ui (interacting with ui of the plugin).
+
+You can access it like this:
+
+```lua
+require("dbee").api.core.some_func()
+require("dbee").api.ui.some_func()
 ```
 
 ## Projector Integration
@@ -403,7 +416,8 @@ DBee is compatible with my other plugin
 [nvim-projector](https://github.com/kndndrj/nvim-projector), a
 code-runner/project-configurator.
 
-To use dbee with it, simply use `"dbee"` as one of it's outputs.
+To use dbee with it, use
+[this extension](https://github.com/kndndrj/projector-dbee).
 
 <!-- DOCGEN_IGNORE_START -->
 

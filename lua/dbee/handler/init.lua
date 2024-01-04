@@ -1,35 +1,18 @@
-local utils = require("dbee.utils")
-local floats = require("dbee.floats")
-local Conn = require("dbee.handler.conn")
-local MockedConn = require("dbee.handler.conn_mock")
-local Helpers = require("dbee.handler.helpers")
-local Lookup = require("dbee.handler.lookup")
-
----@alias handler_config { fallback_page_size: integer, progress: progress_config }
+local event_bus = require("dbee.handler.__events")
 
 -- Handler is an aggregator of connections
 ---@class Handler
----@field private ui Ui ui for results
----@field private lookup Lookup lookup for sources and connections
----@field private helpers Helpers query helpers
----@field private opts handler_config
+---@field private sources table<source_id, Source>
+---@field private source_conn_lookup table<string, connection_id[]>
 local Handler = {}
 
----@param ui Ui ui for displaying results
 ---@param sources? Source[]
----@param opts? handler_config
 ---@return Handler
-function Handler:new(ui, sources, opts)
-  if not ui then
-    error("no results Ui passed to Handler")
-  end
-
+function Handler:new(sources)
   -- class object
   local o = {
-    ui = ui,
-    lookup = Lookup:new(),
-    helpers = Helpers:new(),
-    opts = opts or {},
+    sources = {},
+    source_conn_lookup = {},
   }
   setmetatable(o, self)
   self.__index = self
@@ -37,297 +20,242 @@ function Handler:new(ui, sources, opts)
   -- initialize the sources
   sources = sources or {}
   for _, source in ipairs(sources) do
-    pcall(o.source_add, o, source)
+    pcall(o.add_source, o, source)
   end
 
   return o
 end
 
+---@param event core_event_name
+---@param listener event_listener
+function Handler:register_event_listener(event, listener)
+  event_bus.register(event, listener)
+end
+
 -- add new source and load connections from it
 ---@param source Source
-function Handler:source_add(source)
+function Handler:add_source(source)
   local id = source:name()
-  -- add it
-  self.lookup:add_source(source)
-  -- and load it's connections
+
+  -- keep the old source if present
+  self.sources[id] = self.sources[id] or source
+
   self:source_reload(id)
+end
+
+---@return Source[]
+function Handler:get_sources()
+  local sources = vim.tbl_values(self.sources)
+  table.sort(sources, function(k1, k2)
+    return k1:name() < k2:name()
+  end)
+  return sources
 end
 
 ---@param id source_id
 function Handler:source_reload(id)
-  local source = self.lookup:get_source(id)
+  local source = self.sources[id]
   if not source then
     return
   end
 
-  -- remove old connections
-  local old_conns = self.lookup:get_connections(id)
-  for _, conn in ipairs(old_conns) do
-    self.lookup:remove_connection(conn:details().id)
-  end
-
   -- add new connections
+  self.source_conn_lookup[id] = {}
   for _, spec in ipairs(source:load()) do
-    -- create a new connection
-    ---@type Conn
-    local conn, ok
-    ok, conn = pcall(Conn.new, Conn, self.ui, self.helpers, spec, {
-      fallback_page_size = self.opts.fallback_page_size,
-      on_exec = function()
-        self:set_active(conn:details().id)
-      end,
-    })
-    if ok then
-      -- add it to lookup
-      self.lookup:add_connection(conn, id)
-    else
-      utils.log("error", tostring(conn), "handler")
-    end
+    spec.id = spec.id or spec.type .. spec.name
+
+    local conn_id = vim.fn.DbeeCreateConnection(spec)
+    table.insert(self.source_conn_lookup[id], conn_id)
   end
 end
 
---- adds connection
----@param params connection_details
----@param source_id source_id id of the source to save connection to
----@return conn_id # id of the added connection
-function Handler:add_connection(params, source_id)
-  if not source_id then
-    error("no source id provided")
-  end
-  -- create a new connection
-  ---@type Conn
-  local conn, ok
-  ok, conn = pcall(Conn.new, Conn, self.ui, self.helpers, params, {
-    fallback_page_size = self.opts.fallback_page_size,
-    on_exec = function()
-      self:set_active(conn:details().id)
-    end,
-  })
-  if not ok then
-    utils.log("error", tostring(conn), "handler")
-    return ""
-  end
-
-  -- remove it if the same one exists
-  self:remove_connection(conn:details().id)
-
-  -- add it to lookup
-  self.lookup:add_connection(conn, source_id)
-
-  -- save it to source if it exists
-  local source = self.lookup:get_source(source_id)
-  if source and type(source.save) == "function" then
-    source:save({ conn:original_details() }, "add")
-  end
-
-  return conn:details().id
-end
-
--- removes/unregisters connection
--- also deletes it from the source if it exists
----@param id conn_id connection id
-function Handler:remove_connection(id)
-  local conn = self.lookup:get_connection(id)
-  if not conn then
+---@param id source_id
+---@param details ConnectionParams[]
+function Handler:source_add_connections(id, details)
+  if not details then
     return
   end
 
-  local original_details = conn:original_details()
-
-  -- delete it from the source
-  local source = self.lookup:get_sources(id)[1]
-  if source and type(source.save) == "function" then
-    source:save({ original_details }, "delete")
+  local source = self.sources[id]
+  if not source then
+    return
   end
 
-  -- delete it
-  self.lookup:remove_connection(id)
+  if type(source.save) == "function" then
+    source:save(details, "add")
+  end
+
+  self:source_reload(id)
 end
 
----@param id conn_id connection id
-function Handler:set_active(id)
-  self.lookup:set_active_connection(id)
+---@param id source_id
+---@param details ConnectionParams[]
+function Handler:source_remove_connections(id, details)
+  if not details then
+    return
+  end
+
+  local source = self.sources[id]
+  if not source then
+    return
+  end
+
+  if type(source.save) == "function" then
+    source:save(details, "delete")
+  end
+
+  self:source_reload(id)
 end
 
----@return Conn # currently active connection
-function Handler:current_connection()
-  return self.lookup:get_active_connection() or MockedConn:new()
+---@param id source_id
+---@return ConnectionParams[]
+function Handler:source_get_connections(id)
+  local conn_ids = self.source_conn_lookup[id] or {}
+  if #conn_ids < 1 then
+    return {}
+  end
+
+  ---@type ConnectionParams[]?
+  local ret = vim.fn.DbeeGetConnections(conn_ids)
+  if not ret or ret == vim.NIL then
+    return {}
+  end
+
+  table.sort(ret, function(k1, k2)
+    return k1.name < k2.name
+  end)
+
+  return ret
 end
 
 ---@param helpers table<string, table_helpers> extra helpers per type
 function Handler:add_helpers(helpers)
-  self.helpers:add(helpers)
+  for type, help in pairs(helpers) do
+    vim.fn.DbeeAddHelpers(type, help)
+  end
 end
 
----@param type string
----@param vars helper_vars
+---@param id connection_id
+---@param opts HelperOpts
 ---@return table_helpers helpers list of table helpers
-function Handler:get_helpers(type, vars)
-  return self.helpers:get(type, vars)
-end
-
----@return Layout[]
-function Handler:layout()
-  -- in case there are no sources defined, return a helper layout
-  if #self.lookup:get_sources() < 1 then
-    return self:layout_help()
-  end
-  return self:layout_real()
-end
-
----@private
----@return Layout[]
-function Handler:layout_help()
-  return {
-    {
-      id = "__handler_help_id__",
-      name = "No sources :(",
-      default_expand = utils.once:new("handler_expand_once_helper_id"),
-      type = "",
-      children = {
-        {
-          id = "__handler_help_id_child_1__",
-          name = 'Type ":h dbee.txt"',
-          type = "",
-        },
-        {
-          id = "__handler_help_id_child_2__",
-          name = "to define your first source!",
-          type = "",
-        },
-      },
-    },
-  }
-end
-
----@private
----@return Layout[]
-function Handler:layout_real()
-  ---@type Layout[]
-  local layout = {}
-
-  local all_sources = self.lookup:get_sources()
-
-  for _, source in ipairs(all_sources) do
-    local source_id = source:name()
-
-    local children = {}
-
-    -- source can save edits
-    if type(source.save) == "function" then
-      table.insert(children, {
-        id = "__source_add_connection__" .. source_id,
-        name = "add",
-        type = "add",
-        action_1 = function(cb)
-          local prompt = {
-            { name = "name" },
-            { name = "type" },
-            { name = "url" },
-            { name = "page size" },
-          }
-          floats.prompt(prompt, {
-            title = "Add Connection",
-            callback = function(result)
-              local spec = {
-                id = result.id,
-                name = result.name,
-                url = result.url,
-                type = result.type,
-                page_size = tonumber(result["page size"]),
-              }
-              pcall(self.add_connection, self, spec --[[@as connection_details]], source_id)
-              cb()
-            end,
-          })
-        end,
-      })
-    end
-    -- source has an editable source
-    if type(source.file) == "function" then
-      table.insert(children, {
-        id = "__source_edit_connections__" .. source_id,
-        name = "edit source",
-        type = "edit",
-        action_1 = function(cb)
-          floats.editor(source:file(), {
-            title = "Add Connection",
-            callback = function()
-              self:source_reload(source_id)
-              cb()
-            end,
-          })
-        end,
-      })
-    end
-
-    for _, conn in ipairs(self.lookup:get_connections(source_id)) do
-      local details = conn:details()
-
-      ---@type Layout
-      local ly = {
-        id = details.id,
-        name = details.name,
-        type = "connection",
-        -- set connection as active manually
-        action_1 = function(cb)
-          self:set_active(details.id)
-          cb()
-        end,
-        -- edit connection
-        action_2 = function(cb)
-          local original_details = conn:original_details()
-          local prompt = {
-            { name = "name", default = original_details.name },
-            { name = "type", default = original_details.type },
-            { name = "url", default = original_details.url },
-            { name = "page size", default = tostring(original_details.page_size or "") },
-          }
-          floats.prompt(prompt, {
-            title = "Edit Connection",
-            callback = function(result)
-              local spec = {
-                -- keep the old id
-                id = original_details.id,
-                name = result.name,
-                url = result.url,
-                type = result.type,
-                page_size = tonumber(result["page size"]),
-              }
-              pcall(self.add_connection, self, spec --[[@as connection_details]], source_id)
-              cb()
-            end,
-          })
-        end,
-        pick_title = "Confirm Deletion",
-        pick_items = { "Yes", "No" },
-        -- remove connection
-        action_3 = function(cb, selection)
-          if selection == "Yes" then
-            self:remove_connection(details.id)
-          end
-          cb()
-        end,
-        children = function()
-          return conn:layout()
-        end,
-      }
-
-      table.insert(children, ly)
-    end
-
-    if #children > 0 then
-      table.insert(layout, {
-        id = "__source__" .. source_id,
-        name = source_id,
-        default_expand = utils.once:new("handler_expand_once_id" .. source_id),
-        type = "source",
-        children = children,
-      })
-    end
+function Handler:connection_get_helpers(id, opts)
+  local helpers = vim.fn.DbeeConnectionGetHelpers(id, {
+    table = opts.table,
+    schema = opts.schema,
+    materialization = opts.materialization,
+  })
+  if not helpers or helpers == vim.NIL then
+    return {}
   end
 
-  return layout
+  return helpers
+end
+
+---@return ConnectionParams?
+function Handler:get_current_connection()
+  local ret = vim.fn.DbeeGetCurrentConnection()
+  if ret == vim.NIL then
+    return
+  end
+  return ret
+end
+
+---@param id connection_id
+function Handler:set_current_connection(id)
+  vim.fn.DbeeSetCurrentConnection(id)
+end
+
+---@param id connection_id
+---@param query string
+---@return CallDetails
+function Handler:connection_execute(id, query)
+  return vim.fn.DbeeConnectionExecute(id, query)
+end
+
+---@param id connection_id
+---@return DBStructure[]
+function Handler:connection_get_structure(id)
+  local ret = vim.fn.DbeeConnectionGetStructure(id)
+  if not ret or ret == vim.NIL then
+    return {}
+  end
+  return ret
+end
+
+---@param id connection_id
+---@return ConnectionParams?
+function Handler:connection_get_params(id)
+  local ret = vim.fn.DbeeConnectionGetParams(id)
+  if not ret or ret == vim.NIL then
+    return
+  end
+  return ret
+end
+
+---@param id connection_id
+---@return string current_db
+---@return string[] available_dbs
+function Handler:connection_list_databases(id)
+  local ret = vim.fn.DbeeConnectionListDatabases(id)
+  if not ret or ret == vim.NIL then
+    return "", {}
+  end
+
+  return unpack(ret)
+end
+
+---@param id connection_id
+---@param database string
+function Handler:connection_select_database(id, database)
+  vim.fn.DbeeConnectionSelectDatabase(id, database)
+end
+
+---@param id connection_id
+---@return CallDetails[]
+function Handler:connection_get_calls(id)
+  local ret = vim.fn.DbeeConnectionGetCalls(id)
+  if not ret or ret == vim.NIL then
+    return {}
+  end
+  return ret
+end
+
+---@param id call_id
+function Handler:call_cancel(id)
+  vim.fn.DbeeCallCancel(id)
+end
+
+---@param id call_id
+---@param bufnr integer
+---@param from integer
+---@param to integer
+---@return integer # total number of rows
+function Handler:call_display_result(id, bufnr, from, to)
+  local length = vim.fn.DbeeCallDisplayResult(id, { buffer = bufnr, from = from, to = to })
+  if not length or length == vim.NIL then
+    return 0
+  end
+  return length
+end
+
+---@alias store_format "csv"|"json"|"table"
+---@alias store_output "file"|"yank"|"buffer"
+
+---@param id call_id
+---@param format store_format format of the output
+---@param output store_output where to pipe the results
+---@param opts { from: integer, to: integer, extra_arg: any }
+function Handler:call_store_result(id, format, output, opts)
+  opts = opts or {}
+
+  local from = opts.from or 0
+  local to = opts.to or -1
+
+  vim.fn.DbeeCallStoreResult(id, format, output, {
+    from = from,
+    to = to,
+    extra_arg = opts.extra_arg,
+  })
 end
 
 return Handler

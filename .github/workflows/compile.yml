@@ -1,23 +1,15 @@
 name: Compile and Upload Binaries
 
 on:
+  release:
+    types: [published]
   push:
-    paths:
-      # only when go source or install script change
-      - 'dbee/**'
-      - 'lua/dbee/install/**'
     tags-ignore:
-      # ignore all tags
+      # ignore all pushed tags
       - '**'
     branches:
       # run for all branches
       - '**'
-
-env:
-  BUCKET_REPOSITORY_PUBLISH_USER: "${{ secrets.BUCKET_REPOSITORY_PUBLISH_USER }}"
-  BUCKET_REPOSITORY_PUBLISH_TOKEN: "${{ secrets.BUCKET_REPOSITORY_PUBLISH_TOKEN }}"
-  BUCKET_REPOSITORY_NAME: "${{ vars.BUCKET_REPOSITORY_NAME }}"
-  BUCKET_REPOSITORY_OWNER: "${{ vars.BUCKET_REPOSITORY_OWNER }}"
 
 jobs:
   assemble-os-matrix:
@@ -31,19 +23,8 @@ jobs:
         id: set-matrix
         run: ./ci/target-matrix.sh >> "$GITHUB_OUTPUT"
 
-  check-secrets:
-    runs-on: ubuntu-22.04
-    name: Check Secrets
-    steps:
-      - name: Check for Secret Availability
-        run: |
-          [ "$BUCKET_REPOSITORY_PUBLISH_USER" != '' ] || (echo "no BUCKET_REPOSITORY_PUBLISH_USER secret"; exit 1)
-          [ "$BUCKET_REPOSITORY_PUBLISH_TOKEN" != '' ] || (echo "no BUCKET_REPOSITORY_PUBLISH_TOKEN secret"; exit 1)
-          [ "$BUCKET_REPOSITORY_OWNER" != '' ] || (echo "no BUCKET_REPOSITORY_OWNER secret"; exit 1)
-          [ "$BUCKET_REPOSITORY_NAME" != '' ] || (echo "no BUCKET_REPOSITORY_NAME secret"; exit 1)
-
   go-build:
-    needs: [ assemble-os-matrix, check-secrets ]
+    needs: [ assemble-os-matrix ]
     name: Go Build
     strategy:
       matrix: ${{ fromJson(needs.assemble-os-matrix.outputs.matrix) }}
@@ -53,7 +34,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.20.x'
+          go-version: '1.21.x'
           check-latest: true
           cache-dependency-path: dbee/go.sum
       - name: Setup Zig for C Cross Compilation
@@ -63,10 +44,10 @@ jobs:
         working-directory: dbee
         shell: bash
         run: |
-          ext=""
-          [ '${{ matrix.goos }}' = "windows" ] && ext=".exe"
-          binname="dbee_${{ matrix.goos }}_${{ matrix.goarch }}$ext"
-          echo "binary-name=$binname" >> "$GITHUB_OUTPUT"
+          bin="dbee"
+          [ '${{ matrix.goos }}' = "windows" ] && bin="dbee.exe"
+          artefact="dbee_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz"
+          echo "artefact=$artefact" >> "$GITHUB_OUTPUT"
 
           ../ci/build.sh \
             -o "${{ matrix.goos }}" \
@@ -74,39 +55,35 @@ jobs:
             -c "${{ matrix.crossarch }}" \
             -b "${{ matrix.buildtags }}" \
             -e "${{ matrix.cgo }}" \
-            -p "../ci_tmp/bin/$binname"
-      - name: Publish Binary to bucket
-        shell: bash
-        if: github.event_name == 'push'
-        id: publish-binary
-        run: |
-          branch="run-${{ github.run_id }}_${{ matrix.goos }}_${{ matrix.goarch }}"
-          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+            -p "../ci_tmp/bin/$bin"
 
-          ./ci/publish.sh \
-            -a "ci_tmp/bin/*" \
-            -b "$branch" \
-            -u "$BUCKET_REPOSITORY_PUBLISH_USER" \
-            -t "$BUCKET_REPOSITORY_PUBLISH_TOKEN" \
-            -r "$BUCKET_REPOSITORY_OWNER/$BUCKET_REPOSITORY_NAME" \
-            -m "added binary for ${{ matrix.goos }}/${{ matrix.goarch }}"
+          tar -C "../ci_tmp/bin" -czvf "../ci_tmp/bin/$artefact" "$bin"
+      - name: Upload artefacts to release
+        if: github.event_name == 'release'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          file: ci_tmp/bin/${{ steps.build.outputs.artefact }}
+          tag: ${{ github.ref }}
       - name: Create metadata
+        if: github.event_name == 'release'
         shell: bash
         run: |
           mkdir ci_tmp/meta
-          echo "https://github.com/$BUCKET_REPOSITORY_OWNER/$BUCKET_REPOSITORY_NAME/raw/${{ steps.publish-binary.outputs.branch }}/bin/${{ steps.build.outputs.binary-name }}" > ci_tmp/meta/url
+          echo "${{ github.server_url }}/${{ github.repository }}/releases/download/${{ github.ref_name }}/${{ steps.build.outputs.artefact }}" > ci_tmp/meta/url
           echo "${{ matrix.goos }}" > ci_tmp/meta/os
           echo "${{ matrix.goarch }}" > ci_tmp/meta/arch
       - name: Upload metadata
+        if: github.event_name == 'release'
         uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.goos }}_${{ matrix.goarch }}
           path: ci_tmp/meta/*
 
-  create-install-file:
+  create-install-manifest:
     runs-on: ubuntu-22.04
-    name: Create Install File
-    needs: [ go-build, check-secrets ]
+    if: github.event_name == 'release'
+    name: Create Install Manifest
+    needs: [ go-build ]
     env:
       MANIFEST_FILE: "lua/dbee/install/__manifest.lua"
     steps:
@@ -134,12 +111,27 @@ jobs:
             echo
             echo "return M"
           } > "$MANIFEST_FILE"
-      - name: Commit the Generated File
-        uses: EndBug/add-and-commit@v9
-        if: github.event_name == 'push'
-        with:
-          add: "${{ env.MANIFEST_FILE }}"
-          author_name: Github Actions
-          author_email: actions@github.com
-          message: "[install] update install manifest"
-          pull: --rebase --autostash
+      - name: Commit Generated Manifest
+        shell: bash
+        run: |
+          echo "fetching"
+          git fetch
+
+          branch=$(basename "$(git branch -r --contains="${{ github.ref }}" | head -n1 | cut -c3-)")
+
+          echo "checking out"
+          git pull origin "$branch" --rebase --autostash
+          git checkout "$branch"
+
+          echo "committing"
+          git add "${{ env.MANIFEST_FILE }}"
+          git config user.name "Github Actions"
+          git config user.email "actions@github.com"
+          git commit -m "[install] update install manifest"
+
+          echo "pushing"
+          git push -u origin "$branch"
+
+          echo "moving tag"
+          git tag -f "${{ github.ref_name }}"
+          git push origin -f --tags

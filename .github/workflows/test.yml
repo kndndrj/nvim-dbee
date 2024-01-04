@@ -2,6 +2,12 @@ name: Testing
 
 on:
   push:
+    tags-ignore:
+      # ignore all tags
+      - '**'
+    branches:
+      # run for all branches
+      - '**'
 
 jobs:
   go-test:
@@ -12,7 +18,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.20.x'
+          go-version: '1.21.x'
           check-latest: true
           cache-dependency-path: dbee/go.sum
       - name: Test

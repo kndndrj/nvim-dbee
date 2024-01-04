@@ -1,62 +1,60 @@
-local layout = require("dbee.utils").layout
-local spinners = require("dbee.progress").spinners
+local config = {}
 
-local M = {}
-local m = {}
+---@mod dbee.ref.config Dbee Configuration
 
----@alias mapping {key: string, mode: string}
----@alias wincmd string|fun():integer
-
----@class UiConfig
----@field window_commands { editor: wincmd, drawer: wincmd, result: wincmd }
----@field window_open_order string[] example: { "result", "editor", "drawer" } - in which order are the windows open
----@field pre_open_hook fun() execute this before opening ui
----@field post_open_hook fun() execute this after opening ui
----@field pre_close_hook fun() execute this before closing ui
----@field post_close_hook fun() execute this after closing ui
-
--- configuration object
+-- Configuration object.
 ---@class Config
 ---@field sources Source[] list of connection sources
----@field extra_helpers table<string, table_helpers> extra table helpers to provide besides built-ins. example: { postgres = { List = "select..." }
----@field lazy boolean lazy load the plugin or not?
----@field page_size integer
----@field progress_bar progress_config
+---@field extra_helpers table<string, table<string, string>>
 ---@field drawer drawer_config
 ---@field editor editor_config
 ---@field result result_config
----@field ui UiConfig
+---@field call_log call_log_config
+---@field window_layout Layout
 
--- default configuration
----@type Config
+---@class Candy
+---@field icon string
+---@field icon_highlight string
+---@field text_highlight string
+
+---Keymap options.
+---@alias key_mapping { key: string, mode: string, opts: table, action: string|fun() }
+
+---@divider -
+
+---Configuration for result UI tile.
+---@alias result_config { mappings: key_mapping[], page_size: integer, progress: progress_config }
+
+---Configuration for editor UI tile.
+---@alias editor_config { directory: string, mappings: key_mapping[] }
+
+---Configuration for call log UI tile.
+---@alias call_log_config { mappings: key_mapping[], disable_candies: boolean, candies: table<string, Candy> }
+
+---Configuration for drawer UI tile.
+---@alias drawer_config { disable_candies: boolean, candies: table<string, Candy>, mappings: key_mapping[], disable_help: boolean }
+
+---@divider -
+
 -- DOCGEN_START
-M.default = {
-  -- lazy load the plugin or not?
-  lazy = false,
-
+---Default configuration.
+---To see defaults, run :lua= require"dbee.config".default
+---@type Config config
+config.default = {
   -- loads connections from files and environment variables
   sources = {
     require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
     require("dbee.sources").FileSource:new(vim.fn.stdpath("cache") .. "/dbee/persistence.json"),
   },
   -- extra table helpers per connection type
+  -- every helper value is a go-template with values set for
+  -- "Table", "Schema" and "Materialization"
   extra_helpers = {
     -- example:
     -- ["postgres"] = {
-    --   ["List All"] = "select * from {table}",
+    --   ["List All"] = "select * from {{ .Table }}",
     -- },
   },
-
-  -- number of rows in the results set to display per page
-  page_size = 100,
-
-  progress_bar = {
-    -- spinner to use, see lua/dbee/spinners.lua
-    icon = spinners.dots,
-    -- prefix to display before the timer
-    text_prefix = "Executing...",
-  },
-
   -- drawer window config
   drawer = {
     -- show help or not
@@ -64,20 +62,25 @@ M.default = {
     -- mappings for the buffer
     mappings = {
       -- quit the dbee interface
-      quit = { key = "q", mode = "n" },
+      { key = "q", mode = "n", action = "quit" },
       -- manually refresh drawer
-      refresh = { key = "r", mode = "n" },
+      { key = "r", mode = "n", action = "refresh" },
       -- actions perform different stuff depending on the node:
-      -- action_1 opens a scratchpad or executes a helper
-      action_1 = { key = "<CR>", mode = "n" },
-      -- action_2 renames a scratchpad or sets the connection as active manually
-      action_2 = { key = "cw", mode = "n" },
-      -- action_3 deletes a scratchpad or connection (removes connection from the file if you configured it like so)
-      action_3 = { key = "dd", mode = "n" },
+      -- action_1 opens a note or executes a helper
+      { key = "<CR>", mode = "n", action = "action_1" },
+      -- action_2 renames a note or sets the connection as active manually
+      { key = "cw", mode = "n", action = "action_2" },
+      -- action_3 deletes a note or connection (removes connection from the file if you configured it like so)
+      { key = "dd", mode = "n", action = "action_3" },
       -- these are self-explanatory:
-      -- collapse = { key = "c", mode = "n" },
-      -- expand = { key = "e", mode = "n" },
-      toggle = { key = "o", mode = "n" },
+      -- { key = "c", mode = "n", action = "collapse" },
+      -- { key = "e", mode = "n", action = "expand" },
+      { key = "o", mode = "n", action = "toggle" },
+      -- mappings for menu popups:
+      { key = "<CR>", mode = "n", action = "menu_confirm" },
+      { key = "y", mode = "n", action = "menu_yank" },
+      { key = "<Esc>", mode = "n", action = "menu_close" },
+      { key = "q", mode = "n", action = "menu_close" },
     },
     -- icon settings:
     disable_candies = false,
@@ -88,7 +91,7 @@ M.default = {
         icon_highlight = "Constant",
         text_highlight = "",
       },
-      scratch = {
+      note = {
         icon = "",
         icon_highlight = "Character",
         text_highlight = "",
@@ -163,18 +166,32 @@ M.default = {
 
   -- results window config
   result = {
+    -- number of rows in the results set to display per page
+    page_size = 100,
+
+    -- progress (loading) screen options
+    progress = {
+      -- spinner to use in progress display
+      spinner = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" },
+      -- prefix to display before the timer
+      text_prefix = "Executing...",
+    },
+
     -- mappings for the buffer
     mappings = {
       -- next/previous page
-      page_next = { key = "L", mode = "" },
-      page_prev = { key = "H", mode = "" },
+      { key = "L", mode = "", action = "page_next" },
+      { key = "H", mode = "", action = "page_prev" },
       -- yank rows as csv/json
-      yank_current_json = { key = "yaj", mode = "n" },
-      yank_selection_json = { key = "yaj", mode = "v" },
-      yank_all_json = { key = "yaJ", mode = "" },
-      yank_current_csv = { key = "yac", mode = "n" },
-      yank_selection_csv = { key = "yac", mode = "v" },
-      yank_all_csv = { key = "yaC", mode = "" },
+      { key = "yaj", mode = "n", action = "yank_current_json" },
+      { key = "yaj", mode = "v", action = "yank_selection_json" },
+      { key = "yaJ", mode = "", action = "yank_all_json" },
+      { key = "yac", mode = "n", action = "yank_current_csv" },
+      { key = "yac", mode = "v", action = "yank_selection_csv" },
+      { key = "yaC", mode = "", action = "yank_all_csv" },
+
+      -- cancel current call execution
+      { key = "<C-c>", mode = "", action = "cancel_call" },
     },
   },
 
@@ -183,51 +200,96 @@ M.default = {
     -- mappings for the buffer
     mappings = {
       -- run what's currently selected on the active connection
-      run_selection = { key = "BB", mode = "v" },
+      { key = "BB", mode = "v", action = "run_selection" },
       -- run the whole file on the active connection
-      run_file = { key = "BB", mode = "n" },
+      { key = "BB", mode = "n", action = "run_file" },
     },
   },
 
-  -- general UI config
-  -- Default configuration uses a "layout" helper to save the existing ui before opening any windows,
-  -- then makes a new empty window for the editor and then opens result and drawer.
-  -- When later calling dbee.close(), the previously saved layout is restored.
-  -- NOTE: "m" is just a global object - nothing special about it - you might as well just use global vars.
-  --
-  -- You can probably do anything you imagine with this - for example all floating windows, tiled/floating mix etc.
-  ui = {
-    -- commands that opens the window if the window is closed - for drawer/editor/result
-    -- string or function
-    window_commands = {
-      drawer = "to 40vsplit",
-      result = "bo 15split",
-      editor = function()
-        vim.cmd("new")
-        layout.make_only(0)
-        m.tmp_buf = vim.api.nvim_get_current_buf()
-        return vim.api.nvim_get_current_win()
-      end,
+  -- call log window config
+  call_log = {
+    -- mappings for the buffer
+    mappings = {
+      -- show the result of the currently selected call record
+      { key = "<CR>", mode = "", action = "show_result" },
+      -- cancel the currently selected call (if its still executing)
+      { key = "<C-c>", mode = "", action = "cancel_call" },
     },
-    -- how to open windows in order (with specified "window_command"s -- see above)
-    window_open_order = { "editor", "result", "drawer" },
 
-    -- hooks before/after dbee.open()/.close()
-    pre_open_hook = function()
-      -- save layout before opening ui
-      m.egg = layout.save()
-    end,
-    post_open_hook = function()
-      -- delete temporary editor buffer
-      vim.cmd("bd " .. m.tmp_buf)
-    end,
-    pre_close_hook = function() end,
-    post_close_hook = function()
-      layout.restore(m.egg)
-      m.egg = nil
-    end,
+    -- candies (icons and highlights)
+    disable_candies = false,
+    candies = {
+      -- all of these represent call states
+      unknown = {
+        icon = "", -- this or first letters of state
+        icon_highlight = "NonText", -- highlight of the state
+        text_highlight = "", -- highlight of the rest of the line
+      },
+      executing = {
+        icon = "󰑐",
+        icon_highlight = "Constant",
+        text_highlight = "Constant",
+      },
+      executing_failed = {
+        icon = "󰑐",
+        icon_highlight = "Error",
+        text_highlight = "",
+      },
+      retrieving = {
+        icon = "",
+        icon_highlight = "String",
+        text_highlight = "String",
+      },
+      retrieving_failed = {
+        icon = "",
+        icon_highlight = "Error",
+        text_highlight = "",
+      },
+      archived = {
+        icon = "",
+        icon_highlight = "Title",
+        text_highlight = "",
+      },
+      archive_failed = {
+        icon = "",
+        icon_highlight = "Error",
+        text_highlight = "",
+      },
+      canceled = {
+        icon = "",
+        icon_highlight = "Error",
+        text_highlight = "",
+      },
+    },
   },
+
+  -- window layout
+  window_layout = require("dbee.layouts").Default:new(),
 }
 -- DOCGEN_END
 
-return M
+-- Validates provided input config
+---@package
+---@param cfg Config
+function config.validate(cfg)
+  vim.validate {
+    sources = { cfg.sources, "table" },
+    extra_helpers = { cfg.extra_helpers, "table" },
+
+    drawer_disable_candies = { cfg.drawer.disable_candies, "boolean" },
+    drawer_disable_help = { cfg.drawer.disable_help, "boolean" },
+    drawer_candies = { cfg.drawer.candies, "table" },
+    drawer_mappings = { cfg.drawer.mappings, "table" },
+    result_page_size = { cfg.result.page_size, "number" },
+    result_progress = { cfg.result.progress, "table" },
+    result_mappings = { cfg.result.mappings, "table" },
+    editor_mappings = { cfg.editor.mappings, "table" },
+    call_log_mappings = { cfg.call_log.mappings, "table" },
+
+    window_layout = { cfg.window_layout, "table" },
+    window_layout_open = { cfg.window_layout.open, "function" },
+    window_layout_close = { cfg.window_layout.close, "function" },
+  }
+end
+
+return config
