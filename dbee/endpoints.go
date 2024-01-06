@@ -43,8 +43,8 @@ func mountEndpoints(p *plugin.Plugin, h *handler.Handler) {
 			Type    string `msgpack:",array"`
 			Helpers map[string]string
 		},
-		) (any, error) {
-			return nil, h.AddHelpers(args.Type, args.Helpers)
+		) error {
+			return h.AddHelpers(args.Type, args.Helpers)
 		})
 
 	p.RegisterEndpoint(
