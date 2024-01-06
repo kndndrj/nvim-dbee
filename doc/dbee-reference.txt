@@ -234,6 +234,7 @@ CallDetails                                                        *CallDetails*
         {query}          (string)
         {state}          (call_state)
         {timestamp_us}   (integer)     time in microseconds
+        {error}          (nil|string)  error message in case of error
 
 
 ------------------------------------------------------------------------------
