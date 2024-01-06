@@ -50,6 +50,7 @@
 ---@field query string
 ---@field state call_state
 ---@field timestamp_us integer time in microseconds
+---@field error? string error message in case of error
 
 ---@divider -
 ---@tag dbee.ref.types.connection
