@@ -2,25 +2,23 @@ package plugin
 
 import (
 	"fmt"
-	"text/template"
 	"os"
 	"reflect"
 	"sort"
+	"text/template"
 
 	"github.com/neovim/go-client/nvim"
-
-	"github.com/kndndrj/nvim-dbee/dbee/vim"
 )
 
 // Plugin represents a remote plugin.
 type Plugin struct {
 	vim         *nvim.Nvim
 	pluginSpecs []*pluginSpec
-	log         *vim.Logger
+	log         *Logger
 }
 
 // New returns an intialized plugin.
-func New(v *nvim.Nvim, l *vim.Logger) *Plugin {
+func New(v *nvim.Nvim, l *Logger) *Plugin {
 	return &Plugin{
 		vim: v,
 		log: l,
@@ -52,6 +50,20 @@ func (p *Plugin) handle(fn interface{}, spec *pluginSpec) {
 	}
 }
 
+func (p *Plugin) logReturn(method string, values []reflect.Value) {
+	// check for return errors
+	for _, val := range values {
+		v := val.Interface()
+
+		if v, ok := v.(error); ok && v != nil {
+			p.log.Infof("method %q failed with error: %s", method, v)
+			return
+		}
+	}
+
+	p.log.Infof("method %q returned successfully", method)
+}
+
 // RegisterEndpoint registers fn as a handler for a vim function. The function
 // signature for fn is one of
 //
@@ -62,10 +74,11 @@ func (p *Plugin) handle(fn interface{}, spec *pluginSpec) {
 // array and {resultType} is the type of function result.
 func (p *Plugin) RegisterEndpoint(name string, fn any) {
 	v := reflect.ValueOf(fn)
+
 	newFn := reflect.MakeFunc(v.Type(), func(args []reflect.Value) (results []reflect.Value) {
-		p.log.Debugf("calling method %q", name)
+		p.log.Infof("calling method %q", name)
 		ret := v.Call(args)
-		p.log.Debugf("method %q returned successfully", name)
+		p.logReturn(name, ret)
 		return ret
 	})
 

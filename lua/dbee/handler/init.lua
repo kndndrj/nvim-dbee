@@ -1,4 +1,5 @@
 local event_bus = require("dbee.handler.__events")
+local utils = require("dbee.utils")
 
 -- Handler is an aggregator of connections
 ---@class Handler
@@ -20,7 +21,10 @@ function Handler:new(sources)
   -- initialize the sources
   sources = sources or {}
   for _, source in ipairs(sources) do
-    pcall(o.add_source, o, source)
+    local ok, mes = pcall(o.add_source, o, source)
+    if not ok then
+      utils.log("error", "failed registering source: " .. mes, "core")
+    end
   end
 
   return o
