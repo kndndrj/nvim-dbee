@@ -30,6 +30,9 @@ func WrapCalls(calls []*core.Call) []*callWrap {
 }
 
 func (cw *callWrap) MarshalMsgPack(enc *msgpack.Encoder) error {
+	if cw.call == nil {
+		return enc.Encode(nil)
+	}
 	return enc.Encode(&struct {
 		ID        string `msgpack:"id"`
 		Query     string `msgpack:"query"`
@@ -69,6 +72,9 @@ func WrapConnections(connections []*core.Connection) []*connectionWrap {
 }
 
 func (cw *connectionWrap) MarshalMsgPack(enc *msgpack.Encoder) error {
+	if cw.connection == nil {
+		return enc.Encode(nil)
+	}
 	return enc.Encode(&struct {
 		ID   string `msgpack:"id"`
 		Name string `msgpack:"name"`
@@ -94,6 +100,9 @@ func WrapConnectionParams(params *core.ConnectionParams) *connectionParamsWrap {
 }
 
 func (cw *connectionParamsWrap) MarshalMsgPack(enc *msgpack.Encoder) error {
+	if cw.params == nil {
+		return enc.Encode(nil)
+	}
 	return enc.Encode(&struct {
 		ID   string `msgpack:"id"`
 		Name string `msgpack:"name"`
@@ -131,6 +140,9 @@ func WrapStructures(structures []*core.Structure) []*structureWrap {
 }
 
 func (cw *structureWrap) MarshalMsgPack(enc *msgpack.Encoder) error {
+	if cw.structure == nil {
+		return enc.Encode(nil)
+	}
 	return enc.Encode(&struct {
 		Name     string           `msgpack:"name"`
 		Schema   string           `msgpack:"schema"`

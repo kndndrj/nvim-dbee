@@ -235,11 +235,9 @@ end
 ---@return DrawerUINode[]
 local function handler_help_nodes()
   local node = NuiTree.Node({
-    {
-      id = "__handler_help_id__",
-      name = "No sources :(",
-      type = "",
-    },
+    id = "__handler_help_id__",
+    name = "No sources :(",
+    type = "",
   }, {
     NuiTree.Node {
       id = "__handler_help_id_child_1__",
@@ -257,7 +255,7 @@ local function handler_help_nodes()
     node:expand()
   end
 
-  return node
+  return { node }
 end
 
 ---@param handler Handler
@@ -423,18 +421,24 @@ function M.editor_nodes(editor, current_connection_id, refresh)
       name = "global notes",
       type = "note",
     }, editor_namespace_nodes(editor, "global", refresh)),
-    NuiTree.Node({
-      id = "__master_note_local__",
-      name = "local notes",
-      type = "note",
-    }, editor_namespace_nodes(editor, current_connection_id, refresh)),
   }
 
   if utils.once("editor_global_expand") then
     nodes[1]:expand()
   end
-  if utils.once("editor_local_expand") then
-    nodes[2]:expand()
+
+  if current_connection_id then
+    table.insert(
+      nodes,
+      NuiTree.Node({
+        id = "__master_note_local__",
+        name = "local notes",
+        type = "note",
+      }, editor_namespace_nodes(editor, current_connection_id, refresh))
+    )
+    if utils.once("editor_local_expand") then
+      nodes[2]:expand()
+    end
   end
 
   return nodes

@@ -153,8 +153,8 @@ end
 
 ---@return ConnectionParams?
 function Handler:get_current_connection()
-  local ret = vim.fn.DbeeGetCurrentConnection()
-  if ret == vim.NIL then
+  local ok, ret = pcall(vim.fn.DbeeGetCurrentConnection)
+  if not ok or ret == vim.NIL then
     return
   end
   return ret
