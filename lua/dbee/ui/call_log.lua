@@ -250,6 +250,10 @@ function CallLogTile:configure_preview(bufnr)
         string.format("timestamp:            %s", tostring(os.date("%c", (call.timestamp_us or 0) / 1000000))),
       }
 
+      if call.error and call.error ~= "" then
+        table.insert(call_summary, string.format("error:                %s", string.gsub(call.error, "\n", " ")))
+      end
+
       self.hover_close = common.float_hover(self.winid, call_summary)
     end,
   })

@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -37,15 +38,22 @@ type callPersistent struct {
 	State     string `json:"state"`
 	TimeTaken int64  `json:"time_taken_us"`
 	Timestamp int64  `json:"timestamp_us"`
+	Error     string `json:"error,omitempty"`
 }
 
-func (s *Call) toPersistent() *callPersistent {
+func (c *Call) toPersistent() *callPersistent {
+	errMsg := ""
+	if c.err != nil {
+		errMsg = c.err.Error()
+	}
+
 	return &callPersistent{
-		ID:        string(s.id),
-		Query:     s.query,
-		State:     s.state.String(),
-		TimeTaken: s.timeTaken.Microseconds(),
-		Timestamp: s.timestamp.UnixMicro(),
+		ID:        string(c.id),
+		Query:     c.query,
+		State:     c.state.String(),
+		TimeTaken: c.timeTaken.Microseconds(),
+		Timestamp: c.timestamp.UnixMicro(),
+		Error:     errMsg,
 	}
 }
 
@@ -53,7 +61,7 @@ func (s *Call) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.toPersistent())
 }
 
-func (s *Call) UnmarshalJSON(data []byte) error {
+func (c *Call) UnmarshalJSON(data []byte) error {
 	var alias callPersistent
 
 	if err := json.Unmarshal(data, &alias); err != nil {
@@ -69,16 +77,23 @@ func (s *Call) UnmarshalJSON(data []byte) error {
 		state = CallStateUnknown
 	}
 
-	*s = Call{
+	var callErr error
+	if alias.Error != "" {
+		callErr = errors.New(alias.Error)
+	}
+
+	*c = Call{
 		id:        CallID(alias.ID),
 		query:     alias.Query,
 		state:     state,
 		timeTaken: time.Duration(alias.TimeTaken) * time.Microsecond,
 		timestamp: time.UnixMicro(alias.Timestamp),
+		err:       callErr,
 
 		result:  new(Result),
 		archive: newArchive(CallID(alias.ID)),
-		done:    done,
+
+		done: done,
 	}
 
 	return nil
@@ -112,8 +127,9 @@ func newCallFromExecutor(executor func(context.Context) (ResultStream, error), q
 		iter, err := executor(ctx)
 		if err != nil {
 			c.timeTaken = time.Since(c.timestamp)
+			c.err = err
 			c.setState(CallStateExecutingFailed)
-			c.finish(err)
+			close(c.done)
 			return
 		}
 
@@ -121,8 +137,9 @@ func newCallFromExecutor(executor func(context.Context) (ResultStream, error), q
 		err = c.result.setIter(iter, func() { c.setState(CallStateRetrieving) })
 		if err != nil {
 			c.timeTaken = time.Since(c.timestamp)
+			c.err = err
 			c.setState(CallStateRetrievingFailed)
-			c.finish(err)
+			close(c.done)
 			return
 		}
 
@@ -130,14 +147,15 @@ func newCallFromExecutor(executor func(context.Context) (ResultStream, error), q
 		err = c.archive.setResult(c.result)
 		if err != nil {
 			c.timeTaken = time.Since(c.timestamp)
+			c.err = err
 			c.setState(CallStateArchiveFailed)
-			c.finish(err)
+			close(c.done)
 			return
 		}
 
 		c.timeTaken = time.Since(c.timestamp)
 		c.setState(CallStateArchived)
-		c.finish(nil)
+		close(c.done)
 	}()
 
 	return c
@@ -161,12 +179,6 @@ func (c *Call) GetTimeTaken() time.Duration {
 
 func (c *Call) GetTimestamp() time.Time {
 	return c.timestamp
-}
-
-// finish sets an error and closes the done chan.
-func (c *Call) finish(err error) {
-	c.err = err
-	close(c.done)
 }
 
 func (c *Call) Err() error {

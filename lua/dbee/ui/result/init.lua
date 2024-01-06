@@ -97,7 +97,7 @@ function ResultTile:apply_highlight(winid)
   local current_win = vim.api.nvim_get_current_win()
   vim.api.nvim_set_current_win(winid)
   -- match table separators and leading row numbers
-  vim.cmd([[match NonText /^\s*\d*\|─\|│\|┼/]])
+  vim.cmd([[match NonText /^\s*\d\+\|─\|│\|┼/]])
   vim.api.nvim_set_current_win(current_win)
 end
 
@@ -125,11 +125,19 @@ function ResultTile:display_status()
     msg = "Call canceled"
   end
 
-  vim.api.nvim_buf_set_option(self.bufnr, "modifiable", true)
-
   local seconds = self.current_call.time_taken_us / 1000000
-  local line = string.format("%s after %.3f seconds", msg, seconds)
-  vim.api.nvim_buf_set_lines(self.bufnr, 0, -1, false, { line })
+
+  local lines = {
+    string.format("%s after %.3f seconds", msg, seconds),
+  }
+
+  if self.current_call.error and self.current_call.error ~= "" then
+    table.insert(lines, "Reason:")
+    table.insert(lines, "    " .. string.gsub(self.current_call.error, "\n", " "))
+  end
+
+  vim.api.nvim_buf_set_option(self.bufnr, "modifiable", true)
+  vim.api.nvim_buf_set_lines(self.bufnr, 0, -1, false, lines)
 
   vim.api.nvim_buf_set_option(self.bufnr, "modifiable", false)
 
