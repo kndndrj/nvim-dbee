@@ -3,20 +3,21 @@ package handler
 import (
 	"fmt"
 
-	"github.com/kndndrj/nvim-dbee/dbee/core"
-	"github.com/kndndrj/nvim-dbee/dbee/vim"
 	"github.com/neovim/go-client/nvim"
+
+	"github.com/kndndrj/nvim-dbee/dbee/core"
+	"github.com/kndndrj/nvim-dbee/dbee/plugin"
 )
 
 type eventBus struct {
 	vim *nvim.Nvim
-	log *vim.Logger
+	log *plugin.Logger
 }
 
 func (eb *eventBus) callLua(event string, data string) {
 	err := eb.vim.ExecLua(fmt.Sprintf(`require("dbee.handler.__events").trigger(%q, %s)`, event, data), nil)
 	if err != nil {
-		eb.log.Debugf("eb.vim.ExecLua: %s", err)
+		eb.log.Infof("eb.vim.ExecLua: %s", err)
 	}
 }
 

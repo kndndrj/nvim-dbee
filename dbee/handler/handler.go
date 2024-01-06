@@ -14,14 +14,14 @@ import (
 	"github.com/kndndrj/nvim-dbee/dbee/adapters"
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"github.com/kndndrj/nvim-dbee/dbee/core/format"
-	"github.com/kndndrj/nvim-dbee/dbee/vim"
+	"github.com/kndndrj/nvim-dbee/dbee/plugin"
 )
 
 const callLogFileName = "/tmp/dbee-calllog.json"
 
 type Handler struct {
 	vim    *nvim.Nvim
-	log    *vim.Logger
+	log    *plugin.Logger
 	events *eventBus
 
 	lookupConnection     map[core.ConnectionID]*core.Connection
@@ -31,7 +31,7 @@ type Handler struct {
 	currentConnectionID core.ConnectionID
 }
 
-func New(vim *nvim.Nvim, logger *vim.Logger) *Handler {
+func New(vim *nvim.Nvim, logger *plugin.Logger) *Handler {
 	h := &Handler{
 		vim: vim,
 		log: logger,
@@ -49,7 +49,7 @@ func New(vim *nvim.Nvim, logger *vim.Logger) *Handler {
 	go func() {
 		err := h.restoreCallLog()
 		if err != nil {
-			h.log.Debugf("h.restoreCallLog: %s", err)
+			h.log.Infof("h.restoreCallLog: %s", err)
 		}
 	}()
 
@@ -68,7 +68,7 @@ func (h *Handler) Close() {
 	// store call log
 	err := h.storeCallLog()
 	if err != nil {
-		h.log.Debugf("h.storeCallLog: %s", err)
+		h.log.Infof("h.storeCallLog: %s", err)
 	}
 
 	// close connections

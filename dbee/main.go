@@ -11,7 +11,6 @@ import (
 
 	"github.com/kndndrj/nvim-dbee/dbee/handler"
 	"github.com/kndndrj/nvim-dbee/dbee/plugin"
-	"github.com/kndndrj/nvim-dbee/dbee/vim"
 )
 
 func main() {
@@ -45,7 +44,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	logger := vim.NewLogger(v)
+	logger := plugin.NewLogger(v)
 
 	p := plugin.New(v, logger)
 

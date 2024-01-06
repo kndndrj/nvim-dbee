@@ -88,7 +88,7 @@ func (cw *connectionWrap) MarshalMsgPack(enc *msgpack.Encoder) error {
 	})
 }
 
-// connectionWrap is wrapper around core.ConnectionParams with msgpack marshaling capabilities
+// connectionParamsWrap is wrapper around core.ConnectionParams with msgpack marshaling capabilities
 type connectionParamsWrap struct {
 	params *core.ConnectionParams
 }

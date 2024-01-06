@@ -3,7 +3,6 @@ package builders
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"strings"
 
 	"github.com/kndndrj/nvim-dbee/dbee/core"
@@ -82,28 +81,13 @@ func (c *Conn) Exec(ctx context.Context, query string) (*ResultStream, error) {
 		return nil, err
 	}
 
-	// create new rows
-	first := true
-
-	nextFn := func() (core.Row, error) {
-		if !first {
-			return nil, errors.New("no next row")
-		}
-		first = false
-
-		affected, err := res.RowsAffected()
-		if err != nil {
-			return nil, err
-		}
-		return core.Row{affected}, nil
-	}
-
-	hasNextFn := func() bool {
-		return !first
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return nil, err
 	}
 
 	rows := NewResultStreamBuilder().
-		WithNextFunc(nextFn, hasNextFn).
+		WithNextFunc(NextSingle(affected)).
 		WithHeader(core.Header{"Rows Affected"}).
 		Build()
 
