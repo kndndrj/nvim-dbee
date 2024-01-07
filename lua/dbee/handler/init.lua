@@ -187,6 +187,17 @@ function Handler:connection_get_structure(id)
 end
 
 ---@param id connection_id
+---@param opts { table: string, schema: string, materialization: string }
+function Handler:connection_get_columns(id, opts)
+  local out = vim.fn.DbeeConnectionGetColumns(id, opts)
+  if not out or out == vim.NIL then
+    return {}
+  end
+
+  return out
+end
+
+---@param id connection_id
 ---@return ConnectionParams?
 function Handler:connection_get_params(id)
   local ret = vim.fn.DbeeConnectionGetParams(id)

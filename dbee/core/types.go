@@ -88,7 +88,7 @@ type Structure struct {
 
 type Columns struct {
 	// Column name
-	Name string
-	// Data type
-	Type string
+	Name string `msgpack:"name"`
+	// Data type msgpack
+	Type string `msgpack:"type"`
 }
