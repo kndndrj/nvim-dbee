@@ -41,6 +41,11 @@ func (c *mongoDriver) getCurrentDatabase(ctx context.Context) (string, error) {
 	return c.dbName, nil
 }
 
+// TODO(ms):
+func (c *mongoDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+	return nil, nil
+}
+
 func (c *mongoDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	dbName, err := c.getCurrentDatabase(ctx)
 	if err != nil {

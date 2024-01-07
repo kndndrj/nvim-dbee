@@ -44,6 +44,11 @@ func (c *mySQLDriver) Query(ctx context.Context, query string) (core.ResultStrea
 	return rows, err
 }
 
+// TODO(ms):
+func (c *mySQLDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+	return nil, nil
+}
+
 func (c *mySQLDriver) Structure() ([]*core.Structure, error) {
 	query := `SELECT table_schema, table_name FROM information_schema.tables`
 

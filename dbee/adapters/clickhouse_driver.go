@@ -49,6 +49,11 @@ func (c *clickhouseDriver) Query(ctx context.Context, query string) (core.Result
 	return rows, err
 }
 
+// TODO(ms):
+func (c *clickhouseDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+	return nil, nil
+}
+
 func (c *clickhouseDriver) Structure() ([]*core.Structure, error) {
 	query := `
         SELECT

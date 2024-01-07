@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
@@ -43,6 +44,51 @@ func (c *redshiftDriver) Query(ctx context.Context, query string) (core.ResultSt
 func (c *redshiftDriver) Close() {
 	// TODO: perhaps worth check err return statement here.
 	c.c.Close()
+}
+
+func (c *redshiftDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+	query := fmt.Sprintf(`
+	SELECT *
+	FROM information_schema.columns
+	WHERE table_name='%s'
+	AND table_schema='%s';
+	`, opts.Table, opts.Schema)
+
+	result, err := c.Query(context.TODO(), query)
+	if err != nil {
+		return nil, err
+	}
+
+	var column_index int
+	var dtype_index int
+
+	for i, header := range result.Header() {
+		i := i
+		switch header {
+		case "column_name":
+			column_index = i
+		case "data_type":
+			dtype_index = i
+		}
+	}
+
+	var out []*core.Columns
+
+	for result.HasNext() {
+		row, err := result.Next()
+		if err != nil {
+			return nil, fmt.Errorf("result.Next: %w", err)
+		}
+
+		column := &core.Columns{
+			Name: row[column_index].(string),
+			Type: row[dtype_index].(string),
+		}
+
+		out = append(out, column)
+	}
+
+	return out, nil
 }
 
 // Structure returns the layout of the database. This represents the

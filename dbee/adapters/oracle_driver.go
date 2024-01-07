@@ -55,6 +55,11 @@ func (c *oracleDriver) Query(ctx context.Context, query string) (core.ResultStre
 	return rows, nil
 }
 
+// TODO(ms):
+func (c *oracleDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+	return nil, nil
+}
+
 func (c *oracleDriver) Structure() ([]*core.Structure, error) {
 	query := `
 		SELECT T.owner, T.table_name

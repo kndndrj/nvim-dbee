@@ -62,6 +62,11 @@ func (c *postgresDriver) Query(ctx context.Context, query string) (core.ResultSt
 	return rows, nil
 }
 
+// TODO(ms):
+func (c *postgresDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+	return nil, nil
+}
+
 func (c *postgresDriver) Structure() ([]*core.Structure, error) {
 	query := `
 		SELECT table_schema, table_name, table_type FROM information_schema.tables UNION ALL

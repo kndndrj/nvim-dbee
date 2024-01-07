@@ -44,6 +44,11 @@ func (c *sqliteDriver) Query(ctx context.Context, query string) (core.ResultStre
 	return rows, err
 }
 
+// TODO(ms):
+func (c *sqliteDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+	return nil, nil
+}
+
 func (c *sqliteDriver) Structure() ([]*core.Structure, error) {
 	query := `SELECT name FROM sqlite_schema WHERE type ='table'`
 

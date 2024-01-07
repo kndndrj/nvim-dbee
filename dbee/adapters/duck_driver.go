@@ -35,6 +35,11 @@ func (c *duckDriver) Query(ctx context.Context, query string) (core.ResultStream
 	return rows, nil
 }
 
+// TODO(ms):
+func (c *duckDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+	return nil, nil
+}
+
 func (c *duckDriver) Structure() ([]*core.Structure, error) {
 	query := `SHOW TABLES;`
 

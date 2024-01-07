@@ -74,6 +74,11 @@ func (c *bigQueryDriver) Query(ctx context.Context, queryStr string) (core.Resul
 	return result, nil
 }
 
+// TODO(ms):
+func (c *bigQueryDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+	return nil, nil
+}
+
 func (c *bigQueryDriver) Structure() (layouts []*core.Structure, err error) {
 	ctx := context.TODO()
 
