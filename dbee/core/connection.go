@@ -31,6 +31,7 @@ type (
 	Driver interface {
 		Query(context.Context, string) (ResultStream, error)
 		Structure() ([]*Structure, error)
+		Columns(opts *HelperOptions) ([]*Columns, error)
 		Close()
 	}
 
@@ -135,6 +136,14 @@ func (c *Connection) ListDatabases() (current string, available []string, err er
 	}
 
 	return currentDB, availableDBs, nil
+}
+
+func (c *Connection) GetColumns(opts *HelperOptions) ([]*Columns, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("opts cannot be nil")
+	}
+
+	return c.driver.Columns(opts)
 }
 
 func (c *Connection) GetStructure() ([]*Structure, error) {

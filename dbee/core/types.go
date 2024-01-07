@@ -85,3 +85,10 @@ type Structure struct {
 	// Children layout nodes
 	Children []*Structure
 }
+
+type Columns struct {
+	// Column name
+	Name string
+	// Data type
+	Type string
+}

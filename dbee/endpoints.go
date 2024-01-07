@@ -122,6 +122,22 @@ func mountEndpoints(p *plugin.Plugin, h *handler.Handler) {
 			return handler.WrapStructures(str), err
 		})
 
+	p.RegisterEndpoint("DbeeConnectionGetColumns", func(args *struct {
+		ID   core.ConnectionID `msgpack:",array"`
+		Opts *struct {
+			Table           string `msgpack:"table"`
+			Schema          string `msgpack:"schema"`
+			Materialization string `msgpack:"materialization"`
+		}
+	},
+	) (any, error) {
+		return h.ConnectionGetColumns(args.ID, &core.HelperOptions{
+			Table:           args.Opts.Table,
+			Schema:          args.Opts.Schema,
+			Materialization: core.StructureTypeFromString(args.Opts.Materialization),
+		})
+	})
+
 	p.RegisterEndpoint(
 		"DbeeConnectionListDatabases",
 		func(args *struct {

@@ -216,6 +216,25 @@ func (h *Handler) ConnectionGetStructure(connID core.ConnectionID) ([]*core.Stru
 	return layout, nil
 }
 
+func (h *Handler) ConnectionGetColumns(connID core.ConnectionID, opts *core.HelperOptions) ([]*core.Columns, error) {
+	c, ok := h.lookupConnection[connID]
+	if !ok {
+		return nil, fmt.Errorf("unknown connection with id: %q", connID)
+	}
+
+	// for now, we only support table materialization
+	if opts.Materialization != core.StructureTypeTable {
+		opts.Materialization = core.StructureTypeTable
+	}
+
+	columns, err := c.GetColumns(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return columns, nil
+}
+
 func (h *Handler) ConnectionListDatabases(connID core.ConnectionID) (current string, available []string, err error) {
 	c, ok := h.lookupConnection[connID]
 	if !ok {
