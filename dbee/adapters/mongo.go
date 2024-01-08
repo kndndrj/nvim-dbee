@@ -62,7 +62,7 @@ func (m *Mongo) Connect(rawURL string) (core.Driver, error) {
 	}, nil
 }
 
-func (*Mongo) GetHelpers(opts *core.HelperOptions) map[string]string {
+func (*Mongo) GetHelpers(opts *core.TableOptions) map[string]string {
 	return map[string]string{
 		"List": fmt.Sprintf(`{"find": %q}`, opts.Table),
 	}

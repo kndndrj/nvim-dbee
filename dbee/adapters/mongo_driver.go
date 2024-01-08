@@ -42,7 +42,7 @@ func (c *mongoDriver) getCurrentDatabase(ctx context.Context) (string, error) {
 }
 
 // TODO(ms):
-func (c *mongoDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+func (c *mongoDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
 	return nil, nil
 }
 

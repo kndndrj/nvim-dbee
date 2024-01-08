@@ -83,7 +83,7 @@ func (cr *Result) Format(formatter Formatter, from, to int) ([]byte, error) {
 		return nil, fmt.Errorf("cr.Rows: %w", err)
 	}
 
-	opts := &FormatterOpts{
+	opts := &FormatterOptions{
 		SchemaType: cr.meta.SchemaType,
 		ChunkStart: fromAdjusted,
 	}

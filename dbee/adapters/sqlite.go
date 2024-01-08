@@ -55,7 +55,7 @@ func (s *SQLite) Connect(url string) (core.Driver, error) {
 	}, nil
 }
 
-func (*SQLite) GetHelpers(opts *core.HelperOptions) map[string]string {
+func (*SQLite) GetHelpers(opts *core.TableOptions) map[string]string {
 	return map[string]string{
 		"List":         fmt.Sprintf("SELECT * FROM %q LIMIT 500", opts.Table),
 		"Indexes":      fmt.Sprintf("SELECT * FROM pragma_index_list('%s')", opts.Table),

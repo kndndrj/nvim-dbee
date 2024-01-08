@@ -45,7 +45,7 @@ func (c *mySQLDriver) Query(ctx context.Context, query string) (core.ResultStrea
 }
 
 // TODO(ms):
-func (c *mySQLDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+func (c *mySQLDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
 	return nil, nil
 }
 

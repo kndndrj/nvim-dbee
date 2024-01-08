@@ -45,7 +45,7 @@ func (c *sqliteDriver) Query(ctx context.Context, query string) (core.ResultStre
 }
 
 // TODO(ms):
-func (c *sqliteDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+func (c *sqliteDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
 	return nil, nil
 }
 

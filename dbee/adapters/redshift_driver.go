@@ -2,7 +2,10 @@ package adapters
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
+	_ "github.com/lib/pq"
 
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
@@ -46,12 +49,12 @@ func (c *redshiftDriver) Close() {
 	c.c.Close()
 }
 
-func (c *redshiftDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+func (c *redshiftDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
 	query := fmt.Sprintf(`
-	SELECT *
-	FROM information_schema.columns
-	WHERE table_name='%s'
-	AND table_schema='%s';
+		SELECT column_name, data_type
+		FROM information_schema.columns
+		WHERE table_name='%s'
+		AND table_schema='%s';
 	`, opts.Table, opts.Schema)
 
 	result, err := c.Query(context.TODO(), query)
@@ -59,20 +62,7 @@ func (c *redshiftDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, err
 		return nil, err
 	}
 
-	var column_index int
-	var dtype_index int
-
-	for i, header := range result.Header() {
-		i := i
-		switch header {
-		case "column_name":
-			column_index = i
-		case "data_type":
-			dtype_index = i
-		}
-	}
-
-	var out []*core.Columns
+	var out []*core.Column
 
 	for result.HasNext() {
 		row, err := result.Next()
@@ -80,9 +70,23 @@ func (c *redshiftDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, err
 			return nil, fmt.Errorf("result.Next: %w", err)
 		}
 
-		column := &core.Columns{
-			Name: row[column_index].(string),
-			Type: row[dtype_index].(string),
+		if len(row) < 2 {
+			return nil, errors.New("could not retrieve column info: insufficient data")
+		}
+
+		name, ok := row[0].(string)
+		if !ok {
+			return nil, errors.New("could not retrieve column info: name not a string")
+		}
+
+		typ, ok := row[1].(string)
+		if !ok {
+			return nil, errors.New("could not retrieve column info: type not a string")
+		}
+
+		column := &core.Column{
+			Name: name,
+			Type: typ,
 		}
 
 		out = append(out, column)

@@ -52,7 +52,7 @@ func (c *sqlServerDriver) Query(ctx context.Context, query string) (core.ResultS
 }
 
 // TODO(ms):
-func (c *sqlServerDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+func (c *sqlServerDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
 	return nil, nil
 }
 

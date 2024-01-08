@@ -56,7 +56,7 @@ func (c *redisDriver) Query(ctx context.Context, query string) (core.ResultStrea
 }
 
 // TODO(ms):
-func (c *redisDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+func (c *redisDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
 	return nil, nil
 }
 

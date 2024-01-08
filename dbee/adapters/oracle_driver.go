@@ -56,7 +56,7 @@ func (c *oracleDriver) Query(ctx context.Context, query string) (core.ResultStre
 }
 
 // TODO(ms):
-func (c *oracleDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+func (c *oracleDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
 	return nil, nil
 }
 

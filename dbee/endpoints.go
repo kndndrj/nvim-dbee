@@ -58,7 +58,7 @@ func mountEndpoints(p *plugin.Plugin, h *handler.Handler) {
 			}
 		},
 		) (any, error) {
-			return h.ConnectionGetHelpers(core.ConnectionID(args.ID), &core.HelperOptions{
+			return h.ConnectionGetHelpers(core.ConnectionID(args.ID), &core.TableOptions{
 				Table:           args.Opts.Table,
 				Schema:          args.Opts.Schema,
 				Materialization: core.StructureTypeFromString(args.Opts.Materialization),
@@ -131,11 +131,12 @@ func mountEndpoints(p *plugin.Plugin, h *handler.Handler) {
 		}
 	},
 	) (any, error) {
-		return h.ConnectionGetColumns(args.ID, &core.HelperOptions{
+		cols, err := h.ConnectionGetColumns(args.ID, &core.TableOptions{
 			Table:           args.Opts.Table,
 			Schema:          args.Opts.Schema,
 			Materialization: core.StructureTypeFromString(args.Opts.Materialization),
 		})
+		return handler.WrapColumns(cols), err
 	})
 
 	p.RegisterEndpoint(

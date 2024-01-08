@@ -111,7 +111,7 @@ func (h *Handler) AddHelpers(typ string, helpers map[string]string) error {
 	return new(adapters.Mux).AddHelpers(typ, helpers)
 }
 
-func (h *Handler) ConnectionGetHelpers(connID core.ConnectionID, opts *core.HelperOptions) (map[string]string, error) {
+func (h *Handler) ConnectionGetHelpers(connID core.ConnectionID, opts *core.TableOptions) (map[string]string, error) {
 	c, ok := h.lookupConnection[connID]
 	if !ok {
 		return nil, fmt.Errorf("unknown connection with id: %q", connID)
@@ -216,15 +216,10 @@ func (h *Handler) ConnectionGetStructure(connID core.ConnectionID) ([]*core.Stru
 	return layout, nil
 }
 
-func (h *Handler) ConnectionGetColumns(connID core.ConnectionID, opts *core.HelperOptions) ([]*core.Columns, error) {
+func (h *Handler) ConnectionGetColumns(connID core.ConnectionID, opts *core.TableOptions) ([]*core.Column, error) {
 	c, ok := h.lookupConnection[connID]
 	if !ok {
 		return nil, fmt.Errorf("unknown connection with id: %q", connID)
-	}
-
-	// for now, we only support table materialization
-	if opts.Materialization != core.StructureTypeTable {
-		opts.Materialization = core.StructureTypeTable
 	}
 
 	columns, err := c.GetColumns(opts)

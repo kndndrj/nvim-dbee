@@ -75,7 +75,7 @@ func (c *bigQueryDriver) Query(ctx context.Context, queryStr string) (core.Resul
 }
 
 // TODO(ms):
-func (c *bigQueryDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+func (c *bigQueryDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
 	return nil, nil
 }
 

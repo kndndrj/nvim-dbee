@@ -35,7 +35,7 @@ func (r *Redshift) Connect(rawURL string) (core.Driver, error) {
 	}, nil
 }
 
-func (*Redshift) GetHelpers(opts *core.HelperOptions) map[string]string {
+func (*Redshift) GetHelpers(opts *core.TableOptions) map[string]string {
 	list := fmt.Sprintf("SELECT * FROM %q.%q LIMIT 500;", opts.Schema, opts.Table)
 
 	switch opts.Materialization {

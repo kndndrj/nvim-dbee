@@ -36,7 +36,7 @@ func (c *duckDriver) Query(ctx context.Context, query string) (core.ResultStream
 }
 
 // TODO(ms):
-func (c *duckDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+func (c *duckDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
 	return nil, nil
 }
 

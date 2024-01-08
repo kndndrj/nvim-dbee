@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/gob"
 	"encoding/json"
+	"errors"
 	"fmt"
 	nurl "net/url"
 	"strings"
@@ -63,8 +64,13 @@ func (c *postgresDriver) Query(ctx context.Context, query string) (core.ResultSt
 }
 
 // TODO(ms):
-func (c *postgresDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
-	return nil, nil
+func (c *postgresDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
+	return []*core.Column{
+		{
+			Name: "col1",
+			Type: "typ1",
+		},
+	}, nil
 }
 
 func (c *postgresDriver) Structure() ([]*core.Structure, error) {
@@ -132,6 +138,9 @@ func getPGStructure(rows core.ResultStream) ([]*core.Structure, error) {
 		row, err := rows.Next()
 		if err != nil {
 			return nil, err
+		}
+		if len(row) < 3 {
+			return nil, errors.New("could not retrieve structure: insufficient info")
 		}
 
 		schema, table, tableType := row[0].(string), row[1].(string), row[2].(string)

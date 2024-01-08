@@ -10,15 +10,15 @@ const (
 )
 
 type (
-	// FormatterOpts provide various options for formatters
-	FormatterOpts struct {
+	// FormatterOptions provide various options for formatters
+	FormatterOptions struct {
 		SchemaType SchemaType
 		ChunkStart int
 	}
 
 	// Formatter converts header and rows to bytes
 	Formatter interface {
-		Format(header Header, rows []Row, opts *FormatterOpts) ([]byte, error)
+		Format(header Header, rows []Row, opts *FormatterOptions) ([]byte, error)
 	}
 )
 
@@ -86,9 +86,9 @@ type Structure struct {
 	Children []*Structure
 }
 
-type Columns struct {
+type Column struct {
 	// Column name
-	Name string `msgpack:"name"`
-	// Data type msgpack
-	Type string `msgpack:"type"`
+	Name string
+	// Database data type
+	Type string
 }

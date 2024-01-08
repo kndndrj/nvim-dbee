@@ -95,7 +95,7 @@ func (wa *wrappedAdapter) Connect(url string) (core.Driver, error) {
 	return wa.adapter.Connect(url)
 }
 
-func (wa *wrappedAdapter) GetHelpers(opts *core.HelperOptions) map[string]string {
+func (wa *wrappedAdapter) GetHelpers(opts *core.TableOptions) map[string]string {
 	helpers := wa.adapter.GetHelpers(opts)
 	if helpers == nil {
 		helpers = make(map[string]string)

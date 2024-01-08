@@ -50,7 +50,7 @@ func (c *clickhouseDriver) Query(ctx context.Context, query string) (core.Result
 }
 
 // TODO(ms):
-func (c *clickhouseDriver) Columns(opts *core.HelperOptions) ([]*core.Columns, error) {
+func (c *clickhouseDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
 	return nil, nil
 }
 
