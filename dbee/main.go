@@ -22,7 +22,7 @@ func main() {
 	if *getVersion {
 		info, ok := debug.ReadBuildInfo()
 		if !ok {
-			fmt.Println("Build info not found")
+			fmt.Println("unknown")
 			os.Exit(1)
 		}
 		for _, inf := range info.Settings {
@@ -31,7 +31,7 @@ func main() {
 				return
 			}
 		}
-		fmt.Println("could not determine version of binary")
+		fmt.Println("unknown")
 		os.Exit(1)
 	}
 
