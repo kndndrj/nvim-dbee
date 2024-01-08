@@ -55,9 +55,21 @@ func (c *oracleDriver) Query(ctx context.Context, query string) (core.ResultStre
 	return rows, nil
 }
 
-// TODO(ms):
 func (c *oracleDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	return nil, nil
+	return c.c.ColumnsFromQuery(`
+		SELECT
+			col.column_name,
+			col.data_type
+		FROM sys.all_tab_columns col
+		INNER JOIN sys.all_tables t
+			ON col.owner = t.owner
+			AND col.table_name = t.table_name
+		WHERE col.owner = '%s'
+			AND col.table_name = '%s'
+		ORDER BY col.owner, col.table_name, col.column_id `,
+
+		opts.Schema,
+		opts.Table)
 }
 
 func (c *oracleDriver) Structure() ([]*core.Structure, error) {

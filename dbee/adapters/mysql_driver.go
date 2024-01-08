@@ -10,11 +10,11 @@ import (
 var _ core.Driver = (*mySQLDriver)(nil)
 
 type mySQLDriver struct {
-	sql *builders.Client
+	c *builders.Client
 }
 
 func (c *mySQLDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
-	con, err := c.sql.Conn(ctx)
+	con, err := c.c.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -44,9 +44,8 @@ func (c *mySQLDriver) Query(ctx context.Context, query string) (core.ResultStrea
 	return rows, err
 }
 
-// TODO(ms):
 func (c *mySQLDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	return nil, nil
+	return c.c.ColumnsFromQuery("DESCRIBE `%s`", opts.Table)
 }
 
 func (c *mySQLDriver) Structure() ([]*core.Structure, error) {
@@ -92,5 +91,5 @@ func (c *mySQLDriver) Structure() ([]*core.Structure, error) {
 }
 
 func (c *mySQLDriver) Close() {
-	c.sql.Close()
+	c.c.Close()
 }

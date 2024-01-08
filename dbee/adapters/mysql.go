@@ -37,7 +37,7 @@ func (m *MySQL) Connect(url string) (core.Driver, error) {
 	}
 
 	return &mySQLDriver{
-		sql: builders.NewClient(db),
+		c: builders.NewClient(db),
 	}, nil
 }
 

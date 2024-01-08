@@ -49,9 +49,14 @@ func (c *clickhouseDriver) Query(ctx context.Context, query string) (core.Result
 	return rows, err
 }
 
-// TODO(ms):
 func (c *clickhouseDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	return nil, nil
+	return c.c.ColumnsFromQuery(`
+		SELECT name, type
+		FROM system.columns
+		WHERE
+			database='%s' AND
+			table='%s'
+		`, opts.Schema, opts.Table)
 }
 
 func (c *clickhouseDriver) Structure() ([]*core.Structure, error) {

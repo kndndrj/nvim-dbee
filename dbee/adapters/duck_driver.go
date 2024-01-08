@@ -35,9 +35,8 @@ func (c *duckDriver) Query(ctx context.Context, query string) (core.ResultStream
 	return rows, nil
 }
 
-// TODO(ms):
 func (c *duckDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	return nil, nil
+	return c.c.ColumnsFromQuery("DESCRIBE %q", opts.Table)
 }
 
 func (c *duckDriver) Structure() ([]*core.Structure, error) {

@@ -55,9 +55,13 @@ func (c *redisDriver) Query(ctx context.Context, query string) (core.ResultStrea
 	return result, err
 }
 
-// TODO(ms):
 func (c *redisDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	return nil, nil
+	return []*core.Column{
+		{
+			Name: opts.Table,
+			Type: "redis",
+		},
+	}, nil
 }
 
 func (c *redisDriver) Structure() ([]*core.Structure, error) {

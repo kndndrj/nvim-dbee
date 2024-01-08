@@ -51,9 +51,17 @@ func (c *sqlServerDriver) Query(ctx context.Context, query string) (core.ResultS
 	return rows, err
 }
 
-// TODO(ms):
 func (c *sqlServerDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	return nil, nil
+	return c.c.ColumnsFromQuery(`
+		SELECT
+			column_name,
+			data_type
+		FROM information_schema.columns
+			WHERE table_name='%s' AND
+			table_schema = '%s'`,
+		opts.Table,
+		opts.Schema,
+	)
 }
 
 func (c *sqlServerDriver) Structure() ([]*core.Structure, error) {

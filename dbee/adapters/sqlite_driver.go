@@ -44,9 +44,8 @@ func (c *sqliteDriver) Query(ctx context.Context, query string) (core.ResultStre
 	return rows, err
 }
 
-// TODO(ms):
 func (c *sqliteDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	return nil, nil
+	return c.c.ColumnsFromQuery("SELECT name, type FROM pragma_table_info('%s')", opts.Table)
 }
 
 func (c *sqliteDriver) Structure() ([]*core.Structure, error) {

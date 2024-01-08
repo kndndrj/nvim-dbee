@@ -74,9 +74,15 @@ func (c *bigQueryDriver) Query(ctx context.Context, queryStr string) (core.Resul
 	return result, nil
 }
 
-// TODO(ms):
 func (c *bigQueryDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	return nil, nil
+	query := fmt.Sprintf("SELECT * FROM `%s.INFORMATION_SCHEMA.COLUMNS` WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s'", opts.Schema, opts.Schema, opts.Table)
+
+	result, err := c.Query(context.Background(), query)
+	if err != nil {
+		return nil, err
+	}
+
+	return builders.ColumnsFromResultStream(result)
 }
 
 func (c *bigQueryDriver) Structure() (layouts []*core.Structure, err error) {

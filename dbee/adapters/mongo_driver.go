@@ -41,9 +41,13 @@ func (c *mongoDriver) getCurrentDatabase(ctx context.Context) (string, error) {
 	return c.dbName, nil
 }
 
-// TODO(ms):
 func (c *mongoDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	return nil, nil
+	return []*core.Column{
+		{
+			Name: opts.Table,
+			Type: "collection",
+		},
+	}, nil
 }
 
 func (c *mongoDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {

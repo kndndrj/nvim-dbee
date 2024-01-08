@@ -63,14 +63,14 @@ func (c *postgresDriver) Query(ctx context.Context, query string) (core.ResultSt
 	return rows, nil
 }
 
-// TODO(ms):
 func (c *postgresDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	return []*core.Column{
-		{
-			Name: "col1",
-			Type: "typ1",
-		},
-	}, nil
+	return c.c.ColumnsFromQuery(`
+		SELECT column_name, data_type
+		FROM information_schema.columns
+		WHERE
+			table_schema='%s' AND
+			table_name='%s'
+		`, opts.Schema, opts.Table)
 }
 
 func (c *postgresDriver) Structure() ([]*core.Structure, error) {

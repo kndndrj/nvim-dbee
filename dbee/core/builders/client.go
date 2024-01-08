@@ -3,6 +3,7 @@ package builders
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"strings"
 
 	"github.com/kndndrj/nvim-dbee/dbee/core"
@@ -14,26 +15,7 @@ type Client struct {
 	typeProcessors map[string]func(any) any
 }
 
-type clientConfig struct {
-	typeProcessors map[string]func(any) any
-}
-
-type clientOption func(*clientConfig)
-
-func WithCustomTypeProcessor(typ string, fn func(any) any) clientOption {
-	return func(cc *clientConfig) {
-		t := strings.ToLower(typ)
-		_, ok := cc.typeProcessors[t]
-		if ok {
-			// processor already registered for this type
-			return
-		}
-
-		cc.typeProcessors[t] = fn
-	}
-}
-
-func NewClient(db *sql.DB, opts ...clientOption) *Client {
+func NewClient(db *sql.DB, opts ...ClientOption) *Client {
 	config := clientConfig{
 		typeProcessors: make(map[string]func(any) any),
 	}
@@ -56,6 +38,28 @@ func (c *Client) Conn(ctx context.Context) (*Conn, error) {
 	}, err
 }
 
+// ColumnsFromQuery executes a given query on a new connection and
+// converts the results to columns. A query should return a result that is
+// at least 2 columns wide and have the following structure:
+//
+//	1st elem: name - string
+//	2nd elem: type - string
+//
+// Query is sprintf-ed with args, so ColumnsFromQuery("select a from %s", "table_name") works.
+func (c *Client) ColumnsFromQuery(query string, args ...any) ([]*core.Column, error) {
+	conn, err := c.Conn(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := conn.Query(context.Background(), fmt.Sprintf(query, args...))
+	if err != nil {
+		return nil, err
+	}
+
+	return ColumnsFromResultStream(result)
+}
+
 func (c *Client) Close() {
 	c.db.Close()
 }
@@ -75,6 +79,7 @@ func (c *Conn) Close() error {
 	return c.conn.Close()
 }
 
+// Exec executes a query and returns a stream with single row (number of affected results).
 func (c *Conn) Exec(ctx context.Context, query string) (*ResultStream, error) {
 	res, err := c.conn.ExecContext(ctx, query)
 	if err != nil {
@@ -109,6 +114,7 @@ func (c *Conn) getTypeProcessor(typ string) func(any) any {
 	}
 }
 
+// Query executes a query on a connection and returns a result stream.
 func (c *Conn) Query(ctx context.Context, query string) (*ResultStream, error) {
 	dbRows, err := c.conn.QueryContext(ctx, query)
 	if err != nil {

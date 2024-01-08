@@ -2,8 +2,6 @@ package adapters
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	_ "github.com/lib/pq"
 
@@ -50,49 +48,13 @@ func (c *redshiftDriver) Close() {
 }
 
 func (c *redshiftDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	query := fmt.Sprintf(`
+	return c.c.ColumnsFromQuery(`
 		SELECT column_name, data_type
 		FROM information_schema.columns
-		WHERE table_name='%s'
-		AND table_schema='%s';
-	`, opts.Table, opts.Schema)
-
-	result, err := c.Query(context.TODO(), query)
-	if err != nil {
-		return nil, err
-	}
-
-	var out []*core.Column
-
-	for result.HasNext() {
-		row, err := result.Next()
-		if err != nil {
-			return nil, fmt.Errorf("result.Next: %w", err)
-		}
-
-		if len(row) < 2 {
-			return nil, errors.New("could not retrieve column info: insufficient data")
-		}
-
-		name, ok := row[0].(string)
-		if !ok {
-			return nil, errors.New("could not retrieve column info: name not a string")
-		}
-
-		typ, ok := row[1].(string)
-		if !ok {
-			return nil, errors.New("could not retrieve column info: type not a string")
-		}
-
-		column := &core.Column{
-			Name: name,
-			Type: typ,
-		}
-
-		out = append(out, column)
-	}
-
-	return out, nil
+		WHERE
+			table_schema='%s' AND
+			table_name='%s'
+		`, opts.Schema, opts.Table)
 }
 
 // Structure returns the layout of the database. This represents the
