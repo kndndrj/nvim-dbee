@@ -172,14 +172,15 @@ Overview of types used in DBee API.
 
 ------------------------------------------------------------------------------
 
-                                                        *dbee.ref.types.helpers*
-Helper (predefined query) related types.
+                                                          *dbee.ref.types.table*
+Table related types
 
-table_helpers                                                    *table_helpers*
-    Table helpers queries by name.
+Column                                                                  *Column*
+    Table column
 
-    Type: ~
-        table<string,string>
+    Fields: ~
+        {name}  (string)  name of the column
+        {type}  (string)  database type of the column
 
 
 materialization                                                *materialization*
@@ -190,13 +191,20 @@ materialization                                                *materialization*
         ("view")
 
 
-HelperOpts                                                          *HelperOpts*
-    Options for expanding helper queries.
+TableOpts                                                            *TableOpts*
+    Options for gathering table specific info.
 
     Fields: ~
         {table}            (string)
         {schema}           (string)
         {materialization}  (materialization)
+
+
+table_helpers                                                    *table_helpers*
+    Table helpers queries by name.
+
+    Type: ~
+        table<string,string>
 
 
 ------------------------------------------------------------------------------
@@ -537,7 +545,7 @@ core.connection_get_helpers({id}, {opts})
 
     Parameters: ~
         {id}    (connection_id)
-        {opts}  (HelperOpts)
+        {opts}  (TableOpts)
 
     Returns: ~
         (table<string,string>)  list of table helpers
@@ -579,6 +587,18 @@ core.connection_get_structure({id})              *core.connection_get_structure*
 
     Returns: ~
         (DBStructure[])
+
+
+                                                   *core.connection_get_columns*
+core.connection_get_columns({id}, {opts})
+    Get columns of a table
+
+    Parameters: ~
+        {id}    (connection_id)
+        {opts}  ({table:string,schema:string,materialization:string})
+
+    Returns: ~
+        (Column[])
 
 
 core.connection_get_params({id})                    *core.connection_get_params*
