@@ -12,8 +12,15 @@ local tools = require("dbee.layouts.tools")
 ---Layout UIs that are passed to ̏|Layout| open method.
 ---@alias layout_uis { drawer: DrawerUI, editor: EditorUI, result: ResultUI, call_log: CallLogUI }
 
+-- Opts optional options passed to layout constructor.
+---@class Opts
+---@field drawer_width number drawer width in columns
+---@field result_height number result window height in lines
+---@field call_log_height number call log window height in lines
+
 -- Layout that defines how windows are opened.
 ---@class Layout
+---@field opts Opts optional options passed to layout constructor.
 ---@field open fun(self: Layout, uis: layout_uis) function to open ui.
 ---@field close fun(self: Layout) function to close ui.
 
@@ -30,11 +37,14 @@ local layouts = {}
 layouts.Default = {}
 
 ---Create a default layout.
+---
+---@param opts Opts
 ---@return Layout
-function layouts.Default:new()
+function layouts.Default:new(opts)
   local o = {
     egg = nil,
     windows = {},
+    opts = opts or {},
   }
   setmetatable(o, self)
   self.__index = self
@@ -56,19 +66,19 @@ function layouts.Default:open(uis)
   uis.editor:show(editor_win)
 
   -- result
-  vim.cmd("bo 15split")
+  vim.cmd("bo" .. self.opts.result_height .. "split")
   local win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
   uis.result:show(win)
 
   -- drawer
-  vim.cmd("to 40vsplit")
+  vim.cmd("to" .. self.opts.drawer_width .. "vsplit")
   win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
   uis.drawer:show(win)
 
   -- call log
-  vim.cmd("belowright 15split")
+  vim.cmd("belowright " .. self.opts.call_log_height .. "split")
   win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
   uis.call_log:show(win)
