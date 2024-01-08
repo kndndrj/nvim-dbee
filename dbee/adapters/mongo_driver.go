@@ -44,7 +44,7 @@ func (c *mongoDriver) getCurrentDatabase(ctx context.Context) (string, error) {
 func (c *mongoDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
 	return []*core.Column{
 		{
-			Name: opts.Table,
+			Name: "",
 			Type: "collection",
 		},
 	}, nil

@@ -58,7 +58,7 @@ func (c *redisDriver) Query(ctx context.Context, query string) (core.ResultStrea
 func (c *redisDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
 	return []*core.Column{
 		{
-			Name: opts.Table,
+			Name: "",
 			Type: "redis",
 		},
 	}, nil

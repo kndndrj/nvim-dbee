@@ -12,7 +12,7 @@ local expansion = require("dbee.ui.drawer.expansion")
 ---@class DrawerUINode: NuiTree.Node
 ---@field id string unique identifier
 ---@field name string display name
----@field type ""|"table"|"history"|"note"|"connection"|"database_switch"|"add"|"edit"|"remove"|"help"|"source"|"view" type of node
+---@field type ""|"table"|"view"|"column"|"history"|"note"|"connection"|"database_switch"|"add"|"edit"|"remove"|"help"|"source" type of node
 ---@field action_1? drawer_node_action primary action if function takes a second selection parameter, pick_items get picked before the call
 ---@field action_2? drawer_node_action secondary action if function takes a second selection parameter, pick_items get picked before the call
 ---@field action_3? drawer_node_action tertiary action if function takes a second selection parameter, pick_items get picked before the call
@@ -192,22 +192,7 @@ function DrawerUI:get_actions()
   end
 
   local function expand_node(node)
-    -- expand all children nodes with only one field
-    local function expand_all_single(n)
-      local children = n:get_child_ids()
-      if #children == 1 then
-        local nested_node = self.tree:get_node(children[1])
-        if not nested_node then
-          return
-        end
-        nested_node:expand()
-        expand_all_single(nested_node)
-      end
-    end
-
     local expanded = node:is_expanded()
-
-    expand_all_single(node)
 
     -- if function for getting layout exist, call it
     if not expanded and type(node.lazy_children) == "function" then

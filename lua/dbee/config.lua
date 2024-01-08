@@ -115,6 +115,11 @@ config.default = {
         icon_highlight = "Debug",
         text_highlight = "",
       },
+      column = {
+        icon = "󰠵",
+        icon_highlight = "WarningMsg",
+        text_highlight = "",
+      },
       add = {
         icon = "",
         icon_highlight = "String",
