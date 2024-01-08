@@ -58,7 +58,7 @@ func (s *SQLServer) Connect(url string) (core.Driver, error) {
 	}, nil
 }
 
-func (*SQLServer) GetHelpers(opts *core.HelperOptions) map[string]string {
+func (*SQLServer) GetHelpers(opts *core.TableOptions) map[string]string {
 	columnSummary := fmt.Sprintf(`
       SELECT c.column_name + ' (' +
           ISNULL(( SELECT 'PK, ' FROM information_schema.table_constraints AS k JOIN information_schema.key_column_usage AS kcu ON k.constraint_name = kcu.constraint_name WHERE constraint_type='PRIMARY KEY' AND k.table_name = c.table_name AND kcu.column_name = c.column_name), '') +

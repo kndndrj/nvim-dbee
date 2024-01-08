@@ -32,7 +32,7 @@ func (d *Duck) Connect(url string) (core.Driver, error) {
 	}, nil
 }
 
-func (*Duck) GetHelpers(opts *core.HelperOptions) map[string]string {
+func (*Duck) GetHelpers(opts *core.TableOptions) map[string]string {
 	return map[string]string{
 		"List":        fmt.Sprintf("SELECT * FROM %q LIMIT 500", opts.Table),
 		"Columns":     fmt.Sprintf("DESCRIBE %q", opts.Table),

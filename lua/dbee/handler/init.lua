@@ -140,7 +140,7 @@ function Handler:add_helpers(helpers)
 end
 
 ---@param id connection_id
----@param opts HelperOpts
+---@param opts TableOpts
 ---@return table_helpers helpers list of table helpers
 function Handler:connection_get_helpers(id, opts)
   local helpers = vim.fn.DbeeConnectionGetHelpers(id, {
@@ -184,6 +184,18 @@ function Handler:connection_get_structure(id)
     return {}
   end
   return ret
+end
+
+---@param id connection_id
+---@param opts { table: string, schema: string, materialization: string }
+---@return Column[]
+function Handler:connection_get_columns(id, opts)
+  local out = vim.fn.DbeeConnectionGetColumns(id, opts)
+  if not out or out == vim.NIL then
+    return {}
+  end
+
+  return out
 end
 
 ---@param id connection_id

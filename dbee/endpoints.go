@@ -58,7 +58,7 @@ func mountEndpoints(p *plugin.Plugin, h *handler.Handler) {
 			}
 		},
 		) (any, error) {
-			return h.ConnectionGetHelpers(core.ConnectionID(args.ID), &core.HelperOptions{
+			return h.ConnectionGetHelpers(core.ConnectionID(args.ID), &core.TableOptions{
 				Table:           args.Opts.Table,
 				Schema:          args.Opts.Schema,
 				Materialization: core.StructureTypeFromString(args.Opts.Materialization),
@@ -121,6 +121,23 @@ func mountEndpoints(p *plugin.Plugin, h *handler.Handler) {
 			str, err := h.ConnectionGetStructure(args.ID)
 			return handler.WrapStructures(str), err
 		})
+
+	p.RegisterEndpoint("DbeeConnectionGetColumns", func(args *struct {
+		ID   core.ConnectionID `msgpack:",array"`
+		Opts *struct {
+			Table           string `msgpack:"table"`
+			Schema          string `msgpack:"schema"`
+			Materialization string `msgpack:"materialization"`
+		}
+	},
+	) (any, error) {
+		cols, err := h.ConnectionGetColumns(args.ID, &core.TableOptions{
+			Table:           args.Opts.Table,
+			Schema:          args.Opts.Schema,
+			Materialization: core.StructureTypeFromString(args.Opts.Materialization),
+		})
+		return handler.WrapColumns(cols), err
+	})
 
 	p.RegisterEndpoint(
 		"DbeeConnectionListDatabases",

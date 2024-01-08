@@ -78,7 +78,7 @@ end
 
 ---Get helper queries for a specific connection.
 ---@param id connection_id
----@param opts HelperOpts
+---@param opts TableOpts
 ---@return table<string, string> _ list of table helpers
 ---@see table_helpers
 function core.connection_get_helpers(id, opts)
@@ -110,6 +110,14 @@ end
 ---@return DBStructure[]
 function core.connection_get_structure(id)
   return entry.get_handler():connection_get_structure(id)
+end
+
+---Get columns of a table
+---@param id connection_id
+---@param opts { table: string, schema: string, materialization: string }
+---@return Column[]
+function core.connection_get_columns(id, opts)
+  return entry.get_handler():connection_get_columns(id, opts)
 end
 
 ---Get parameters that define the connection.

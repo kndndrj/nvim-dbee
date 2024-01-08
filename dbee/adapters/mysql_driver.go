@@ -10,38 +10,16 @@ import (
 var _ core.Driver = (*mySQLDriver)(nil)
 
 type mySQLDriver struct {
-	sql *builders.Client
+	c *builders.Client
 }
 
 func (c *mySQLDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
-	con, err := c.sql.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	cb := func() {
-		con.Close()
-	}
-	defer func() {
-		if err != nil {
-			cb()
-		}
-	}()
+	// run query, fallback to affected rows
+	return c.c.QueryUntilNotEmpty(ctx, query, "select ROW_COUNT() as 'Rows Affected'")
+}
 
-	rows, err := con.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(rows.Header()) > 0 {
-		rows.SetCallback(cb)
-		return rows, nil
-	}
-	rows.Close()
-
-	// empty header means no result -> get affected rows
-	rows, err = con.Query(ctx, "select ROW_COUNT() as 'Rows Affected'")
-	rows.SetCallback(cb)
-	return rows, err
+func (c *mySQLDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
+	return c.c.ColumnsFromQuery("DESCRIBE `%s`", opts.Table)
 }
 
 func (c *mySQLDriver) Structure() ([]*core.Structure, error) {
@@ -87,5 +65,5 @@ func (c *mySQLDriver) Structure() ([]*core.Structure, error) {
 }
 
 func (c *mySQLDriver) Close() {
-	c.sql.Close()
+	c.c.Close()
 }

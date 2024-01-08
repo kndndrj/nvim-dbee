@@ -41,7 +41,7 @@ func (p *Clickhouse) Connect(url string) (core.Driver, error) {
 	}, nil
 }
 
-func (*Clickhouse) GetHelpers(opts *core.HelperOptions) map[string]string {
+func (*Clickhouse) GetHelpers(opts *core.TableOptions) map[string]string {
 	return map[string]string{
 		"List": fmt.Sprintf(
 			"SELECT * FROM %q.%q LIMIT 500",

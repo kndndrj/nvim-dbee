@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/gob"
 	"encoding/json"
+	"errors"
 	"fmt"
 	nurl "net/url"
 	"strings"
@@ -25,41 +26,24 @@ type postgresDriver struct {
 }
 
 func (c *postgresDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
-	con, err := c.c.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	cb := func() {
-		con.Close()
-	}
-	defer func() {
-		if err != nil {
-			cb()
-		}
-	}()
-
 	action := strings.ToLower(strings.Split(query, " ")[0])
 	hasReturnValues := strings.Contains(strings.ToLower(query), " returning ")
 
 	if (action == "update" || action == "delete" || action == "insert") && !hasReturnValues {
-		rows, err := con.Exec(ctx, query)
-		if err != nil {
-			return nil, err
-		}
-		rows.SetCallback(cb)
-		return rows, nil
+		return c.c.Exec(ctx, query)
 	}
 
-	rows, err := con.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	if len(rows.Header()) == 0 {
-		rows.SetCustomHeader(core.Header{"No Results"})
-	}
-	rows.SetCallback(cb)
+	return c.c.QueryUntilNotEmpty(ctx, query)
+}
 
-	return rows, nil
+func (c *postgresDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
+	return c.c.ColumnsFromQuery(`
+		SELECT column_name, data_type
+		FROM information_schema.columns
+		WHERE
+			table_schema='%s' AND
+			table_name='%s'
+		`, opts.Schema, opts.Table)
 }
 
 func (c *postgresDriver) Structure() ([]*core.Structure, error) {
@@ -127,6 +111,9 @@ func getPGStructure(rows core.ResultStream) ([]*core.Structure, error) {
 		row, err := rows.Next()
 		if err != nil {
 			return nil, err
+		}
+		if len(row) < 3 {
+			return nil, errors.New("could not retrieve structure: insufficient info")
 		}
 
 		schema, table, tableType := row[0].(string), row[1].(string), row[2].(string)

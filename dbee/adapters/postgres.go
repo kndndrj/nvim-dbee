@@ -53,7 +53,7 @@ func (p *Postgres) Connect(url string) (core.Driver, error) {
 	}, nil
 }
 
-func (*Postgres) GetHelpers(opts *core.HelperOptions) map[string]string {
+func (*Postgres) GetHelpers(opts *core.TableOptions) map[string]string {
 	basicConstraintQuery := `
 	SELECT tc.constraint_name, tc.table_name, kcu.column_name, ccu.table_name AS foreign_table_name, ccu.column_name AS foreign_column_name, rc.update_rule, rc.delete_rule
 	FROM

@@ -30,7 +30,7 @@ func (o *Oracle) Connect(url string) (core.Driver, error) {
 	}, nil
 }
 
-func (*Oracle) GetHelpers(opts *core.HelperOptions) map[string]string {
+func (*Oracle) GetHelpers(opts *core.TableOptions) map[string]string {
 	from := `
 		FROM all_constraints N
 		JOIN all_cons_columns L

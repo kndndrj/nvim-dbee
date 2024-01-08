@@ -48,7 +48,7 @@ func (jf *JSON) parseSchemaLess(header core.Header, rows []core.Row) []any {
 	return data
 }
 
-func (jf *JSON) Format(header core.Header, rows []core.Row, opts *core.FormatterOpts) ([]byte, error) {
+func (jf *JSON) Format(header core.Header, rows []core.Row, opts *core.FormatterOptions) ([]byte, error) {
 	var data any
 	switch opts.SchemaType {
 	case core.SchemaLess:

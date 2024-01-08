@@ -23,6 +23,7 @@ return function()
     { type = "function", name = "DbeeCallStoreResult", sync = true, opts = vim.empty_dict() },
     { type = "function", name = "DbeeConnectionExecute", sync = true, opts = vim.empty_dict() },
     { type = "function", name = "DbeeConnectionGetCalls", sync = true, opts = vim.empty_dict() },
+    { type = "function", name = "DbeeConnectionGetColumns", sync = true, opts = vim.empty_dict() },
     { type = "function", name = "DbeeConnectionGetHelpers", sync = true, opts = vim.empty_dict() },
     { type = "function", name = "DbeeConnectionGetParams", sync = true, opts = vim.empty_dict() },
     { type = "function", name = "DbeeConnectionGetStructure", sync = true, opts = vim.empty_dict() },

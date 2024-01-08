@@ -163,3 +163,39 @@ func (cw *structureWrap) MarshalMsgPack(enc *msgpack.Encoder) error {
 		Children: WrapStructures(cw.structure.Children),
 	})
 }
+
+// columnWrap is a wrapper around core.Column with msgpack marshaling capabilities
+type columnWrap struct {
+	column *core.Column
+}
+
+func WrapColumn(column *core.Column) *columnWrap {
+	return &columnWrap{
+		column: column,
+	}
+}
+
+func WrapColumns(columns []*core.Column) []*columnWrap {
+	wraps := make([]*columnWrap, len(columns))
+
+	for i := range columns {
+		wraps[i] = &columnWrap{
+			column: columns[i],
+		}
+	}
+
+	return wraps
+}
+
+func (cw *columnWrap) MarshalMsgPack(enc *msgpack.Encoder) error {
+	if cw.column == nil {
+		return enc.Encode(nil)
+	}
+	return enc.Encode(&struct {
+		Name string `msgpack:"name"`
+		Type string `msgpack:"type"`
+	}{
+		Name: cw.column.Name,
+		Type: cw.column.Type,
+	})
+}

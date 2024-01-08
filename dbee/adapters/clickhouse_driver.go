@@ -19,34 +19,18 @@ type clickhouseDriver struct {
 }
 
 func (c *clickhouseDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
-	con, err := c.c.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	cb := func() {
-		con.Close()
-	}
-	defer func() {
-		if err != nil {
-			cb()
-		}
-	}()
+	// run query, fallback to affected rows
+	return c.c.QueryUntilNotEmpty(ctx, query, "select changes() as 'Rows Affected'")
+}
 
-	rows, err := con.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(rows.Header()) > 0 {
-		rows.SetCallback(cb)
-		return rows, nil
-	}
-	rows.Close()
-
-	// empty header means no result -> get affected rows
-	rows, err = con.Query(ctx, "select changes() as 'Rows Affected'")
-	rows.SetCallback(cb)
-	return rows, err
+func (c *clickhouseDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
+	return c.c.ColumnsFromQuery(`
+		SELECT name, type
+		FROM system.columns
+		WHERE
+			database='%s' AND
+			table='%s'
+		`, opts.Schema, opts.Table)
 }
 
 func (c *clickhouseDriver) Structure() ([]*core.Structure, error) {

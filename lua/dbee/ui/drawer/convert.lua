@@ -4,6 +4,27 @@ local NuiTree = require("nui.tree")
 
 local M = {}
 
+---@param parent_id string
+---@param columns Column[]
+---@return DrawerUINode[]
+local function column_nodes(parent_id, columns)
+  ---@type DrawerUINode[]
+  local nodes = {}
+
+  for _, column in ipairs(columns) do
+    table.insert(
+      nodes,
+      NuiTree.Node {
+        id = parent_id .. column.type .. column.name,
+        name = column.name .. "   [" .. column.type .. "]",
+        type = "column",
+      }
+    )
+  end
+
+  return nodes
+end
+
 ---@param handler Handler
 ---@param conn ConnectionParams
 ---@param result ResultUI
@@ -33,11 +54,12 @@ local function connection_nodes(handler, conn, result)
         type = struct.type,
       }, to_tree_nodes(struct.children, node_id)) --[[@as DrawerUINode]]
 
-      -- table helpers
       if struct.type == "table" or struct.type == "view" then
-        local helper_opts = { table = struct.name, schema = struct.schema, materialization = struct.type }
+        local table_opts = { table = struct.name, schema = struct.schema, materialization = struct.type }
+
+        -- table helpers
         node.action_1 = function(cb, select)
-          local helpers = handler:connection_get_helpers(conn.id, helper_opts)
+          local helpers = handler:connection_get_helpers(conn.id, table_opts)
           local items = vim.tbl_keys(helpers)
           table.sort(items)
 
@@ -53,6 +75,10 @@ local function connection_nodes(handler, conn, result)
               vim.fn.setreg(vim.v.register, helpers[selection])
             end,
           }
+        end
+
+        node.lazy_children = function()
+          return column_nodes(node_id, handler:connection_get_columns(conn.id, table_opts))
         end
       end
 

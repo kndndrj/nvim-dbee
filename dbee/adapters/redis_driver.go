@@ -55,6 +55,15 @@ func (c *redisDriver) Query(ctx context.Context, query string) (core.ResultStrea
 	return result, err
 }
 
+func (c *redisDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
+	return []*core.Column{
+		{
+			Name: "",
+			Type: "redis",
+		},
+	}, nil
+}
+
 func (c *redisDriver) Structure() ([]*core.Structure, error) {
 	return []*core.Structure{
 		{

@@ -34,7 +34,7 @@ func (r *Redis) Connect(url string) (core.Driver, error) {
 	}, nil
 }
 
-func (*Redis) GetHelpers(opts *core.HelperOptions) map[string]string {
+func (*Redis) GetHelpers(opts *core.TableOptions) map[string]string {
 	return map[string]string{
 		"List": "KEYS *",
 	}

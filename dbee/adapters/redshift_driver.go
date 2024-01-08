@@ -3,6 +3,8 @@ package adapters
 import (
 	"context"
 
+	_ "github.com/lib/pq"
+
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 )
@@ -18,31 +20,23 @@ type redshiftDriver struct {
 
 // Query executes a query and returns the result as an IterResult.
 func (c *redshiftDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
-	con, err := c.c.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	cb := func() {
-		con.Close()
-	}
-	defer func() {
-		if err != nil {
-			cb()
-		}
-	}()
-
-	rows, err := con.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	rows.SetCallback(cb)
-	return rows, nil
+	return c.c.QueryUntilNotEmpty(ctx, query)
 }
 
 // Close closes the underlying sql.DB connection.
 func (c *redshiftDriver) Close() {
 	// TODO: perhaps worth check err return statement here.
 	c.c.Close()
+}
+
+func (c *redshiftDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
+	return c.c.ColumnsFromQuery(`
+		SELECT column_name, data_type
+		FROM information_schema.columns
+		WHERE
+			table_schema='%s' AND
+			table_name='%s'
+		`, opts.Schema, opts.Table)
 }
 
 // Structure returns the layout of the database. This represents the

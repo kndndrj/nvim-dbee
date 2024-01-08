@@ -11,8 +11,8 @@ import (
 
 var ErrDatabaseSwitchingNotSupported = errors.New("database switching not supported")
 
-// HelperOptions contain options to be passed to helper methods.
-type HelperOptions struct {
+// TableOptions contain options for gathering information about specific table.
+type TableOptions struct {
 	Table           string
 	Schema          string
 	Materialization StructureType
@@ -24,13 +24,14 @@ type (
 	// a given type.
 	Adapter interface {
 		Connect(url string) (Driver, error)
-		GetHelpers(opts *HelperOptions) map[string]string
+		GetHelpers(opts *TableOptions) map[string]string
 	}
 
 	// Driver is an interface for a specific database driver.
 	Driver interface {
-		Query(context.Context, string) (ResultStream, error)
+		Query(ctx context.Context, query string) (ResultStream, error)
 		Structure() ([]*Structure, error)
+		Columns(opts *TableOptions) ([]*Column, error)
 		Close()
 	}
 
@@ -137,6 +138,22 @@ func (c *Connection) ListDatabases() (current string, available []string, err er
 	return currentDB, availableDBs, nil
 }
 
+func (c *Connection) GetColumns(opts *TableOptions) ([]*Column, error) {
+	if opts == nil {
+		return nil, fmt.Errorf("opts cannot be nil")
+	}
+
+	cols, err := c.driver.Columns(opts)
+	if err != nil {
+		return nil, fmt.Errorf("c.driver.Columns: %w", err)
+	}
+	if len(cols) < 1 {
+		return nil, errors.New("no column names found for specified opts")
+	}
+
+	return cols, nil
+}
+
 func (c *Connection) GetStructure() ([]*Structure, error) {
 	// structure
 	structure, err := c.driver.Structure()
@@ -156,9 +173,9 @@ func (c *Connection) GetStructure() ([]*Structure, error) {
 	return structure, nil
 }
 
-func (c *Connection) GetHelpers(opts *HelperOptions) map[string]string {
+func (c *Connection) GetHelpers(opts *TableOptions) map[string]string {
 	if opts == nil {
-		opts = &HelperOptions{}
+		opts = &TableOptions{}
 	}
 
 	helpers := c.adapter.GetHelpers(opts)

@@ -98,7 +98,7 @@ func (bq *BigQuery) Connect(rawURL string) (core.Driver, error) {
 	return client, nil
 }
 
-func (*BigQuery) GetHelpers(opts *core.HelperOptions) map[string]string {
+func (*BigQuery) GetHelpers(opts *core.TableOptions) map[string]string {
 	return map[string]string{
 		"List":    fmt.Sprintf("SELECT * FROM `%s` LIMIT 500", opts.Table),
 		"Columns": fmt.Sprintf("SELECT * FROM `%s.INFORMATION_SCHEMA.COLUMNS` WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s'", opts.Schema, opts.Schema, opts.Table),

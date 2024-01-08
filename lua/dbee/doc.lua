@@ -4,24 +4,29 @@
 ---@brief ]]
 
 ---@divider -
----@tag dbee.ref.types.helpers
+---@tag dbee.ref.types.table
 ---@brief [[
----Helper (predefined query) related types.
+---Table related types
 ---@brief ]]
 
----Table helpers queries by name.
----@alias table_helpers table<string, string>
+---Table column
+---@class Column
+---@field name string name of the column
+---@field type string database type of the column
 
 ---Table Materialization.
 ---@alias materialization
 ---| '"table"'
 ---| '"view"'
 
----Options for expanding helper queries.
----@class HelperOpts
+---Options for gathering table specific info.
+---@class TableOpts
 ---@field table string
 ---@field schema string
 ---@field materialization materialization
+
+---Table helpers queries by name.
+---@alias table_helpers table<string, string>
 
 ---@divider -
 ---@tag dbee.ref.types.call

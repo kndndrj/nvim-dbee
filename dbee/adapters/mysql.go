@@ -37,11 +37,11 @@ func (m *MySQL) Connect(url string) (core.Driver, error) {
 	}
 
 	return &mySQLDriver{
-		sql: builders.NewClient(db),
+		c: builders.NewClient(db),
 	}, nil
 }
 
-func (*MySQL) GetHelpers(opts *core.HelperOptions) map[string]string {
+func (*MySQL) GetHelpers(opts *core.TableOptions) map[string]string {
 	return map[string]string{
 		"List":         fmt.Sprintf("SELECT * FROM `%s` LIMIT 500", opts.Table),
 		"Columns":      fmt.Sprintf("DESCRIBE `%s`", opts.Table),

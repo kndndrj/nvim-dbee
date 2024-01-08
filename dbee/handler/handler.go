@@ -80,7 +80,7 @@ func (h *Handler) Close() {
 func (h *Handler) CreateConnection(params *core.ConnectionParams) (core.ConnectionID, error) {
 	c, err := adapters.NewConnection(params)
 	if err != nil {
-		return "", fmt.Errorf("core.New: %w", err)
+		return "", fmt.Errorf("adapters.NewConnection: %w", err)
 	}
 
 	old, ok := h.lookupConnection[c.GetID()]
@@ -111,7 +111,7 @@ func (h *Handler) AddHelpers(typ string, helpers map[string]string) error {
 	return new(adapters.Mux).AddHelpers(typ, helpers)
 }
 
-func (h *Handler) ConnectionGetHelpers(connID core.ConnectionID, opts *core.HelperOptions) (map[string]string, error) {
+func (h *Handler) ConnectionGetHelpers(connID core.ConnectionID, opts *core.TableOptions) (map[string]string, error) {
 	c, ok := h.lookupConnection[connID]
 	if !ok {
 		return nil, fmt.Errorf("unknown connection with id: %q", connID)
@@ -214,6 +214,20 @@ func (h *Handler) ConnectionGetStructure(connID core.ConnectionID) ([]*core.Stru
 	}
 
 	return layout, nil
+}
+
+func (h *Handler) ConnectionGetColumns(connID core.ConnectionID, opts *core.TableOptions) ([]*core.Column, error) {
+	c, ok := h.lookupConnection[connID]
+	if !ok {
+		return nil, fmt.Errorf("unknown connection with id: %q", connID)
+	}
+
+	columns, err := c.GetColumns(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return columns, nil
 }
 
 func (h *Handler) ConnectionListDatabases(connID core.ConnectionID) (current string, available []string, err error) {
