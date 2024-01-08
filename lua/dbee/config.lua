@@ -264,14 +264,7 @@ config.default = {
   },
 
   -- window layout
-  window_layout = require("dbee.layouts").Default:new {
-    -- width of the drawer UI window
-    drawer_width = 40,
-    -- height of the result UI window
-    result_height = 20,
-    -- height of the call log UI window
-    call_log_height = 20,
-  },
+  window_layout = require("dbee.layouts").Default:new(),
 }
 -- DOCGEN_END
 
@@ -296,19 +289,7 @@ function config.validate(cfg)
     window_layout = { cfg.window_layout, "table" },
     window_layout_open = { cfg.window_layout.open, "function" },
     window_layout_close = { cfg.window_layout.close, "function" },
-    window_layout_opts = { cfg.window_layout.opts, "table" },
   }
-  --- validates that a number is positive.
-  ---@param val number
-  ---@param name string
-  local function must_be_positive(val, name)
-    if val < 0 then
-      error(name .. " must be positive. Got: " .. val)
-    end
-  end
-  must_be_positive(cfg.window_layout.opts.drawer_width, "drawer_width")
-  must_be_positive(cfg.window_layout.opts.result_height, "result_height")
-  must_be_positive(cfg.window_layout.opts.call_log_height, "call_log_height")
 end
 
 return config

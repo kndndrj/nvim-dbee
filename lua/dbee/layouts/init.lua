@@ -12,15 +12,8 @@ local tools = require("dbee.layouts.tools")
 ---Layout UIs that are passed to ̏|Layout| open method.
 ---@alias layout_uis { drawer: DrawerUI, editor: EditorUI, result: ResultUI, call_log: CallLogUI }
 
--- Opts optional options passed to layout constructor.
----@class Opts
----@field drawer_width number drawer width in columns
----@field result_height number result window height in lines
----@field call_log_height number call log window height in lines
-
--- Layout that defines how windows are opened.
+-- Layout interface that defines how windows are opened.
 ---@class Layout
----@field opts Opts optional options passed to layout constructor.
 ---@field open fun(self: Layout, uis: layout_uis) function to open ui.
 ---@field close fun(self: Layout) function to close ui.
 
@@ -32,19 +25,33 @@ local layouts = {}
 -- then makes a new empty window for the editor and then opens result and drawer.
 -- When later calling close(), the previously saved layout is restored.
 ---@class DefaultLayout: Layout
+---@field private drawer_width integer
+---@field private result_height integer
+---@field private call_log_height integer
 ---@field private egg? layout_egg
 ---@field private windows integer[]
 layouts.Default = {}
 
 ---Create a default layout.
----
----@param opts Opts
----@return Layout
+---@param opts? { drawer_width: integer, result_height: integer, call_log_height: integer }
+---@return DefaultLayout
 function layouts.Default:new(opts)
+  opts = opts or {}
+
+  -- validate opts
+  for _, opt in ipairs { "drawer_width", "result_height", "call_log_height" } do
+    if opts[opt] and opts[opt] < 0 then
+      error(opt .. " must be a positive integer. Got: " .. opts[opt])
+    end
+  end
+
+  ---@class DefaultLayout
   local o = {
     egg = nil,
     windows = {},
-    opts = opts or {},
+    drawer_width = opts.drawer_width or 40,
+    result_height = opts.result_height or 20,
+    call_log_height = opts.call_log_height or 20,
   }
   setmetatable(o, self)
   self.__index = self
@@ -66,19 +73,19 @@ function layouts.Default:open(uis)
   uis.editor:show(editor_win)
 
   -- result
-  vim.cmd("bo" .. self.opts.result_height .. "split")
+  vim.cmd("bo" .. self.result_height .. "split")
   local win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
   uis.result:show(win)
 
   -- drawer
-  vim.cmd("to" .. self.opts.drawer_width .. "vsplit")
+  vim.cmd("to" .. self.drawer_width .. "vsplit")
   win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
   uis.drawer:show(win)
 
   -- call log
-  vim.cmd("belowright " .. self.opts.call_log_height .. "split")
+  vim.cmd("belowright " .. self.call_log_height .. "split")
   win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
   uis.call_log:show(win)
