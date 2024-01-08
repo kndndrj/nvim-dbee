@@ -21,34 +21,8 @@ type sqlServerDriver struct {
 }
 
 func (c *sqlServerDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
-	con, err := c.c.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	cb := func() {
-		con.Close()
-	}
-	defer func() {
-		if err != nil {
-			cb()
-		}
-	}()
-
-	rows, err := con.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(rows.Header()) > 0 {
-		rows.SetCallback(cb)
-		return rows, nil
-	}
-	rows.Close()
-
-	// empty header means no result -> get affected rows
-	rows, err = con.Query(ctx, "select @@ROWCOUNT as 'Rows Affected'")
-	rows.SetCallback(cb)
-	return rows, err
+	// run query, fallback to affected rows
+	return c.c.QueryUntilNotEmpty(ctx, query, "select @@ROWCOUNT as 'Rows Affected'")
 }
 
 func (c *sqlServerDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {

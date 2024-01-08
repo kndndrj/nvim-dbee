@@ -26,41 +26,14 @@ type postgresDriver struct {
 }
 
 func (c *postgresDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
-	con, err := c.c.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	cb := func() {
-		con.Close()
-	}
-	defer func() {
-		if err != nil {
-			cb()
-		}
-	}()
-
 	action := strings.ToLower(strings.Split(query, " ")[0])
 	hasReturnValues := strings.Contains(strings.ToLower(query), " returning ")
 
 	if (action == "update" || action == "delete" || action == "insert") && !hasReturnValues {
-		rows, err := con.Exec(ctx, query)
-		if err != nil {
-			return nil, err
-		}
-		rows.SetCallback(cb)
-		return rows, nil
+		return c.c.Exec(ctx, query)
 	}
 
-	rows, err := con.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	if len(rows.Header()) == 0 {
-		rows.SetCustomHeader(core.Header{"No Results"})
-	}
-	rows.SetCallback(cb)
-
-	return rows, nil
+	return c.c.QueryUntilNotEmpty(ctx, query)
 }
 
 func (c *postgresDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {

@@ -10,21 +10,16 @@ import (
 var _ core.ResultStream = (*ResultStream)(nil)
 
 type ResultStream struct {
-	next     func() (core.Row, error)
-	hasNext  func() bool
-	close    func()
-	callback func()
-	meta     *core.Meta
-	header   core.Header
-	once     sync.Once
+	next    func() (core.Row, error)
+	hasNext func() bool
+	closes  []func()
+	meta    *core.Meta
+	header  core.Header
+	once    sync.Once
 }
 
-func (r *ResultStream) SetCustomHeader(header core.Header) {
-	r.header = header
-}
-
-func (r *ResultStream) SetCallback(callback func()) {
-	r.callback = callback
+func (r *ResultStream) AddCallback(fn func()) {
+	r.closes = append(r.closes, fn)
 }
 
 func (r *ResultStream) Meta() *core.Meta {
@@ -49,10 +44,14 @@ func (r *ResultStream) Next() (core.Row, error) {
 }
 
 func (r *ResultStream) Close() {
-	r.close()
-	if r.callback != nil {
-		r.once.Do(r.callback)
-	}
+	r.once.Do(func() {
+		for _, fn := range r.closes {
+			if fn != nil {
+				fn()
+			}
+		}
+	})
+
 	r.hasNext = func() bool {
 		return false
 	}
@@ -63,7 +62,7 @@ type ResultStreamBuilder struct {
 	next    func() (core.Row, error)
 	hasNext func() bool
 	header  core.Header
-	close   func()
+	closes  []func()
 	meta    *core.Meta
 }
 
@@ -72,7 +71,6 @@ func NewResultStreamBuilder() *ResultStreamBuilder {
 		next:    func() (core.Row, error) { return nil, errors.New("no next row") },
 		hasNext: func() bool { return false },
 		header:  core.Header{},
-		close:   func() {},
 		meta:    &core.Meta{},
 	}
 }
@@ -89,7 +87,7 @@ func (b *ResultStreamBuilder) WithHeader(header core.Header) *ResultStreamBuilde
 }
 
 func (b *ResultStreamBuilder) WithCloseFunc(fn func()) *ResultStreamBuilder {
-	b.close = fn
+	b.closes = append(b.closes, fn)
 	return b
 }
 
@@ -103,7 +101,7 @@ func (b *ResultStreamBuilder) Build() *ResultStream {
 		next:    b.next,
 		hasNext: b.hasNext,
 		header:  b.header,
-		close:   b.close,
+		closes:  b.closes,
 		meta:    b.meta,
 		once:    sync.Once{},
 	}

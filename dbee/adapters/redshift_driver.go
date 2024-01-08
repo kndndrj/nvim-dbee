@@ -20,25 +20,7 @@ type redshiftDriver struct {
 
 // Query executes a query and returns the result as an IterResult.
 func (c *redshiftDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
-	con, err := c.c.Conn(ctx)
-	if err != nil {
-		return nil, err
-	}
-	cb := func() {
-		con.Close()
-	}
-	defer func() {
-		if err != nil {
-			cb()
-		}
-	}()
-
-	rows, err := con.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	rows.SetCallback(cb)
-	return rows, nil
+	return c.c.QueryUntilNotEmpty(ctx, query)
 }
 
 // Close closes the underlying sql.DB connection.

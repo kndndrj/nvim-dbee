@@ -3,6 +3,7 @@ package builders
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -29,13 +30,14 @@ func NewClient(db *sql.DB, opts ...ClientOption) *Client {
 	}
 }
 
-func (c *Client) Conn(ctx context.Context) (*Conn, error) {
-	conn, err := c.db.Conn(ctx)
+func (c *Client) Close() {
+	c.db.Close()
+}
 
-	return &Conn{
-		conn:           conn,
-		typeProcessors: c.typeProcessors,
-	}, err
+// Swap swaps current database connection for another one.
+func (c *Client) Swap(db *sql.DB) {
+	c.db.Close()
+	c.db = db
 }
 
 // ColumnsFromQuery executes a given query on a new connection and
@@ -47,12 +49,7 @@ func (c *Client) Conn(ctx context.Context) (*Conn, error) {
 //
 // Query is sprintf-ed with args, so ColumnsFromQuery("select a from %s", "table_name") works.
 func (c *Client) ColumnsFromQuery(query string, args ...any) ([]*core.Column, error) {
-	conn, err := c.Conn(context.Background())
-	if err != nil {
-		return nil, err
-	}
-
-	result, err := conn.Query(context.Background(), fmt.Sprintf(query, args...))
+	result, err := c.Query(context.Background(), fmt.Sprintf(query, args...))
 	if err != nil {
 		return nil, err
 	}
@@ -60,28 +57,9 @@ func (c *Client) ColumnsFromQuery(query string, args ...any) ([]*core.Column, er
 	return ColumnsFromResultStream(result)
 }
 
-func (c *Client) Close() {
-	c.db.Close()
-}
-
-func (c *Client) Swap(db *sql.DB) {
-	c.db.Close()
-	c.db = db
-}
-
-// connection to use for execution
-type Conn struct {
-	conn           *sql.Conn
-	typeProcessors map[string]func(any) any
-}
-
-func (c *Conn) Close() error {
-	return c.conn.Close()
-}
-
 // Exec executes a query and returns a stream with single row (number of affected results).
-func (c *Conn) Exec(ctx context.Context, query string) (*ResultStream, error) {
-	res, err := c.conn.ExecContext(ctx, query)
+func (c *Client) Exec(ctx context.Context, query string) (*ResultStream, error) {
+	res, err := c.db.ExecContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +77,61 @@ func (c *Conn) Exec(ctx context.Context, query string) (*ResultStream, error) {
 	return rows, nil
 }
 
-func (c *Conn) getTypeProcessor(typ string) func(any) any {
+// Query executes a query on a connection and returns a result stream.
+func (c *Client) Query(ctx context.Context, query string) (*ResultStream, error) {
+	rows, err := c.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.parseRows(rows)
+}
+
+// QueryUntilNotEmpty executes given queries on a single connection and returns when one of them
+// has a nonempty result.
+// Useful for specifying "fallback" queries like "ROWCOUNT()" when there are no results in query.
+func (c *Client) QueryUntilNotEmpty(ctx context.Context, queries ...string) (*ResultStream, error) {
+	if len(queries) < 1 {
+		return nil, errors.New("no queries provided")
+	}
+
+	conn, err := c.db.Conn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("c.db.Conn: %w", err)
+	}
+
+	for _, query := range queries {
+		rows, err := conn.QueryContext(ctx, query)
+		if err != nil {
+			_ = conn.Close()
+			return nil, fmt.Errorf("conn.QueryContext: %w", err)
+		}
+
+		result, err := c.parseRows(rows)
+		if err != nil {
+			_ = conn.Close()
+			return nil, err
+		}
+
+		// has result
+		if len(result.Header()) > 0 {
+			result.AddCallback(func() { _ = conn.Close() })
+			return result, nil
+		}
+
+		result.Close()
+	}
+
+	_ = conn.Close()
+
+	// return an empty result
+	return NewResultStreamBuilder().
+		WithNextFunc(NextNil()).
+		WithHeader(core.Header{"No Results"}).
+		Build(), nil
+}
+
+func (c *Client) getTypeProcessor(typ string) func(any) any {
 	proc, ok := c.typeProcessors[strings.ToLower(typ)]
 	if ok {
 		return proc
@@ -114,15 +146,10 @@ func (c *Conn) getTypeProcessor(typ string) func(any) any {
 	}
 }
 
-// Query executes a query on a connection and returns a result stream.
-func (c *Conn) Query(ctx context.Context, query string) (*ResultStream, error) {
-	dbRows, err := c.conn.QueryContext(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-
+// parseRows transforms sql rows to result stream.
+func (c *Client) parseRows(rows *sql.Rows) (*ResultStream, error) {
 	// create new rows
-	header, err := dbRows.Columns()
+	header, err := rows.Columns()
 	if err != nil {
 		return nil, err
 	}
@@ -130,17 +157,17 @@ func (c *Conn) Query(ctx context.Context, query string) (*ResultStream, error) {
 	hasNextFunc := func() bool {
 		// TODO: do we even support multiple result sets?
 		// if not next result, check for any new sets
-		if !dbRows.Next() {
-			if !dbRows.NextResultSet() {
+		if !rows.Next() {
+			if !rows.NextResultSet() {
 				return false
 			}
-			return dbRows.Next()
+			return rows.Next()
 		}
 		return true
 	}
 
 	nextFunc := func() (core.Row, error) {
-		dbCols, err := dbRows.ColumnTypes()
+		dbCols, err := rows.ColumnTypes()
 		if err != nil {
 			return nil, err
 		}
@@ -151,7 +178,7 @@ func (c *Conn) Query(ctx context.Context, query string) (*ResultStream, error) {
 			columnPointers[i] = &columns[i]
 		}
 
-		if err := dbRows.Scan(columnPointers...); err != nil {
+		if err := rows.Scan(columnPointers...); err != nil {
 			return nil, err
 		}
 
@@ -167,13 +194,13 @@ func (c *Conn) Query(ctx context.Context, query string) (*ResultStream, error) {
 		return row, nil
 	}
 
-	rows := NewResultStreamBuilder().
+	result := NewResultStreamBuilder().
 		WithNextFunc(nextFunc, hasNextFunc).
 		WithHeader(header).
 		WithCloseFunc(func() {
-			_ = dbRows.Close()
+			_ = rows.Close()
 		}).
 		Build()
 
-	return rows, nil
+	return result, nil
 }
