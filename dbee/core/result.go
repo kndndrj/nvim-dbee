@@ -139,10 +139,7 @@ func (cr *Result) getRows(from, to int) (rows []Row, rangeFrom int, rangeTo int,
 	defer cancel()
 
 	// Wait for drain, available index or timeout
-	for {
-		if cr.isDrained || (to >= 0 && to <= len(cr.rows)) {
-			break
-		}
+	for !cr.isDrained && (to < 0 || to > len(cr.rows)) {
 
 		if err := ctx.Err(); err != nil {
 			return nil, 0, 0, fmt.Errorf("cache flushing timeout exceeded: %s", err)
