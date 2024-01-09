@@ -101,13 +101,14 @@ Dbee Configuration                                             *dbee.ref.config*
 Config                                                                  *Config*
 
     Fields: ~
-        {sources}        (Source[])                            list of connection sources
-        {extra_helpers}  (table<string,table<string,string>>)
-        {drawer}         (drawer_config)
-        {editor}         (editor_config)
-        {result}         (result_config)
-        {call_log}       (call_log_config)
-        {window_layout}  (Layout)
+        {default_connection}  (nil|string)
+        {sources}             (nil|Source[])                            list of connection sources
+        {extra_helpers}       (nil|table<string,table<string,string>>)
+        {drawer}              (nil|drawer_config)
+        {editor}              (nil|editor_config)
+        {result}              (nil|result_config)
+        {call_log}            (nil|call_log_config)
+        {window_layout}       (nil|Layout)
 
 
 Candy                                                                    *Candy*
