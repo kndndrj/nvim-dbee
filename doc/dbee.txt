@@ -132,6 +132,9 @@ Here are the defaults:
     ---To see defaults, run :lua= require"dbee.config".default
     ---@type Config config
     config.default = {
+      -- you can specify an optional default connection id and it will be the active one
+      -- when dbee starts
+      default_connection = nil,
       -- loads connections from files and environment variables
       sources = {
         require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
