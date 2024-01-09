@@ -442,11 +442,17 @@ DefaultLayout : Layout                                           *DefaultLayout*
 
 
 
-layouts.Default:new()                                      *layouts.Default:new*
+layouts.Default:new({opts?})                               *layouts.Default:new*
     Create a default layout.
 
+    Parameters: ~
+        {opts}  (nil|{drawer_width:integer,result_height:integer,call_log_height:integer})
+
     Returns: ~
-        (Layout)
+        (DefaultLayout)
+
+
+DefaultLayout                                                    *DefaultLayout*
 
 
 ==============================================================================
