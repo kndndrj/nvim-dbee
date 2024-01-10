@@ -148,7 +148,7 @@ func (c *Connection) GetColumns(opts *TableOptions) ([]*Column, error) {
 		return nil, fmt.Errorf("c.driver.Columns: %w", err)
 	}
 	if len(cols) < 1 {
-		return nil, errors.New("no column names found for specified opts")
+		return []*Column{}, nil
 	}
 
 	return cols, nil
