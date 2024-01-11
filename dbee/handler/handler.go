@@ -151,12 +151,12 @@ func (h *Handler) ConnectionExecute(connID core.ConnectionID, query string) (*co
 		return nil, fmt.Errorf("unknown connection with id: %q", connID)
 	}
 
-	call := c.Execute(query, func(cl *core.Call) {
-		if err := cl.Err(); err != nil {
+	call := c.Execute(query, func(state core.CallState, c *core.Call) {
+		if err := c.Err(); err != nil {
 			h.log.Errorf("cl.Err: %s", err)
 		}
 
-		h.events.CallStateChanged(cl)
+		h.events.CallStateChanged(c)
 	})
 
 	id := call.GetID()

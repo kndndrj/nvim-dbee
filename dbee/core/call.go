@@ -20,10 +20,9 @@ type (
 		timeTaken time.Duration
 		timestamp time.Time
 
-		result      *Result
-		archive     *archive
-		cancelFunc  func()
-		onEventFunc func(*Call)
+		result     *Result
+		archive    *archive
+		cancelFunc func()
 
 		// any error that might occur during execution
 		err  error
@@ -99,46 +98,66 @@ func (c *Call) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func newCallFromExecutor(executor func(context.Context) (ResultStream, error), query string, onEvent func(*Call)) *Call {
+func newCallFromExecutor(executor func(context.Context) (ResultStream, error), query string, onEvent func(CallState, *Call)) *Call {
 	id := CallID(uuid.New().String())
 	c := &Call{
 		id:    id,
 		query: query,
 		state: CallStateUnknown,
 
-		result:      new(Result),
-		archive:     newArchive(id),
-		onEventFunc: onEvent,
+		result:  new(Result),
+		archive: newArchive(id),
 
 		done: make(chan struct{}),
 	}
+
+	eventsCh := make(chan CallState, 10)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	c.timestamp = time.Now()
 	c.cancelFunc = func() {
 		cancel()
 		c.timeTaken = time.Since(c.timestamp)
-		c.setState(CallStateCanceled)
+		eventsCh <- CallStateCanceled
 	}
 
+	// event function handler
 	go func() {
+		for state := range eventsCh {
+			if c.state == CallStateExecutingFailed ||
+				c.state == CallStateRetrievingFailed ||
+				c.state == CallStateCanceled {
+				return
+			}
+			c.state = state
+
+			// trigger event callback
+			if onEvent != nil {
+				onEvent(state, c)
+			}
+		}
+	}()
+
+	go func() {
+		defer close(eventsCh)
+
 		// execute the function
-		c.setState(CallStateExecuting)
+		eventsCh <- CallStateExecuting
 		iter, err := executor(ctx)
 		if err != nil {
 			c.timeTaken = time.Since(c.timestamp)
 			c.err = err
-			c.setState(CallStateExecutingFailed)
+			eventsCh <- CallStateExecutingFailed
 			close(c.done)
 			return
 		}
 
 		// set iterator to result
-		err = c.result.setIter(iter, func() { c.setState(CallStateRetrieving) })
+		err = c.result.SetIter(iter, func() { eventsCh <- CallStateRetrieving })
 		if err != nil {
 			c.timeTaken = time.Since(c.timestamp)
 			c.err = err
-			c.setState(CallStateRetrievingFailed)
+			eventsCh <- CallStateRetrievingFailed
 			close(c.done)
 			return
 		}
@@ -148,13 +167,13 @@ func newCallFromExecutor(executor func(context.Context) (ResultStream, error), q
 		if err != nil {
 			c.timeTaken = time.Since(c.timestamp)
 			c.err = err
-			c.setState(CallStateArchiveFailed)
+			eventsCh <- CallStateArchiveFailed
 			close(c.done)
 			return
 		}
 
 		c.timeTaken = time.Since(c.timestamp)
-		c.setState(CallStateArchived)
+		eventsCh <- CallStateArchived
 		close(c.done)
 	}()
 
@@ -191,22 +210,8 @@ func (c *Call) Done() chan struct{} {
 	return c.done
 }
 
-func (c *Call) setState(state CallState) {
-	if c.state == CallStateExecutingFailed ||
-		c.state == CallStateRetrievingFailed ||
-		c.state == CallStateCanceled {
-		return
-	}
-	c.state = state
-
-	// trigger event callback
-	if c.onEventFunc != nil {
-		c.onEventFunc(c)
-	}
-}
-
 func (c *Call) Cancel() {
-	if c.state != CallStateExecuting {
+	if c.state > CallStateExecuting {
 		return
 	}
 	if c.cancelFunc != nil {
@@ -220,7 +225,7 @@ func (c *Call) GetResult() (*Result, error) {
 		if err != nil {
 			return nil, fmt.Errorf("c.archive.getResult: %w", err)
 		}
-		err = c.result.setIter(iter, nil)
+		err = c.result.SetIter(iter, nil)
 		if err != nil {
 			return nil, fmt.Errorf("c.result.setIter: %w", err)
 		}

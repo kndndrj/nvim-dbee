@@ -31,6 +31,10 @@ func NextSingle(value any) (func() (core.Row, error), func() bool) {
 // NextSlice creates next and hasNext functions from provided values
 // preprocessor is an optional function which parses a single value from slice before adding it to a row
 func NextSlice[T any](values []T, preprocess func(T) any) (func() (core.Row, error), func() bool) {
+	if preprocess == nil {
+		preprocess = func(v T) any { return v }
+	}
+
 	index := 0
 
 	hasNext := func() bool {

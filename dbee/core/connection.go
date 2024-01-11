@@ -100,7 +100,7 @@ func (c *Connection) GetParams() *ConnectionParams {
 	return c.unexpandedParams
 }
 
-func (c *Connection) Execute(query string, onEvent func(*Call)) *Call {
+func (c *Connection) Execute(query string, onEvent func(CallState, *Call)) *Call {
 	exec := func(ctx context.Context) (ResultStream, error) {
 		return c.driver.Query(ctx, query)
 	}

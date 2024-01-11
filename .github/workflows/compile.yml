@@ -24,7 +24,7 @@ jobs:
         run: ./ci/target-matrix.sh >> "$GITHUB_OUTPUT"
 
   go-build:
-    needs: [ assemble-os-matrix ]
+    needs: [assemble-os-matrix]
     name: Go Build
     strategy:
       matrix: ${{ fromJson(needs.assemble-os-matrix.outputs.matrix) }}
@@ -83,7 +83,7 @@ jobs:
     runs-on: ubuntu-22.04
     if: github.event_name == 'release'
     name: Create Install Manifest
-    needs: [ go-build ]
+    needs: [go-build]
     env:
       MANIFEST_FILE: "lua/dbee/install/__manifest.lua"
     steps:
