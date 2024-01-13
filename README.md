@@ -246,8 +246,8 @@ Here are a few steps to quickly get started:
   already be present. If there are more than `page_size` results, you can "page"
   thrugh them using one of the following:
 
-  - Using `require("dbee")api.ui.result_page_next()` and
-    `require("dbee")api.ui.result_page_prev()` from anywhere (even if your
+  - Using `require("dbee").api.ui.result_page_next()` and
+    `require("dbee").api.ui.result_page_prev()` from anywhere (even if your
     cursor is outside the result buffer).
   - Using `L` for next and `H` for previous page if the cursor is located inside
     the results buffer.
