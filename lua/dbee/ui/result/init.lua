@@ -206,6 +206,12 @@ function ResultTile:get_actions()
     page_prev = function()
       self:page_prev()
     end,
+    page_last = function()
+      self:page_last()
+    end,
+    page_first = function()
+      self:page_first()
+    end,
 
     -- yank functions
     yank_current_json = function()
@@ -261,6 +267,15 @@ end
 
 function ResultTile:page_prev()
   self.page_index = self:display_result(self.page_index - 1)
+end
+
+
+function ResultTile:page_last()
+  self.page_index = self:display_result(self.page_ammount)
+end
+
+function ResultTile:page_first()
+  self.page_index = self:display_result(0)
 end
 
 -- wrapper for storing the current row

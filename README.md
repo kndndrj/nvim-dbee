@@ -244,13 +244,15 @@ Here are a few steps to quickly get started:
   buffer (bottom right by default). If the total number of results was lower
   than the `page_size` parameter in config (100 by default), all results should
   already be present. If there are more than `page_size` results, you can "page"
-  thrugh them using one of the following:
+  through them using one of the following:
 
-  - Using `require("dbee")api.ui.result_page_next()` and
-    `require("dbee")api.ui.result_page_prev()` from anywhere (even if your
-    cursor is outside the result buffer).
-  - Using `L` for next and `H` for previous page if the cursor is located inside
-    the results buffer.
+| Navigation using lua script <br/> (even if your cursor is outside the result buffer) | Description | Default key mapping <br/> (cursor should be inside result buffer) |
+|---|:---:|:---:|
+| `require("dbee").api.ui.result_page_next()` | Go to next page | L |
+| `require("dbee").api.ui.result_page_prev()` | Go to the previous page | H |
+| `require("dbee").api.ui.result_page_last()` | Go to the last page | E |
+| `require("dbee").api.ui.result_page_first()` | Go to the first page | F |
+
 
 - Once in the "result" buffer, you can yank the results with the following keys:
 
