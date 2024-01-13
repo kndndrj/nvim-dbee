@@ -160,6 +160,16 @@ function ui.result_page_prev()
   entry.get_ui().result:page_prev()
 end
 
+--- Go to last page in results UI and display it.
+function ui.result_page_last()
+  entry.get_ui().result:page_last()
+end
+
+--- Go to first page in results UI and display it.
+function ui.result_page_first()
+  entry.get_ui().result:page_first()
+end
+
 --- Open the result UI.
 ---@param winid integer
 function ui.result_show(winid)
