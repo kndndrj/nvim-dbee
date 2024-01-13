@@ -191,6 +191,8 @@ config.default = {
       -- next/previous page
       { key = "L", mode = "", action = "page_next" },
       { key = "H", mode = "", action = "page_prev" },
+      { key = "E", mode = "", action = "page_last" },
+      { key = "F", mode = "", action = "page_first" },
       -- yank rows as csv/json
       { key = "yaj", mode = "n", action = "yank_current_json" },
       { key = "yaj", mode = "v", action = "yank_selection_json" },
