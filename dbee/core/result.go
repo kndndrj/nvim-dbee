@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+	"errors"
+	"google.golang.org/api/iterator"
 )
 
 var ErrInvalidRange = func(from int, to int) error { return fmt.Errorf("invalid selection range: %d ... %d", from, to) }
@@ -49,11 +51,15 @@ func (cr *Result) setIter(iter ResultStream, onFillStart func()) error {
 	// drain the iterator
 	for iter.HasNext() {
 		row, err := iter.Next()
-		if err != nil {
-			cr.isFilled = false
-			return err
-		}
-
+        if err != nil {
+            if errors.Is(err, iterator.Done) {
+                cr.isFilled = true
+                cr.isDrained = true
+                return nil
+            }
+            cr.isFilled = false
+            return err
+        }
 		cr.rows = append(cr.rows, row)
 	}
 

@@ -855,6 +855,12 @@ ui.result_page_next()                                      *ui.result_page_next*
 ui.result_page_prev()                                      *ui.result_page_prev*
      Go to previous page in results UI and display it.
 
+ui.result_page_last()                                      *ui.result_page_last*
+     Go to lastious page in results UI and display it.
+
+ui.result_page_first()                                      *ui.result_page_first*
+     Go to firstious page in results UI and display it.
+
 
 ui.result_page_last()                                      *ui.result_page_last*
      Go to last page in results UI and display it.
