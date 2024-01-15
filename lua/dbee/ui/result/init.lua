@@ -185,7 +185,7 @@ function ResultTile:display_result(page)
     vim.api.nvim_win_set_option(
       self.winid,
       "winbar",
-      string.format("%d/%d%%=Took %.3fs", page + 1, self.page_ammount + 1, seconds)
+      string.format("%d/%d (%d)%%=Took %.3fs", page + 1, self.page_ammount + 1, length, seconds)
     )
   end
 
