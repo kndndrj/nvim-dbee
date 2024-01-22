@@ -9,7 +9,7 @@ require (
 	github.com/google/uuid v1.5.0
 	github.com/jedib0t/go-pretty/v6 v6.4.6
 	github.com/lib/pq v1.10.7
-	github.com/marcboeker/go-duckdb v1.4.0
+	github.com/marcboeker/go-duckdb v1.5.6
 	github.com/microsoft/go-mssqldb v1.0.0
 	github.com/neovim/go-client v1.2.1
 	github.com/redis/go-redis/v9 v9.0.2
