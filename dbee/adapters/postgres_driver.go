@@ -116,7 +116,20 @@ func getPGStructure(rows core.ResultStream) ([]*core.Structure, error) {
 			return nil, errors.New("could not retrieve structure: insufficient info")
 		}
 
-		schema, table, tableType := row[0].(string), row[1].(string), row[2].(string)
+		schema, ok := row[0].(string)
+		if !ok {
+			schema = ""
+		}
+
+		table, ok := row[1].(string)
+		if !ok {
+			continue
+		}
+
+		tableType, ok := row[2].(string)
+		if !ok {
+			continue
+		}
 
 		children[schema] = append(children[schema], &core.Structure{
 			Name:   table,
