@@ -45,7 +45,6 @@ function layouts.Default:new(opts)
     end
   end
 
-  ---@class DefaultLayout
   local o = {
     egg = nil,
     windows = {},
