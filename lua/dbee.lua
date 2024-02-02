@@ -40,6 +40,11 @@ function dbee.is_open()
   return entry.is_ui_open()
 end
 
+--- Reload all registered sources.
+function dbee.reload_sources()
+  entry.get_handler():reload_sources()
+end
+
 ---Check if dbee core has been loaded.
 ---@return boolean
 function dbee.is_core_loaded()
