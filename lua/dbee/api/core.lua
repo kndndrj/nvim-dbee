@@ -37,6 +37,11 @@ function core.source_reload(id)
   entry.get_handler():source_reload(id)
 end
 
+---Reload all sources.
+function core.reload_sources()
+  entry.get_handler():reload_sources()
+end
+
 ---Add connections to the source.
 ---@param id source_id
 ---@param details ConnectionParams[]
