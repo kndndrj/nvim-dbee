@@ -37,15 +37,15 @@ local function get_manifest_hash()
 end
 
 function M.check()
-  vim.health.report_start("DBee report")
+  vim.health.start("DBee report")
 
   if vim.fn.executable(install.bin()) ~= 1 then
-    vim.health.report_error("Binary not executable: " .. install.bin() .. ".")
+    vim.health.error("Binary not executable: " .. install.bin() .. ".")
     return
   end
 
   if vim.fn.executable("git") ~= 1 then
-    vim.health.report_warn("Git not installed -- could not determine binary version.")
+    vim.health.warn("Git not installed -- could not determine binary version.")
     return
   end
 
@@ -54,19 +54,19 @@ function M.check()
   local manifest_hash = get_manifest_hash()
 
   if go_hash == "unknown" then
-    vim.health.report_error("Could not determine binary version.")
+    vim.health.error("Could not determine binary version.")
     return
   end
 
   if go_hash == current_hash then
-    vim.health.report_ok("Binary version matches version of current HEAD.")
+    vim.health.ok("Binary version matches version of current HEAD.")
     return
   elseif go_hash == manifest_hash then
-    vim.health.report_ok("Binary version matches version of install manifest.")
+    vim.health.ok("Binary version matches version of install manifest.")
     return
   end
 
-  vim.health.report_error(
+  vim.health.error(
     string.format(
       "Binary version %q doesn't match either:\n  - current hash: %q or\n  - hash of install manifest %q.",
       go_hash,
