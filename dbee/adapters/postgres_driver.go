@@ -56,6 +56,7 @@ func (c *postgresDriver) Structure() ([]*core.Structure, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	return getPGStructure(rows)
 }
@@ -75,6 +76,7 @@ func (c *postgresDriver) ListDatabases() (current string, available []string, er
 	if err != nil {
 		return "", nil, err
 	}
+	defer rows.Close()
 
 	for rows.HasNext() {
 		row, err := rows.Next()
