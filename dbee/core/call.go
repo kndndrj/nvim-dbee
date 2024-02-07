@@ -132,6 +132,7 @@ func newCallFromExecutor(executor func(context.Context) (ResultStream, error), q
 			close(c.done)
 			return
 		}
+		defer iter.Close()
 
 		// set iterator to result
 		err = c.result.setIter(iter, func() { c.setState(CallStateRetrieving) })
