@@ -53,3 +53,13 @@ func (eb *eventBus) CurrentConnectionChanged(id core.ConnectionID) {
 
 	eb.callLua("current_connection_changed", data)
 }
+
+// CurrentDatabaseChanged is called when the current database is changed.
+// Sends the new database name to the Lua event handler.
+func (eb *eventBus) CurrentDatabaseChanged(name string) {
+	data := fmt.Sprintf(`{
+		db_name = %q,
+	}`, name)
+
+	eb.callLua("current_database_changed", data)
+}
