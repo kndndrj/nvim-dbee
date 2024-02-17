@@ -73,6 +73,14 @@ function Handler:source_reload(id)
   end
 end
 
+--- reload all sources via calling `source_reload`
+--- on each registered source.
+function Handler:reload_sources()
+  for id, _ in pairs(self.sources) do
+    self:source_reload(id)
+  end
+end
+
 ---@param id source_id
 ---@param details ConnectionParams[]
 function Handler:source_add_connections(id, details)
