@@ -2,6 +2,9 @@ package adapters
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
+	"net/url"
 
 	_ "github.com/lib/pq"
 
@@ -9,28 +12,31 @@ import (
 	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 )
 
-var _ core.Driver = (*redshiftDriver)(nil)
+var (
+	_ core.Driver           = (*redshiftDriver)(nil)
+	_ core.DatabaseSwitcher = (*redshiftDriver)(nil)
+)
 
 // redshiftDriver is a sql client for redshiftDriver.
 // Mainly uses the postgres driver under the hood but with
 // custom Layout function to get the table and view names correctly.
 type redshiftDriver struct {
-	c *builders.Client
+	c             *builders.Client
+	connectionURL *url.URL
 }
 
 // Query executes a query and returns the result as an IterResult.
-func (c *redshiftDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
-	return c.c.QueryUntilNotEmpty(ctx, query)
+func (r *redshiftDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
+	return r.c.QueryUntilNotEmpty(ctx, query)
 }
 
 // Close closes the underlying sql.DB connection.
-func (c *redshiftDriver) Close() {
-	// TODO: perhaps worth check err return statement here.
-	c.c.Close()
+func (r *redshiftDriver) Close() {
+	r.c.Close()
 }
 
-func (c *redshiftDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	return c.c.ColumnsFromQuery(`
+func (r *redshiftDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
+	return r.c.ColumnsFromQuery(`
 		SELECT column_name, data_type
 		FROM information_schema.columns
 		WHERE
@@ -42,7 +48,7 @@ func (c *redshiftDriver) Columns(opts *core.TableOptions) ([]*core.Column, error
 // Structure returns the layout of the database. This represents the
 // "schema" with all the tables and views. Note that ordering is not
 // done here. The ordering is done in the lua frontend.
-func (c *redshiftDriver) Structure() ([]*core.Structure, error) {
+func (r *redshiftDriver) Structure() ([]*core.Structure, error) {
 	query := `
 		SELECT
 		trim(n.nspname) AS schema_name
@@ -59,10 +65,50 @@ func (c *redshiftDriver) Structure() ([]*core.Structure, error) {
 					n.nspname NOT IN ('information_schema', 'pg_catalog');
 	`
 
-	rows, err := c.Query(context.TODO(), query)
+	rows, err := r.Query(context.Background(), query)
 	if err != nil {
 		return nil, err
 	}
 
 	return getPGStructure(rows)
+}
+
+func (r *redshiftDriver) ListDatabases() (current string, available []string, err error) {
+	query := `
+SELECT
+	current_database() AS current
+	, datname
+FROM pg_database
+-- exclude template databases and the current one
+WHERE datistemplate = false
+	AND datname != current;
+`
+
+	rows, err := r.Query(context.Background(), query)
+	if err != nil {
+		return "", nil, err
+	}
+
+	for rows.HasNext() {
+		row, err := rows.Next()
+		if err != nil {
+			return "", nil, err
+		}
+
+		// current database is the first column, available databases are the rest
+		current = row[0].(string)
+		available = append(available, row[1].(string))
+	}
+
+	return current, available, nil
+}
+
+func (r *redshiftDriver) SelectDatabase(name string) error {
+	r.connectionURL.Path = fmt.Sprintf("/%s", name)
+	db, err := sql.Open("postgres", r.connectionURL.String())
+	if err != nil {
+		return fmt.Errorf("unable to switch databases: %w", err)
+	}
+	r.c.Swap(db)
+	return nil
 }

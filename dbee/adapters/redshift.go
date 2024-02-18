@@ -20,27 +20,30 @@ var _ core.Adapter = (*Redshift)(nil)
 type Redshift struct{}
 
 func (r *Redshift) Connect(rawURL string) (core.Driver, error) {
-	u, err := url.Parse(rawURL)
+	connURL, err := url.Parse(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse db connection string: %w: ", err)
+		return nil, fmt.Errorf("failed to parse connection string: %w", err)
 	}
 
-	db, err := sql.Open("postgres", u.String())
+	// TODO: perhaps better to use something else than postgres driver..
+	db, err := sql.Open("postgres", connURL.String())
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to postgres database: %w", err)
+		return nil, fmt.Errorf("unable to connect to redshift: %w", err)
 	}
 
 	return &redshiftDriver{
-		c: builders.NewClient(db),
+		c:             builders.NewClient(db),
+		connectionURL: connURL,
 	}, nil
 }
 
-func (*Redshift) GetHelpers(opts *core.TableOptions) map[string]string {
-	list := fmt.Sprintf("SELECT * FROM %q.%q LIMIT 500;", opts.Schema, opts.Table)
+func (r *Redshift) GetHelpers(opts *core.TableOptions) map[string]string {
+	out := make(map[string]string, 0)
+	list := fmt.Sprintf("SELECT * FROM %q.%q LIMIT 100;", opts.Schema, opts.Table)
 
 	switch opts.Materialization {
 	case core.StructureTypeTable:
-		return map[string]string{
+		out = map[string]string{
 			"List":    list,
 			"Columns": fmt.Sprintf("SELECT * FROM information_schema.columns WHERE table_name='%s' AND table_schema='%s';", opts.Table, opts.Schema),
 			"Indexes": fmt.Sprintf("SELECT * FROM pg_indexes WHERE tablename='%s' AND schemaname='%s';", opts.Table, opts.Schema),
@@ -72,7 +75,7 @@ func (*Redshift) GetHelpers(opts *core.TableOptions) map[string]string {
 		}
 
 	case core.StructureTypeView:
-		return map[string]string{
+		out = map[string]string{
 			"List": list,
 			"View Definition": fmt.Sprintf(`
 				SELECT
@@ -85,8 +88,7 @@ func (*Redshift) GetHelpers(opts *core.TableOptions) map[string]string {
 				opts.Table,
 			),
 		}
-
-	default:
-		return make(map[string]string)
 	}
+
+	return out
 }
