@@ -421,6 +421,8 @@ function ResultTile:show(winid)
     winfixheight = true,
     winfixwidth = true,
     number = false,
+    relativenumber = false,
+    spell = false,
   })
 
   -- configure window highlights
