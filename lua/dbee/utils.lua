@@ -142,4 +142,18 @@ function M.create_singleton_autocmd(events, opts)
   vim.api.nvim_create_autocmd(events, opts)
 end
 
+-- Creates a GUID based of the character length passed
+---@param length integer length of the GUID generated
+---@return string A generated guid
+function M.generate_guid(length)
+  local template = string.rep('x', length)
+
+  local guid = string.gsub(template, 'x', function()
+    local v = math.random(0,15)
+    return string.format('%x', v)
+  end)
+
+  return guid
+end
+
 return M
