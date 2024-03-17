@@ -1,4 +1,5 @@
 local tools = require("dbee.layouts.tools")
+local api_ui = require("dbee.api.ui")
 
 ---@mod dbee.ref.layout UI Layout
 ---@brief [[
@@ -9,12 +10,11 @@ local tools = require("dbee.layouts.tools")
 ---as seen fit.
 ---@brief ]]
 
----Layout UIs that are passed to ̏|Layout| open method.
----@alias layout_uis { drawer: DrawerUI, editor: EditorUI, result: ResultUI, call_log: CallLogUI }
-
--- Layout that defines how windows are opened.
+---Layout that defines how windows are opened.
+---Layouts are free to use both core and ui apis.
+---see |dbee.ref.api.core| and |dbee.ref.api.ui|
 ---@class Layout
----@field open fun(self: Layout, uis: layout_uis) function to open ui.
+---@field open fun(self: Layout) function to open ui.
 ---@field close fun(self: Layout) function to close ui.
 
 local layouts = {}
@@ -42,8 +42,7 @@ function layouts.Default:new()
 end
 
 ---@package
----@param uis layout_uis
-function layouts.Default:open(uis)
+function layouts.Default:open()
   -- save layout before opening ui
   self.egg = tools.save()
 
@@ -53,25 +52,25 @@ function layouts.Default:open(uis)
   tools.make_only(0)
   local editor_win = vim.api.nvim_get_current_win()
   table.insert(self.windows, editor_win)
-  uis.editor:show(editor_win)
+  api_ui.editor_show(editor_win)
 
   -- result
   vim.cmd("bo 15split")
   local win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
-  uis.result:show(win)
+  api_ui.result_show(win)
 
   -- drawer
   vim.cmd("to 40vsplit")
   win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
-  uis.drawer:show(win)
+  api_ui.drawer_show(win)
 
   -- call log
   vim.cmd("belowright 15split")
   win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
-  uis.call_log:show(win)
+  api_ui.call_log_show(win)
 
   -- set cursor to drawer
   vim.api.nvim_set_current_win(editor_win)
