@@ -28,8 +28,6 @@ local expansion = require("dbee.ui.drawer.expansion")
 ---@field private disable_help boolean show help or not
 ---@field private winid? integer
 ---@field private bufnr integer
----@field private quit_handle fun() function that closes the whole ui
----@field private switch_handle fun(bufnr: integer)
 ---@field private current_conn_id? connection_id current active connection
 ---@field private current_note_id? note_id current active note
 local DrawerUI = {}
@@ -37,11 +35,9 @@ local DrawerUI = {}
 ---@param handler Handler
 ---@param editor EditorUI
 ---@param result ResultUI
----@param quit_handle? fun()
----@param switch_handle? fun(bufnr: integer)
 ---@param opts? drawer_config
 ---@return DrawerUI
-function DrawerUI:new(handler, editor, result, quit_handle, switch_handle, opts)
+function DrawerUI:new(handler, editor, result, opts)
   opts = opts or {}
 
   if not handler then
@@ -70,8 +66,6 @@ function DrawerUI:new(handler, editor, result, quit_handle, switch_handle, opts)
     mappings = opts.mappings or {},
     candies = candies,
     disable_help = opts.disable_help or false,
-    quit_handle = quit_handle or function() end,
-    switch_handle = switch_handle or function() end,
     current_conn_id = current_conn.id,
     current_note_id = current_note.id,
   }
@@ -86,7 +80,6 @@ function DrawerUI:new(handler, editor, result, quit_handle, switch_handle, opts)
     swapfile = false,
   })
   common.configure_buffer_mappings(o.bufnr, o:get_actions(), opts.mappings)
-  common.configure_buffer_quit_handle(o.bufnr, o.quit_handle)
 
   -- create tree
   o.tree = o:create_tree(o.bufnr)
@@ -235,7 +228,6 @@ function DrawerUI:get_actions()
   end
 
   return {
-    quit = self.quit_handle,
     refresh = function()
       self:refresh()
     end,
@@ -288,6 +280,7 @@ function DrawerUI:get_actions()
   }
 end
 
+---Refreshes the tree.
 function DrawerUI:refresh()
   -- assemble tree layout
   ---@type DrawerUINode[]
@@ -326,9 +319,6 @@ function DrawerUI:show(winid)
     winfixwidth = true,
     number = false,
   })
-
-  -- configure window immutablity
-  common.configure_window_immutable_buffer(self.winid, self.bufnr, self.switch_handle)
 
   -- set buffer to window
   vim.api.nvim_win_set_buf(self.winid, self.bufnr)

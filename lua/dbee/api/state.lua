@@ -47,14 +47,10 @@ local function setup_ui()
 
   setup_handler()
 
-  local switch = function(bufnr)
-    m.editor:set_buf(bufnr)
-  end
-
-  m.result = ResultUI:new(m.handler, M.close_ui, switch, m.config.result)
-  m.call_log = CallLogUI:new(m.handler, m.result, M.close_ui, switch, m.config.call_log)
-  m.editor = EditorUI:new(m.handler, m.result, M.close_ui, m.config.editor)
-  m.drawer = DrawerUI:new(m.handler, m.editor, m.result, M.close_ui, switch, m.config.drawer)
+  m.result = ResultUI:new(m.handler, m.config.result)
+  m.call_log = CallLogUI:new(m.handler, m.result, m.config.call_log)
+  m.editor = EditorUI:new(m.handler, m.result, m.config.editor)
+  m.drawer = DrawerUI:new(m.handler, m.editor, m.result, m.config.drawer)
 
   m.ui_loaded = true
 end

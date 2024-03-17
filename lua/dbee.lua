@@ -29,11 +29,9 @@ function dbee.setup(cfg)
   api.setup(opts)
 end
 
-local is_open = false
-
 ---Toggle dbee UI.
 function dbee.toggle()
-  if is_open then
+  if api.current_config().window_layout:is_open() then
     dbee.close()
   else
     dbee.open()
@@ -42,26 +40,24 @@ end
 
 ---Open dbee UI.
 function dbee.open()
-  if is_open then
+  if api.current_config().window_layout:is_open() then
     return
   end
   api.current_config().window_layout:open()
-  is_open = true
 end
 
 ---Close dbee UI.
 function dbee.close()
-  if not is_open then
+  if not api.current_config().window_layout:is_open() then
     return
   end
   api.current_config().window_layout:close()
-  is_open = false
 end
 
 ---Check if dbee UI is open or not.
 ---@return boolean
 function dbee.is_open()
-  return is_open
+  return api.current_config().window_layout:is_open()
 end
 
 ---Execute a query on current connection.

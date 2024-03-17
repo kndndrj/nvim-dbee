@@ -3,7 +3,7 @@ local NuiTree = require("nui.tree")
 local utils = require("dbee.utils")
 local common = require("dbee.ui.common")
 
--- CallLogTile is a call history.
+-- CallLogUI is connection's call history.
 ---@class CallLogUI
 ---@field private result ResultUI
 ---@field private handler Handler
@@ -13,24 +13,20 @@ local common = require("dbee.ui.common")
 ---@field private candies table<string, Candy> map of eye-candy stuff (icons, highlight)
 ---@field private current_connection_id? connection_id
 ---@field private hover_close? fun() function that closes the hover window
----@field private switch_handle fun(bufnr: integer)
-local CallLogTile = {}
+local CallLogUI = {}
 
 ---@param handler Handler
 ---@param result ResultUI
----@param quit_handle? fun()
----@param switch_handle? fun(bufnr: integer)
 ---@param opts call_log_config
 ---@return CallLogUI
-function CallLogTile:new(handler, result, quit_handle, switch_handle, opts)
+function CallLogUI:new(handler, result, opts)
   opts = opts or {}
-  quit_handle = quit_handle or function() end
 
   if not handler then
-    error("no Handler passed to CallLogTile")
+    error("no Handler passed to CallLogUI")
   end
   if not result then
-    error("no ResultTile passed to CallLogTile")
+    error("no ResultTile passed to CallLogUI")
   end
 
   local candies = {}
@@ -44,7 +40,7 @@ function CallLogTile:new(handler, result, quit_handle, switch_handle, opts)
     result = result,
     candies = candies,
     hover_close = function() end,
-    switch_handle = switch_handle or function() end,
+    current_connection_id = (handler:get_current_connection() or {}).id,
   }
   setmetatable(o, self)
   self.__index = self
@@ -57,7 +53,6 @@ function CallLogTile:new(handler, result, quit_handle, switch_handle, opts)
     swapfile = false,
   })
   common.configure_buffer_mappings(o.bufnr, o:get_actions(), opts.mappings)
-  common.configure_buffer_quit_handle(o.bufnr, quit_handle)
 
   -- create the tree
   o.tree = o:create_tree(o.bufnr)
@@ -77,14 +72,14 @@ end
 -- event listener for new calls
 ---@private
 ---@param _ { call: CallDetails }
-function CallLogTile:on_call_state_changed(_)
+function CallLogUI:on_call_state_changed(_)
   self:refresh()
 end
 
 -- event listener for current connection change
 ---@private
 ---@param data { conn_id: connection_id }
-function CallLogTile:on_current_connection_changed(data)
+function CallLogUI:on_current_connection_changed(data)
   self.current_connection_id = data.conn_id
   self:refresh()
 end
@@ -127,7 +122,7 @@ end
 ---@private
 ---@param bufnr integer
 ---@return NuiTree
-function CallLogTile:create_tree(bufnr)
+function CallLogUI:create_tree(bufnr)
   return NuiTree {
     bufnr = bufnr,
     prepare_node = function(node)
@@ -166,7 +161,7 @@ end
 
 ---@private
 ---@return table<string, fun()>
-function CallLogTile:get_actions()
+function CallLogUI:get_actions()
   return {
     show_result = function()
       local node = self.tree:get_node()
@@ -198,7 +193,7 @@ function CallLogTile:get_actions()
   }
 end
 
-function CallLogTile:refresh()
+function CallLogUI:refresh()
   if not self.current_connection_id then
     return
   end
@@ -226,7 +221,7 @@ end
 
 ---@private
 ---@param bufnr integer
-function CallLogTile:configure_preview(bufnr)
+function CallLogUI:configure_preview(bufnr)
   utils.create_singleton_autocmd({ "CursorMoved", "BufEnter" }, {
     buffer = bufnr,
     callback = function()
@@ -267,7 +262,7 @@ function CallLogTile:configure_preview(bufnr)
 end
 
 ---@param winid integer
-function CallLogTile:show(winid)
+function CallLogUI:show(winid)
   self.winid = winid
 
   -- configure window options
@@ -278,9 +273,6 @@ function CallLogTile:show(winid)
     number = false,
   })
 
-  -- configure window immutablity
-  common.configure_window_immutable_buffer(self.winid, self.bufnr, self.switch_handle)
-
   -- configure auto preview
   self:configure_preview(self.bufnr)
 
@@ -290,4 +282,4 @@ function CallLogTile:show(winid)
   self:refresh()
 end
 
-return CallLogTile
+return CallLogUI

@@ -61,8 +61,6 @@ config.default = {
     disable_help = false,
     -- mappings for the buffer
     mappings = {
-      -- quit the dbee interface
-      { key = "q", mode = "n", action = "quit" },
       -- manually refresh drawer
       { key = "r", mode = "n", action = "refresh" },
       -- actions perform different stuff depending on the node:
