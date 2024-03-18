@@ -251,6 +251,7 @@ function M.hover(relative_winid, contents)
 
   -- open window
   local winid = vim.api.nvim_open_win(bufnr, false, {
+    zindex = 150,
     relative = "win",
     win = relative_winid,
     width = win_width,

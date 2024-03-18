@@ -95,7 +95,7 @@ function EditorUI:create_welcome_note()
   -- create note buffer with contents
   local bufnr = vim.api.nvim_create_buf(false, false)
   vim.api.nvim_buf_set_name(bufnr, note.file)
-  vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, welcome.banner(self.directory))
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, welcome.banner())
   vim.api.nvim_buf_set_option(bufnr, "modified", false)
 
   self.notes["global"][note_id].bufnr = bufnr
@@ -109,6 +109,13 @@ function EditorUI:create_welcome_note()
       vim.api.nvim_buf_set_option(bufnr, "modified", false)
     end,
   })
+
+  -- configure options and mappings on new buffer
+  common.configure_buffer_options(bufnr, {
+    buflisted = false,
+    swapfile = false,
+  })
+  common.configure_buffer_mappings(bufnr, self:get_actions(), self.mappings)
 
   return note_id
 end
@@ -146,6 +153,16 @@ function EditorUI:get_actions()
       self.result:set_call(call)
     end,
   }
+end
+
+---Triggers an in-built action.
+---@param action string
+function EditorUI:do_action(action)
+  local act = self:get_actions()[action]
+  if not act then
+    error("unknown action: " .. action)
+  end
+  act()
 end
 
 ---@private
@@ -193,6 +210,34 @@ function EditorUI:search_note(id)
   for namespace, per_namespace in pairs(self.notes) do
     for _, note in pairs(per_namespace) do
       if note.id == id then
+        return note, namespace
+      end
+    end
+  end
+  return nil, ""
+end
+
+---@param bufnr integer
+---@return note_details?
+---@return namespace_id namespace
+function EditorUI:search_note_with_buf(bufnr)
+  for namespace, per_namespace in pairs(self.notes) do
+    for _, note in pairs(per_namespace) do
+      if note.bufnr and note.bufnr == bufnr then
+        return note, namespace
+      end
+    end
+  end
+  return nil, ""
+end
+
+---@param file string
+---@return note_details?
+---@return namespace_id namespace
+function EditorUI:search_note_with_file(file)
+  for namespace, per_namespace in pairs(self.notes) do
+    for _, note in pairs(per_namespace) do
+      if note.file and note.file == file then
         return note, namespace
       end
     end

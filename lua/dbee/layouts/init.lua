@@ -60,16 +60,29 @@ end
 ---@param on_switch "immutable"|"close"
 ---@param winid integer
 ---@param open_fn fun(winid: integer)
-function layouts.Default:configure_window_on_switch(on_switch, winid, open_fn)
+---@param is_editor? boolean special care needs to be taken with editor - it uses multiple buffers.
+function layouts.Default:configure_window_on_switch(on_switch, winid, open_fn, is_editor)
   local action
   if on_switch == "close" then
-    action = function(_, buf)
+    action = function(_, buf, file)
+      if is_editor then
+        local note, _ = api_ui.editor_search_note_with_file(file)
+        if note then
+          -- do nothing
+          return
+        end
+        note, _ = api_ui.editor_search_note_with_buf(buf)
+        if note then
+          -- do nothing
+          return
+        end
+      end
       -- close dbee and open buffer
       self:close()
       vim.api.nvim_win_set_buf(0, buf)
     end
   else
-    action = function(win, _)
+    action = function(win, _, _)
       open_fn(win)
     end
   end
@@ -77,7 +90,7 @@ function layouts.Default:configure_window_on_switch(on_switch, winid, open_fn)
   utils.create_singleton_autocmd({ "BufWinEnter", "BufReadPost", "BufNewFile" }, {
     window = winid,
     callback = function(event)
-      action(winid, event.buf)
+      action(winid, event.buf, event.file)
     end,
   })
 end
@@ -112,7 +125,7 @@ function layouts.Default:open()
   local editor_win = vim.api.nvim_get_current_win()
   table.insert(self.windows, editor_win)
   api_ui.editor_show(editor_win)
-  self:configure_window_on_switch(self.on_switch, editor_win, api_ui.editor_show)
+  self:configure_window_on_switch(self.on_switch, editor_win, api_ui.editor_show, true)
   self:configure_window_on_quit(editor_win)
 
   -- result

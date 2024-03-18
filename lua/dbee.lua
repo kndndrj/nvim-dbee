@@ -20,13 +20,13 @@ local dbee = {
 ---Needs to be called before calling any other function.
 ---@param cfg? Config
 function dbee.setup(cfg)
-  cfg = cfg or {}
-  ---@type Config
-  local opts = vim.tbl_deep_extend("force", config.default, cfg)
-  -- validate config
-  config.validate(opts)
+  -- merge with defaults
+  local merged = config.merge_with_default(cfg)
 
-  api.setup(opts)
+  -- validate config
+  config.validate(merged)
+
+  api.setup(merged)
 end
 
 ---Toggle dbee UI.

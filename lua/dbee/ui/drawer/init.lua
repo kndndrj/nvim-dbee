@@ -280,6 +280,16 @@ function DrawerUI:get_actions()
   }
 end
 
+---Triggers an in-built action.
+---@param action string
+function DrawerUI:do_action(action)
+  local act = self:get_actions()[action]
+  if not act then
+    error("unknown action: " .. action)
+  end
+  act()
+end
+
 ---Refreshes the tree.
 function DrawerUI:refresh()
   -- assemble tree layout

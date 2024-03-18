@@ -291,8 +291,32 @@ function config.validate(cfg)
 
     window_layout = { cfg.window_layout, "table" },
     window_layout_open = { cfg.window_layout.open, "function" },
+    window_layout_is_open = { cfg.window_layout.is_open, "function" },
     window_layout_close = { cfg.window_layout.close, "function" },
   }
+end
+
+-- Merges changes from config on top of default config.
+-- Keys settings provided via arguments take precedence.
+---@package
+---@param changes? Config
+---@return Config
+function config.merge_with_default(changes)
+  changes = changes or {}
+
+  -- merge basic settings
+  ---@type Config
+  local merged = vim.tbl_deep_extend("force", config.default, changes)
+
+  -- classes need some extra love (frustrating, I know)
+  if changes.sources and #changes.sources > 0 then
+    merged.sources = changes.sources
+  end
+  if changes.window_layout then
+    merged.window_layout = changes.window_layout
+  end
+
+  return merged
 end
 
 return config

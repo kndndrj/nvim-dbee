@@ -193,6 +193,16 @@ function CallLogUI:get_actions()
   }
 end
 
+---Triggers an in-built action.
+---@param action string
+function CallLogUI:do_action(action)
+  local act = self:get_actions()[action]
+  if not act then
+    error("unknown action: " .. action)
+  end
+  act()
+end
+
 function CallLogUI:refresh()
   if not self.current_connection_id then
     return

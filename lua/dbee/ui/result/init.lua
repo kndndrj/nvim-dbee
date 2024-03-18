@@ -96,10 +96,21 @@ function ResultUI:apply_highlight(winid)
 end
 
 ---@private
+---@return boolean
+function ResultUI:has_window()
+  if self.winid and vim.api.nvim_win_is_valid(self.winid) then
+    return true
+  end
+  return false
+end
+
+---@private
 function ResultUI:display_progress()
   self.stop_progress = progress.display(self.bufnr, self.progress_opts)
 
-  vim.api.nvim_set_current_win(self.winid)
+  if self:has_window() then
+    vim.api.nvim_set_current_win(self.winid)
+  end
 end
 
 ---@private
@@ -135,13 +146,14 @@ function ResultUI:display_status()
 
   vim.api.nvim_buf_set_option(self.bufnr, "modifiable", false)
 
-  -- set winbar
-  vim.api.nvim_win_set_option(self.winid, "winbar", "Results")
+  -- set winbar and set focus
+  if self:has_window() then
+    vim.api.nvim_win_set_option(self.winid, "winbar", "Results")
+    vim.api.nvim_set_current_win(self.winid)
+  end
 
   -- reset modified flag
   vim.api.nvim_buf_set_option(self.bufnr, "modified", false)
-
-  vim.api.nvim_set_current_win(self.winid)
 end
 
 --- Displays a page of the current result in the results buffer
@@ -175,17 +187,19 @@ function ResultUI:display_result(page)
   local seconds = self.current_call.time_taken_us / 1000000
 
   -- set winbar status
-  if self.winid and vim.api.nvim_win_is_valid(self.winid) then
+  if self:has_window() then
     vim.api.nvim_win_set_option(
       self.winid,
       "winbar",
       string.format("%d/%d%%=Took %.3fs", page + 1, self.page_ammount + 1, seconds)
     )
+
+    -- set focus if window exists
+    vim.api.nvim_set_current_win(self.winid)
   end
 
-  -- reset modified flag and set focus
+  -- reset modified flag
   vim.api.nvim_buf_set_option(self.bufnr, "modified", false)
-  vim.api.nvim_set_current_win(self.winid)
 
   return page
 end
@@ -227,6 +241,16 @@ function ResultUI:get_actions()
       end
     end,
   }
+end
+
+---Triggers an in-built action.
+---@param action string
+function ResultUI:do_action(action)
+  local act = self:get_actions()[action]
+  if not act then
+    error("unknown action: " .. action)
+  end
+  act()
 end
 
 -- sets call's result to Result's buffer
@@ -341,7 +365,7 @@ end
 ---@return number # number of the first row
 ---@return number # number of the last row
 function ResultUI:current_row_range()
-  if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
+  if not self:has_window() then
     error("result cannot operate without a valid window")
   end
   -- get current selection

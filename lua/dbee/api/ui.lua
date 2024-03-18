@@ -19,17 +19,17 @@ local state = require("dbee.api.state")
 
 local ui = {}
 
----@divider -
----@tag dbee.ref.api.ui.editor
----@brief [[
----Editor API
----@brief ]]
-
 ---Returns true if dbee ui is loaded.
 ---@return boolean
 function ui.is_loaded()
   return state.is_ui_loaded()
 end
+
+---@divider -
+---@tag dbee.ref.api.ui.editor
+---@brief [[
+---Editor API
+---@brief ]]
 
 ---Registers an event handler for editor events.
 ---@param event editor_event_name
@@ -38,12 +38,28 @@ function ui.editor_register_event_listener(event, listener)
   state.editor():register_event_listener(event, listener)
 end
 
---- Search for a note across namespaces.
+--- Search for a note with provided id across namespaces.
 ---@param id note_id
 ---@return note_details|nil
 ---@return namespace_id _ namespace of the note
 function ui.editor_search_note(id)
   return state.editor():search_note(id)
+end
+
+--- Search for a note with provided buffer across namespaces.
+---@param bufnr integer
+---@return note_details|nil
+---@return namespace_id _ namespace of the note
+function ui.editor_search_note_with_buf(bufnr)
+  return state.editor():search_note_with_buf(bufnr)
+end
+
+--- Search for a note with provided file name across namespaces.
+---@param file string
+---@return note_details|nil
+---@return namespace_id _ namespace of the note
+function ui.editor_search_note_with_file(file)
+  return state.editor():search_note_with_file(file)
 end
 
 --- Creates a new note in namespace.
@@ -99,6 +115,12 @@ function ui.editor_show(winid)
   state.editor():show(winid)
 end
 
+--- Trigger an action in editor.
+---@param action string
+function ui.editor_do_action(action)
+  state.editor():do_action(action)
+end
+
 ---@divider -
 ---@tag dbee.ref.api.ui.call_log
 ---@brief [[
@@ -116,6 +138,12 @@ function ui.call_log_show(winid)
   state.call_log():show(winid)
 end
 
+--- Trigger an action in call_log.
+---@param action string
+function ui.call_log_do_action(action)
+  state.call_log():do_action(action)
+end
+
 ---@divider -
 ---@tag dbee.ref.api.ui.drawer
 ---@brief [[
@@ -131,6 +159,12 @@ end
 ---@param winid integer
 function ui.drawer_show(winid)
   state.drawer():show(winid)
+end
+
+--- Trigger an action in drawer.
+---@param action string
+function ui.drawer_do_action(action)
+  state.drawer():do_action(action)
 end
 
 ---@divider -
@@ -170,6 +204,12 @@ end
 ---@param winid integer
 function ui.result_show(winid)
   state.result():show(winid)
+end
+
+--- Trigger an action in result.
+---@param action string
+function ui.result_do_action(action)
+  state.result():do_action(action)
 end
 
 return ui
