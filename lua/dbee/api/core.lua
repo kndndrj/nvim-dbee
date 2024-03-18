@@ -43,20 +43,30 @@ function core.source_reload(id)
   state.handler():source_reload(id)
 end
 
----Add connections to the source.
+---Add connection to the source.
+---In case the source cannot add connections, this call fails.
 ---@param id source_id
----@param details ConnectionParams[]
-function core.source_add_connections(id, details)
-  state.handler():source_add_connections(id, details)
+---@param details ConnectionParams
+---@return connection_id
+function core.source_add_connection(id, details)
+  return state.handler():source_add_connection(id, details)
 end
 
 ---Remove a connection from the source.
----If source can edit connections, it also removes the
----connection permanently.
+---In case the source cannot delete connections, this call fails.
 ---@param id source_id
----@param details ConnectionParams[]
-function core.source_remove_connections(id, details)
-  state.handler():source_remove_connections(id, details)
+---@param conn_id connection_id
+function core.source_remove_connection(id, conn_id)
+  state.handler():source_remove_connection(id, conn_id)
+end
+
+---Update an existing connection from the source.
+---In case the source cannot edit connections, this call fails.
+---@param id source_id
+---@param conn_id connection_id
+---@param details ConnectionParams
+function core.source_update_connection(id, conn_id, details)
+  state.handler():source_update_connection(id, conn_id, details)
 end
 
 --- Get a list of connections from source.

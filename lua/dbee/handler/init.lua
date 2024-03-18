@@ -4,7 +4,7 @@ local utils = require("dbee.utils")
 -- Handler is an aggregator of connections
 ---@class Handler
 ---@field private sources table<source_id, Source>
----@field private source_conn_lookup table<string, connection_id[]>
+---@field private source_conn_lookup table<source_id, connection_id[]>
 local Handler = {}
 
 ---@param sources? Source[]
@@ -23,7 +23,7 @@ function Handler:new(sources)
   for _, source in ipairs(sources) do
     local ok, mes = pcall(o.add_source, o, source)
     if not ok then
-      utils.log("error", "failed registering source: " .. mes, "core")
+      utils.log("error", "failed registering source: " .. source:name() .. " " .. mes, "core")
     end
   end
 
@@ -56,17 +56,28 @@ function Handler:get_sources()
   return sources
 end
 
+---Closes old connections of that source
+---and loads new ones.
 ---@param id source_id
 function Handler:source_reload(id)
   local source = self.sources[id]
   if not source then
-    return
+    error("no source with id: " .. id)
   end
 
-  -- add new connections
+  -- close old connections
+  for _, c in ipairs(self:source_get_connections(id)) do
+    pcall(vim.fn.DbeeDeleteConnection, c.id)
+  end
+
+  -- create new ones
   self.source_conn_lookup[id] = {}
   for _, spec in ipairs(source:load()) do
-    spec.id = spec.id or spec.type .. spec.name
+    if not spec.id or spec.id == "" then
+      error(
+        string.format('connection without an id: { name: "%s", type: %s, url: %s } ', spec.name, spec.type, spec.url)
+      )
+    end
 
     local conn_id = vim.fn.DbeeCreateConnection(spec)
     table.insert(self.source_conn_lookup[id], conn_id)
@@ -74,40 +85,70 @@ function Handler:source_reload(id)
 end
 
 ---@param id source_id
----@param details ConnectionParams[]
-function Handler:source_add_connections(id, details)
+---@param details ConnectionParams
+---@return connection_id
+function Handler:source_add_connection(id, details)
   if not details then
-    return
+    error("no connection details provided")
   end
 
   local source = self.sources[id]
   if not source then
-    return
+    error("no source with id: " .. id)
   end
 
-  if type(source.save) == "function" then
-    source:save(details, "add")
+  if type(source.create) ~= "function" then
+    error("source does not support adding connections")
   end
 
+  local conn_id = source:create(details)
+  self:source_reload(id)
+
+  return conn_id
+end
+
+---@param id source_id
+---@param conn_id connection_id
+function Handler:source_remove_connection(id, conn_id)
+  local source = self.sources[id]
+  if not source then
+    error("no source with id: " .. id)
+  end
+
+  if not conn_id or conn_id == "" then
+    error("no connection id provided")
+  end
+
+  if type(source.delete) ~= "function" then
+    error("source does not support removing connections")
+  end
+
+  source:delete(conn_id)
   self:source_reload(id)
 end
 
 ---@param id source_id
----@param details ConnectionParams[]
-function Handler:source_remove_connections(id, details)
-  if not details then
-    return
-  end
-
+---@param conn_id connection_id
+---@param details ConnectionParams
+function Handler:source_update_connection(id, conn_id, details)
   local source = self.sources[id]
   if not source then
-    return
+    error("no source with id: " .. id)
   end
 
-  if type(source.save) == "function" then
-    source:save(details, "delete")
+  if not conn_id or conn_id == "" then
+    error("no connection id provided")
   end
 
+  if not details then
+    error("no connection details provided")
+  end
+
+  if type(source.update) ~= "function" then
+    error("source does not support updating connections")
+  end
+
+  source:update(conn_id, details)
   self:source_reload(id)
 end
 
