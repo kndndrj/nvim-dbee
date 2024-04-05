@@ -452,6 +452,9 @@ layouts.Default:new({opts?})                               *layouts.Default:new*
         (DefaultLayout)
 
 
+DefaultLayout                                                    *DefaultLayout*
+
+
 ==============================================================================
 Dbee Core API                                                *dbee.ref.api.core*
 
