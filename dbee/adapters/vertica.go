@@ -1,23 +1,18 @@
 package adapters
 
 import (
+	"context"
 	"database/sql"
-	"encoding/gob"
 	"fmt"
-	nurl "net/url"
 
-	_ "github.com/vertica/vertica-sql-go"
-
+	"github.com/vertica/vertica-sql-go"
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 )
 
 // Register client
 func init() {
-	_ = register(&Vertica{}, "vertica", "vt")
-
-	// register special json response with gob
-	gob.Register(&verticaJSONResponse{})
+	_ = register(&Vertica{}, "vertica")
 }
 
 var _ core.Adapter = (*Vertica)(nil)
@@ -25,11 +20,6 @@ var _ core.Adapter = (*Vertica)(nil)
 type Vertica struct{}
 
 func (v *Vertica) Connect(url string) (core.Driver, error) {
-	u, err := nurl.Parse(url)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse db connection string: %w: ", err)
-	}
-
 	db, err := sql.Open("vertica", u.String())
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to vertica database: %w", err)
@@ -41,7 +31,7 @@ func (v *Vertica) Connect(url string) (core.Driver, error) {
 			return a
 		}
 
-		return newVerticaJSONResponse(b)
+		return newPostgresJSONResponse(b)
 	}
 
 	return &verticaDriver{
