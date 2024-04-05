@@ -1,12 +1,8 @@
 package adapters
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
-	"encoding/gob"
-	"encoding/json"
-	"errors"
 	"fmt"
 	nurl "net/url"
 	"strings"
