@@ -6,6 +6,7 @@ local config = {}
 ---@class Config
 ---@field sources Source[] list of connection sources
 ---@field extra_helpers table<string, table<string, string>>
+---@field float_options table<string, any>
 ---@field drawer drawer_config
 ---@field editor editor_config
 ---@field result result_config
@@ -55,6 +56,9 @@ config.default = {
     --   ["List All"] = "select * from {{ .Table }}",
     -- },
   },
+  -- options passed to floating windows - :h nvim_open_win()
+  float_options = {},
+
   -- drawer window config
   drawer = {
     -- these two option settings can be added to all UI elements and

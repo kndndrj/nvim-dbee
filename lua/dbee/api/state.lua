@@ -1,3 +1,4 @@
+local floats = require("dbee.ui.common.floats")
 local DrawerUI = require("dbee.ui.drawer")
 local EditorUI = require("dbee.ui.editor")
 local ResultUI = require("dbee.ui.result")
@@ -47,6 +48,10 @@ local function setup_ui()
 
   setup_handler()
 
+  -- configure options for floating windows
+  floats.configure(m.config.float_options)
+
+  -- initiate all UI elements
   m.result = ResultUI:new(m.handler, m.config.result)
   m.call_log = CallLogUI:new(m.handler, m.result, m.config.call_log)
   m.editor = EditorUI:new(m.handler, m.result, m.config.editor)
