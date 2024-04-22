@@ -29,6 +29,7 @@ function M.select(opts)
     size = {
       width = width,
     },
+    zindex = 160,
     border = {
       style = { "─", "─", "─", "", "─", "─", "─", "" },
       text = {
@@ -106,6 +107,7 @@ function M.input(opts)
     size = {
       width = width,
     },
+    zindex = 160,
     border = {
       style = { "─", "─", "─", "", "─", "─", "─", "" },
       text = {

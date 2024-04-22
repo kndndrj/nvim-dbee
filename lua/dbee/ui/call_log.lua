@@ -13,6 +13,8 @@ local common = require("dbee.ui.common")
 ---@field private candies table<string, Candy> map of eye-candy stuff (icons, highlight)
 ---@field private current_connection_id? connection_id
 ---@field private hover_close? fun() function that closes the hover window
+---@field private window_options table<string, any> a table of window options.
+---@field private buffer_options table<string, any> a table of buffer options.
 local CallLogUI = {}
 
 ---@param handler Handler
@@ -41,17 +43,27 @@ function CallLogUI:new(handler, result, opts)
     candies = candies,
     hover_close = function() end,
     current_connection_id = (handler:get_current_connection() or {}).id,
+    window_options = vim.tbl_extend("force", {
+      wrap = false,
+      winfixheight = true,
+      winfixwidth = true,
+      number = false,
+      relativenumber = false,
+      spell = false,
+    }, opts.window_options or {}),
+    buffer_options = vim.tbl_extend("force", {
+      buflisted = false,
+      bufhidden = "delete",
+      buftype = "nofile",
+      swapfile = false,
+      filetype = "dbee",
+    }, opts.buffer_options or {}),
   }
   setmetatable(o, self)
   self.__index = self
 
   -- create a buffer for drawer and configure it
-  o.bufnr = common.create_blank_buffer("dbee-call-log", {
-    buflisted = false,
-    bufhidden = "delete",
-    buftype = "nofile",
-    swapfile = false,
-  })
+  o.bufnr = common.create_blank_buffer("dbee-call-log", o.buffer_options)
   common.configure_buffer_mappings(o.bufnr, o:get_actions(), opts.mappings)
 
   -- create the tree
@@ -276,12 +288,7 @@ function CallLogUI:show(winid)
   self.winid = winid
 
   -- configure window options
-  common.configure_window_options(self.winid, {
-    wrap = false,
-    winfixheight = true,
-    winfixwidth = true,
-    number = false,
-  })
+  common.configure_window_options(self.winid, self.window_options)
 
   -- configure auto preview
   self:configure_preview(self.bufnr)

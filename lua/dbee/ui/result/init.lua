@@ -14,6 +14,8 @@ local common = require("dbee.ui.common")
 ---@field private page_ammount integer number of pages in the current result set
 ---@field private stop_progress fun() function that stops progress display
 ---@field private progress_opts progress_config
+---@field private window_options table<string, any> a table of window options.
+---@field private buffer_options table<string, any> a table of buffer options.
 local ResultUI = {}
 
 ---@param handler Handler
@@ -35,18 +37,28 @@ function ResultUI:new(handler, opts)
     mappings = opts.mappings or {},
     stop_progress = function() end,
     progress_opts = opts.progress or {},
+    window_options = vim.tbl_extend("force", {
+      wrap = false,
+      winfixheight = true,
+      winfixwidth = true,
+      number = false,
+      relativenumber = false,
+      spell = false,
+    }, opts.window_options or {}),
+    buffer_options = vim.tbl_extend("force", {
+      buflisted = false,
+      bufhidden = "delete",
+      buftype = "nofile",
+      swapfile = false,
+      modifiable = false,
+      filetype = "dbee",
+    }, opts.buffer_options or {}),
   }
   setmetatable(o, self)
   self.__index = self
 
   -- create a buffer for drawer and configure it
-  o.bufnr = common.create_blank_buffer("dbee-result", {
-    buflisted = false,
-    bufhidden = "delete",
-    buftype = "nofile",
-    swapfile = false,
-    modifiable = false,
-  })
+  o.bufnr = common.create_blank_buffer("dbee-result", o.buffer_options)
   common.configure_buffer_mappings(o.bufnr, o:get_actions(), opts.mappings)
 
   handler:register_event_listener("call_state_changed", function(data)
@@ -419,25 +431,14 @@ function ResultUI:show(winid)
   self.winid = winid
 
   -- configure window options
-  common.configure_window_options(self.winid, {
-    wrap = false,
-    winfixheight = true,
-    winfixwidth = true,
-    number = false,
-  })
+  common.configure_window_options(self.winid, self.window_options)
 
   -- configure window highlights
   self:apply_highlight(self.winid)
 
   vim.api.nvim_win_set_buf(self.winid, self.bufnr)
 
-  common.configure_buffer_options(self.bufnr, {
-    buflisted = false,
-    bufhidden = "delete",
-    buftype = "nofile",
-    swapfile = false,
-    modifiable = false,
-  })
+  common.configure_buffer_options(self.bufnr, self.buffer_options)
   common.configure_buffer_mappings(self.bufnr, self:get_actions(), self.mappings)
 
   -- display the current result

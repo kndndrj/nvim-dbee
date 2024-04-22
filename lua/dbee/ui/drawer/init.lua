@@ -30,6 +30,8 @@ local expansion = require("dbee.ui.drawer.expansion")
 ---@field private bufnr integer
 ---@field private current_conn_id? connection_id current active connection
 ---@field private current_note_id? note_id current active note
+---@field private window_options table<string, any> a table of window options.
+---@field private buffer_options table<string, any> a table of buffer options.
 local DrawerUI = {}
 
 ---@param handler Handler
@@ -68,17 +70,27 @@ function DrawerUI:new(handler, editor, result, opts)
     disable_help = opts.disable_help or false,
     current_conn_id = current_conn.id,
     current_note_id = current_note.id,
+    window_options = vim.tbl_extend("force", {
+      wrap = false,
+      winfixheight = true,
+      winfixwidth = true,
+      number = false,
+      relativenumber = false,
+      spell = false,
+    }, opts.window_options or {}),
+    buffer_options = vim.tbl_extend("force", {
+      buflisted = false,
+      bufhidden = "delete",
+      buftype = "nofile",
+      swapfile = false,
+      filetype = "dbee",
+    }, opts.buffer_options or {}),
   }
   setmetatable(o, self)
   self.__index = self
 
   -- create a buffer for drawer and configure it
-  o.bufnr = common.create_blank_buffer("dbee-drawer", {
-    buflisted = false,
-    bufhidden = "delete",
-    buftype = "nofile",
-    swapfile = false,
-  })
+  o.bufnr = common.create_blank_buffer("dbee-drawer", o.buffer_options)
   common.configure_buffer_mappings(o.bufnr, o:get_actions(), opts.mappings)
 
   -- create tree
@@ -323,12 +335,7 @@ function DrawerUI:show(winid)
   self.winid = winid
 
   -- configure window options
-  common.configure_window_options(self.winid, {
-    wrap = false,
-    winfixheight = true,
-    winfixwidth = true,
-    number = false,
-  })
+  common.configure_window_options(self.winid, self.window_options)
 
   -- set buffer to window
   vim.api.nvim_win_set_buf(self.winid, self.bufnr)

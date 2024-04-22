@@ -23,16 +23,16 @@ local config = {}
 ---@divider -
 
 ---Configuration for result UI tile.
----@alias result_config { mappings: key_mapping[], page_size: integer, progress: progress_config }
+---@alias result_config { mappings: key_mapping[], page_size: integer, progress: progress_config, window_options: table<string, any>, buffer_options: table<string, any> }
 
 ---Configuration for editor UI tile.
----@alias editor_config { directory: string, mappings: key_mapping[] }
+---@alias editor_config { directory: string, mappings: key_mapping[], window_options: table<string, any>, buffer_options: table<string, any> }
 
 ---Configuration for call log UI tile.
----@alias call_log_config { mappings: key_mapping[], disable_candies: boolean, candies: table<string, Candy> }
+---@alias call_log_config { mappings: key_mapping[], disable_candies: boolean, candies: table<string, Candy>, window_options: table<string, any>, buffer_options: table<string, any> }
 
 ---Configuration for drawer UI tile.
----@alias drawer_config { disable_candies: boolean, candies: table<string, Candy>, mappings: key_mapping[], disable_help: boolean }
+---@alias drawer_config { disable_candies: boolean, candies: table<string, Candy>, mappings: key_mapping[], disable_help: boolean, window_options: table<string, any>, buffer_options: table<string, any> }
 
 ---@divider -
 
@@ -57,6 +57,14 @@ config.default = {
   },
   -- drawer window config
   drawer = {
+    -- these two option settings can be added to all UI elements and
+    -- allow for passing specific window/buffer options.
+    -- Note that you probably shouldn't be passing buffer options, since
+    -- the functionality of the plugin might rely on them.
+    -- TL;DR: only use this if you know what you are doing!
+    window_options = {},
+    buffer_options = {},
+
     -- show help or not
     disable_help = false,
     -- mappings for the buffer
@@ -169,6 +177,10 @@ config.default = {
 
   -- results window config
   result = {
+    -- see drawer comment.
+    window_options = {},
+    buffer_options = {},
+
     -- number of rows in the results set to display per page
     page_size = 100,
 
@@ -200,6 +212,10 @@ config.default = {
 
   -- editor window config
   editor = {
+    -- see drawer comment.
+    window_options = {},
+    buffer_options = {},
+
     -- mappings for the buffer
     mappings = {
       -- run what's currently selected on the active connection
@@ -211,6 +227,10 @@ config.default = {
 
   -- call log window config
   call_log = {
+    -- see drawer comment.
+    window_options = {},
+    buffer_options = {},
+
     -- mappings for the buffer
     mappings = {
       -- show the result of the currently selected call record

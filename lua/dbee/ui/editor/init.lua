@@ -16,6 +16,8 @@ local welcome = require("dbee.ui.editor.welcome")
 ---@field private current_note_id? note_id
 ---@field private directory string directory where notes are stored
 ---@field private event_callbacks table<editor_event_name, event_listener[]> callbacks for events
+---@field private window_options table<string, any> a table of window options.
+---@field private buffer_options table<string, any> a table of buffer options for all notes.
 local EditorUI = {}
 
 ---@param handler Handler
@@ -41,6 +43,11 @@ function EditorUI:new(handler, result, opts)
     event_callbacks = {},
     directory = opts.directory or vim.fn.stdpath("cache") .. "/dbee/notes",
     mappings = opts.mappings,
+    window_options = vim.tbl_extend("force", {}, opts.window_options or {}),
+    buffer_options = vim.tbl_extend("force", {
+      buflisted = false,
+      swapfile = false,
+    }, opts.buffer_options or {}),
   }
   setmetatable(o, self)
   self.__index = self
@@ -111,10 +118,7 @@ function EditorUI:create_welcome_note()
   })
 
   -- configure options and mappings on new buffer
-  common.configure_buffer_options(bufnr, {
-    buflisted = false,
-    swapfile = false,
-  })
+  common.configure_buffer_options(bufnr, self.buffer_options)
   common.configure_buffer_mappings(bufnr, self:get_actions(), self.mappings)
 
   return note_id
@@ -423,17 +427,15 @@ function EditorUI:display_note(id)
   self.notes[namespace][id].bufnr = bufnr
 
   -- configure options and mappings on new buffer
-  common.configure_buffer_options(bufnr, {
-    buflisted = false,
-    swapfile = false,
-    filetype = "sql",
-  })
+  common.configure_buffer_options(bufnr, self.buffer_options)
   common.configure_buffer_mappings(bufnr, self:get_actions(), self.mappings)
 end
 
 ---@param winid integer
 function EditorUI:show(winid)
   self.winid = winid
+
+  common.configure_window_options(winid, self.window_options)
   -- open current note
   self:display_note(self.current_note_id)
 end
