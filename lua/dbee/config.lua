@@ -226,6 +226,9 @@ config.default = {
     window_options = {},
     buffer_options = {},
 
+    -- directory where to store the scratchpads.
+    --directory = "path/to/scratchpad/dir",
+
     -- mappings for the buffer
     mappings = {
       -- run what's currently selected on the active connection
