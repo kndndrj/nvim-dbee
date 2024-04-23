@@ -287,14 +287,14 @@ end
 function CallLogUI:show(winid)
   self.winid = winid
 
-  -- configure window options
-  common.configure_window_options(self.winid, self.window_options)
-
   -- configure auto preview
   self:configure_preview(self.bufnr)
 
   -- set buffer to window
   vim.api.nvim_win_set_buf(self.winid, self.bufnr)
+
+  -- configure window options (needs to be set after setting the buffer to window)
+  common.configure_window_options(self.winid, self.window_options)
 
   self:refresh()
 end

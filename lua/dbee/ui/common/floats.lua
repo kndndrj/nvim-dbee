@@ -259,6 +259,7 @@ function M.hover(relative_winid, contents)
   -- create new buffer with contents
   local bufnr = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, contents)
+  vim.api.nvim_buf_set_option(bufnr, "filetype", "dbee")
   vim.api.nvim_buf_set_option(bufnr, "bufhidden", "delete")
 
   -- row is relative to cursor in the "parent" window

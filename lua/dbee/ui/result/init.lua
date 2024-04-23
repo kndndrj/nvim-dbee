@@ -430,9 +430,6 @@ end
 function ResultUI:show(winid)
   self.winid = winid
 
-  -- configure window options
-  common.configure_window_options(self.winid, self.window_options)
-
   -- configure window highlights
   self:apply_highlight(self.winid)
 
@@ -440,6 +437,9 @@ function ResultUI:show(winid)
 
   common.configure_buffer_options(self.bufnr, self.buffer_options)
   common.configure_buffer_mappings(self.bufnr, self:get_actions(), self.mappings)
+
+  -- configure window options (needs to be set after setting the buffer to window)
+  common.configure_window_options(self.winid, self.window_options)
 
   -- display the current result
   local ok = pcall(self.page_current, self)

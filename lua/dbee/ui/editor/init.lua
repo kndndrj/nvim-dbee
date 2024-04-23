@@ -435,9 +435,11 @@ end
 function EditorUI:show(winid)
   self.winid = winid
 
-  common.configure_window_options(winid, self.window_options)
   -- open current note
   self:display_note(self.current_note_id)
+
+  -- configure window options (needs to be set after setting the buffer to window)
+  common.configure_window_options(winid, self.window_options)
 end
 
 return EditorUI
