@@ -18,6 +18,16 @@ function M.bin()
   return M.dir() .. "/dbee"
 end
 
+---@return string _ version (hash of install manifest)
+function M.version()
+  local ok, m = pcall(require, "dbee.install.__manifest")
+  if not ok or type(m) ~= "table" or vim.tbl_isempty(m) then
+    return "unknown"
+  end
+
+  return m.version or "unknown"
+end
+
 ---@return string _ path of go source
 function M.source_path()
   local p, _ = debug.getinfo(1).source:sub(2):gsub("/lua/dbee/install/init.lua$", "/dbee")

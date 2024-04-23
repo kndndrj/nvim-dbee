@@ -30,6 +30,9 @@ local layouts = {}
 -- then makes a new empty window for the editor and then opens result and drawer.
 -- When later calling close(), the previously saved layout is restored.
 ---@class DefaultLayout: Layout
+---@field private drawer_width integer
+---@field private result_height integer
+---@field private call_log_height integer
 ---@field private egg? layout_egg
 ---@field private windows integer[]
 ---@field private on_switch "immutable"|"close"
@@ -37,18 +40,28 @@ local layouts = {}
 layouts.Default = {}
 
 ---Create a default layout.
----@param on_switch? "immutable"|"close" what to do in case another buffer wants to be open in any window. default: "immutable"
----@return Layout
-function layouts.Default:new(on_switch)
-  if not on_switch or on_switch == "" then
-    on_switch = "immutable"
+---The on_switch parameter defines what to do in case another buffer wants to be open in any window. default: "immutable"
+---@param opts? { on_switch: "immutable"|"close", drawer_width: integer, result_height: integer, call_log_height: integer }
+---@return DefaultLayout
+function layouts.Default:new(opts)
+  opts = opts or {}
+
+  -- validate opts
+  for _, opt in ipairs { "drawer_width", "result_height", "call_log_height" } do
+    if opts[opt] and opts[opt] < 0 then
+      error(opt .. " must be a positive integer. Got: " .. opts[opt])
+    end
   end
 
+  ---@type DefaultLayout
   local o = {
     egg = nil,
     windows = {},
-    on_switch = on_switch,
+    on_switch = opts.on_switch or "immutable",
     is_opened = false,
+    drawer_width = opts.drawer_width or 40,
+    result_height = opts.result_height or 20,
+    call_log_height = opts.call_log_height or 20,
   }
   setmetatable(o, self)
   self.__index = self
@@ -129,7 +142,7 @@ function layouts.Default:open()
   self:configure_window_on_quit(editor_win)
 
   -- result
-  vim.cmd("bo 15split")
+  vim.cmd("bo" .. self.result_height .. "split")
   local win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
   api_ui.result_show(win)
@@ -137,7 +150,7 @@ function layouts.Default:open()
   self:configure_window_on_quit(win)
 
   -- drawer
-  vim.cmd("to 40vsplit")
+  vim.cmd("to" .. self.drawer_width .. "vsplit")
   win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
   api_ui.drawer_show(win)
@@ -145,7 +158,7 @@ function layouts.Default:open()
   self:configure_window_on_quit(win)
 
   -- call log
-  vim.cmd("belowright 15split")
+  vim.cmd("belowright " .. self.call_log_height .. "split")
   win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
   api_ui.call_log_show(win)

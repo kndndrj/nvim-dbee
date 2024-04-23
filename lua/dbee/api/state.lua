@@ -38,6 +38,11 @@ local function setup_handler()
   m.handler = Handler:new(m.config.sources)
   m.handler:add_helpers(m.config.extra_helpers)
 
+  -- activate default connection if present
+  if m.config.default_connection then
+    pcall(m.handler.set_current_connection, m.handler, m.config.default_connection)
+  end
+
   m.core_loaded = true
 end
 

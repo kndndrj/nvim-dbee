@@ -2,7 +2,7 @@ local utils = require("dbee.utils")
 local progress = require("dbee.ui.result.progress")
 local common = require("dbee.ui.common")
 
--- ResultTile represents the part of ui with displayed results
+-- ResultUI represents the part of ui with displayed results
 ---@class ResultUI
 ---@field private handler Handler
 ---@field private winid? integer
@@ -25,7 +25,7 @@ function ResultUI:new(handler, opts)
   opts = opts or {}
 
   if not handler then
-    error("no Handler passed to ResultTile")
+    error("no Handler passed to ResultUI")
   end
 
   -- class object
@@ -203,7 +203,7 @@ function ResultUI:display_result(page)
     vim.api.nvim_win_set_option(
       self.winid,
       "winbar",
-      string.format("%d/%d%%=Took %.3fs", page + 1, self.page_ammount + 1, seconds)
+      string.format("%d/%d (%d)%%=Took %.3fs", page + 1, self.page_ammount + 1, length, seconds)
     )
 
     -- set focus if window exists
@@ -225,6 +225,12 @@ function ResultUI:get_actions()
     end,
     page_prev = function()
       self:page_prev()
+    end,
+    page_last = function()
+      self:page_last()
+    end,
+    page_first = function()
+      self:page_first()
     end,
 
     -- yank functions
@@ -291,6 +297,14 @@ end
 
 function ResultUI:page_prev()
   self.page_index = self:display_result(self.page_index - 1)
+end
+
+function ResultUI:page_last()
+  self.page_index = self:display_result(self.page_ammount)
+end
+
+function ResultUI:page_first()
+  self.page_index = self:display_result(0)
 end
 
 -- wrapper for storing the current row

@@ -4,14 +4,15 @@ local config = {}
 
 -- Configuration object.
 ---@class Config
----@field sources Source[] list of connection sources
----@field extra_helpers table<string, table<string, string>>
----@field float_options table<string, any>
----@field drawer drawer_config
----@field editor editor_config
----@field result result_config
----@field call_log call_log_config
----@field window_layout Layout
+---@field default_connection? string
+---@field sources? Source[] list of connection sources
+---@field extra_helpers? table<string, table<string, string>>
+---@field float_options? table<string, any>
+---@field drawer? drawer_config
+---@field editor? editor_config
+---@field result? result_config
+---@field call_log? call_log_config
+---@field window_layout? Layout
 
 ---@class Candy
 ---@field icon string
@@ -42,6 +43,9 @@ local config = {}
 ---To see defaults, run :lua= require"dbee.config".default
 ---@type Config config
 config.default = {
+  -- you can specify an optional default connection id and it will be the active one
+  -- when dbee starts
+  default_connection = nil,
   -- loads connections from files and environment variables
   sources = {
     require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
@@ -201,6 +205,8 @@ config.default = {
       -- next/previous page
       { key = "L", mode = "", action = "page_next" },
       { key = "H", mode = "", action = "page_prev" },
+      { key = "E", mode = "", action = "page_last" },
+      { key = "F", mode = "", action = "page_first" },
       -- yank rows as csv/json
       { key = "yaj", mode = "n", action = "yank_current_json" },
       { key = "yaj", mode = "v", action = "yank_selection_json" },
@@ -302,6 +308,7 @@ function config.validate(cfg)
   vim.validate {
     sources = { cfg.sources, "table" },
     extra_helpers = { cfg.extra_helpers, "table" },
+    float_options = { cfg.float_options, "table" },
 
     drawer_disable_candies = { cfg.drawer.disable_candies, "boolean" },
     drawer_disable_help = { cfg.drawer.disable_help, "boolean" },

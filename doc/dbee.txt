@@ -132,6 +132,9 @@ Here are the defaults:
     ---To see defaults, run :lua= require"dbee.config".default
     ---@type Config config
     config.default = {
+      -- you can specify an optional default connection id and it will be the active one
+      -- when dbee starts
+      default_connection = nil,
       -- loads connections from files and environment variables
       sources = {
         require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
@@ -276,6 +279,8 @@ Here are the defaults:
           -- next/previous page
           { key = "L", mode = "", action = "page_next" },
           { key = "H", mode = "", action = "page_prev" },
+          { key = "E", mode = "", action = "page_last" },
+          { key = "F", mode = "", action = "page_first" },
           -- yank rows as csv/json
           { key = "yaj", mode = "n", action = "yank_current_json" },
           { key = "yaj", mode = "v", action = "yank_selection_json" },
@@ -422,13 +427,22 @@ Here are a few steps to quickly get started:
 - If the request was successful, the results should appear in the "result" buffer
     (bottom right by default). If the total number of results was lower than the
     `page_size` parameter in config (100 by default), all results should already be
-    present. If there are more than `page_size` results, you can "page" thrugh them
-    using one of the following:
-    - Using `require("dbee")api.ui.result_page_next()` and
-        `require("dbee")api.ui.result_page_prev()` from anywhere (even if your
-        cursor is outside the result buffer).
-    - Using `L` for next and `H` for previous page if the cursor is located inside
-        the results buffer.
+    present. If there are more than `page_size` results, you can "page" through
+    them using one of the following:
+
+  ----------------------------------------------------------------------------------------------------
+  Navigation using lua script (even if your            Description         Default key mapping (cursor
+  cursor is outside the result buffer)                                       should be inside result
+                                                                                     buffer)
+  -------------------------------------------- --------------------------- ---------------------------
+  require("dbee").api.ui.result_page_next()          Go to next page                    L
+
+  require("dbee").api.ui.result_page_prev()      Go to the previous page                H
+
+  require("dbee").api.ui.result_page_last()        Go to the last page                  E
+
+  require("dbee").api.ui.result_page_first()      Go to the first page                  F
+  ----------------------------------------------------------------------------------------------------
 - Once in the "result" buffer, you can yank the results with the following keys:
     - `yaj` yank current row as json (or row range in visual mode)
     - `yac` yank current row as CSV (or row range in visual mode)

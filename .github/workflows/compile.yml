@@ -109,6 +109,9 @@ jobs:
             done
             echo "}"
             echo
+            echo "-- Git sha of compiled binaries"
+            echo "M.version = \"${{ github.sha }}\""
+            echo
             echo "return M"
           } > "$MANIFEST_FILE"
       - name: Commit Generated Manifest

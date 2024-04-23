@@ -30,11 +30,10 @@ local function get_current_hash()
   return run_cmd(string.format("git -C %q rev-parse HEAD", repo()))
 end
 
--- Gets git hash of last tagged commit.
+-- Gets git hash of the install manifest
 ---@return string
-local function get_last_tag_hash()
-  local last_tag = run_cmd(string.format("git -C %q describe --tags --abbrev=0", repo()))
-  return run_cmd(string.format("git -C %q rev-list -n 1 tags/%s", repo(), last_tag))
+local function get_manifest_hash()
+  return install.version()
 end
 
 function M.check()
@@ -52,19 +51,27 @@ function M.check()
 
   local go_hash = get_go_hash()
   local current_hash = get_current_hash()
-  local last_tag_hash = get_last_tag_hash()
+  local manifest_hash = get_manifest_hash()
 
-  if go_hash == current_hash or go_hash == last_tag_hash then
-    vim.health.report_ok("Binary versions match")
+  if go_hash == "unknown" then
+    vim.health.report_error("Could not determine binary version.")
+    return
+  end
+
+  if go_hash == current_hash then
+    vim.health.report_ok("Binary version matches version of current HEAD.")
+    return
+  elseif go_hash == manifest_hash then
+    vim.health.report_ok("Binary version matches version of install manifest.")
     return
   end
 
   vim.health.report_error(
     string.format(
-      "Binary version %q doesn't match either:\n  - current hash: %q or\n  - hash of latest tag %q.",
+      "Binary version %q doesn't match either:\n  - current hash: %q or\n  - hash of install manifest %q.",
       go_hash,
       current_hash,
-      last_tag_hash
+      manifest_hash
     )
   )
 end
