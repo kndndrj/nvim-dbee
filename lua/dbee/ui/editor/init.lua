@@ -41,7 +41,7 @@ function EditorUI:new(handler, result, opts)
     result = result,
     notes = {},
     event_callbacks = {},
-    directory = opts.directory or vim.fn.stdpath("cache") .. "/dbee/notes",
+    directory = opts.directory or vim.fn.stdpath("state") .. "/dbee/notes",
     mappings = opts.mappings,
     window_options = vim.tbl_extend("force", {}, opts.window_options or {}),
     buffer_options = vim.tbl_extend("force", {
