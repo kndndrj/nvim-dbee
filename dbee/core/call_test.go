@@ -30,7 +30,7 @@ func TestCall_Success(t *testing.T) {
 	}
 
 	eventIndex := 0
-	call := connection.Execute("", func(state core.CallState, c *core.Call) {
+	call := connection.Execute("_", func(state core.CallState, c *core.Call) {
 		// make sure events were in order
 		r.Equal(expectedEvents[eventIndex], state)
 		eventIndex++
@@ -160,7 +160,7 @@ func TestCall_Archive(t *testing.T) {
 	))
 	r.NoError(err)
 
-	call := connection.Execute("", nil)
+	call := connection.Execute("_", nil)
 
 	// wait for call to finish
 	select {
