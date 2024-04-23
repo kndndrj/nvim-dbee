@@ -268,6 +268,7 @@ func (h *Handler) ConnectionSelectDatabase(connID core.ConnectionID, database st
 	if err != nil {
 		return fmt.Errorf("c.SelectDatabase: %w", err)
 	}
+	h.events.DatabaseSelected(connID, database)
 
 	return nil
 }

@@ -104,6 +104,7 @@
 ---@alias core_event_name
 ---| '"call_state_changed"' {call}
 ---| '"current_connection_changed"' {conn_id}
+---| '"database_selected"' {conn_id, database_name}
 
 ---Available editor events.
 ---@alias editor_event_name
