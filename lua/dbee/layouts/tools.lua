@@ -1,5 +1,3 @@
--- save and restore window layout
-
 ---@alias _layout { type: string, winid: integer, bufnr: integer, win_opts: { string: any}, children: _layout[] }
 
 ---@alias layout_egg { layout: _layout, restore: string }

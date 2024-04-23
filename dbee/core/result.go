@@ -21,18 +21,15 @@ type Result struct {
 	readMutex  sync.RWMutex
 }
 
-func (cr *Result) setIter(iter ResultStream, onFillStart func()) error {
+// SetIter sets the ResultStream iterator to result.
+// This can be done only once!
+func (cr *Result) SetIter(iter ResultStream, onFillStart func()) error {
 	// lock write mutex
 	cr.writeMutex.Lock()
 	defer cr.writeMutex.Unlock()
 
-	// function to call on fail
-	var err error
-	defer func() {
-		if err != nil {
-			iter.Close()
-		}
-	}()
+	// close iterator on return
+	defer iter.Close()
 
 	cr.header = iter.Header()
 	cr.meta = iter.Meta()
@@ -40,6 +37,8 @@ func (cr *Result) setIter(iter ResultStream, onFillStart func()) error {
 
 	cr.isDrained = false
 	cr.isFilled = true
+
+	defer func() { cr.isDrained = true }()
 
 	// trigger callback
 	if onFillStart != nil {
@@ -56,8 +55,6 @@ func (cr *Result) setIter(iter ResultStream, onFillStart func()) error {
 
 		cr.rows = append(cr.rows, row)
 	}
-
-	cr.isDrained = true
 
 	return nil
 }

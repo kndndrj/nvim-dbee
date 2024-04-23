@@ -29,6 +29,15 @@ func mountEndpoints(p *plugin.Plugin, h *handler.Handler) {
 		})
 
 	p.RegisterEndpoint(
+		"DbeeDeleteConnection",
+		func(args *struct {
+			ID string `msgpack:",array"`
+		},
+		) error {
+			return h.DeleteConnection(core.ConnectionID(args.ID))
+		})
+
+	p.RegisterEndpoint(
 		"DbeeGetConnections",
 		func(args *struct {
 			IDs []core.ConnectionID `msgpack:",array"`

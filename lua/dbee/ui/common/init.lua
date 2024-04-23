@@ -1,4 +1,3 @@
-local utils = require("dbee.utils")
 local floats = require("dbee.ui.common.floats")
 
 local M = {}
@@ -58,8 +57,7 @@ end
 ---@param bufnr integer
 ---@param actions table<string, fun()>
 ---@param keymap key_mapping[]
----@param delete? boolean if set, remove mappings instad of adding them
-function M.configure_buffer_mappings(bufnr, actions, keymap, delete)
+function M.configure_buffer_mappings(bufnr, actions, keymap)
   if not bufnr then
     return
   end
@@ -67,11 +65,6 @@ function M.configure_buffer_mappings(bufnr, actions, keymap, delete)
   keymap = keymap or {}
 
   local set_fn = vim.keymap.set
-  if delete then
-    set_fn = function(mode, lhs, _, _)
-      vim.keymap.del(mode, lhs, { buffer = bufnr })
-    end
-  end
 
   -- keymaps
   local default_opts = { noremap = true, nowait = true }
@@ -92,88 +85,6 @@ function M.configure_buffer_mappings(bufnr, actions, keymap, delete)
       end
     end
   end
-end
-
--- Sets mappings to the window.
----@param winid integer
----@param actions table<string, fun()>
----@param keymap key_mapping[]
-function M.configure_window_mappings(winid, actions, keymap)
-  if not winid then
-    return
-  end
-
-  -- add mappings when buffer enters the window
-  utils.create_singleton_autocmd({ "BufWinEnter" }, {
-    window = winid,
-    callback = function(event)
-      M.configure_buffer_mappings(event.buf, actions, keymap)
-    end,
-  })
-
-  -- remove mappings when buffer leaves the window
-  utils.create_singleton_autocmd({ "BufWinLeave" }, {
-    window = winid,
-    callback = function(event)
-      pcall(M.configure_buffer_mappings, event.buf, actions, keymap, true)
-    end,
-  })
-end
-
--- Configures quit handle for buffer
----@param bufnr integer
----@param handle fun()
-function M.configure_buffer_quit_handle(bufnr, handle)
-  if not bufnr then
-    return
-  end
-  handle = handle or function() end
-
-  utils.create_singleton_autocmd({ "QuitPre" }, {
-    buffer = bufnr,
-    callback = handle,
-  })
-end
-
--- Configured quit handle for window.
----@param winid integer
----@param handle fun()
-function M.configure_window_quit_handle(winid, handle)
-  if not winid then
-    return
-  end
-  handle = handle or function() end
-
-  utils.create_singleton_autocmd({ "QuitPre" }, {
-    window = winid,
-    callback = handle,
-  })
-end
-
--- Configures immutablity of the window (e.g. only the provided buffer can be opened in
--- the window).
----@param winid integer
----@param bufnr integer
----@param switch? fun(bufnr: integer) optional function that recieves the number of buffer which tried to be opened in the window.
-function M.configure_window_immutable_buffer(winid, bufnr, switch)
-  if not winid or not bufnr then
-    return
-  end
-
-  utils.create_singleton_autocmd({ "BufWinEnter", "BufReadPost", "BufNewFile" }, {
-    window = winid,
-    callback = function(event)
-      if event.buf == bufnr then
-        return
-      end
-
-      pcall(vim.api.nvim_win_set_buf, winid, bufnr)
-
-      if type(switch) == "function" then
-        switch(event.buf)
-      end
-    end,
-  })
 end
 
 return M
