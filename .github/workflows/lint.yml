@@ -46,4 +46,4 @@ jobs:
           pip install mdformat-gfm
       - name: Markdown Style Check
         run: |
-          mdformat --number --wrap 80 --check README.md ARCHITECTURE.md
+          mdformat --number --wrap 100 --check README.md ARCHITECTURE.md
