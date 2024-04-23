@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -102,6 +103,9 @@ func (c *Connection) GetParams() *ConnectionParams {
 
 func (c *Connection) Execute(query string, onEvent func(CallState, *Call)) *Call {
 	exec := func(ctx context.Context) (ResultStream, error) {
+		if strings.TrimSpace(query) == "" {
+			return nil, errors.New("empty query")
+		}
 		return c.driver.Query(ctx, query)
 	}
 
