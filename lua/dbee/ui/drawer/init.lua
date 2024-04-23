@@ -12,7 +12,7 @@ local expansion = require("dbee.ui.drawer.expansion")
 ---@class DrawerUINode: NuiTree.Node
 ---@field id string unique identifier
 ---@field name string display name
----@field type ""|"table"|"view"|"column"|"history"|"note"|"connection"|"database_switch"|"add"|"edit"|"remove"|"help"|"source" type of node
+---@field type ""|"table"|"view"|"column"|"history"|"note"|"connection"|"database_switch"|"add"|"edit"|"remove"|"help"|"source"|"separator" type of node
 ---@field action_1? drawer_node_action primary action if function takes a second selection parameter, pick_items get picked before the call
 ---@field action_2? drawer_node_action secondary action if function takes a second selection parameter, pick_items get picked before the call
 ---@field action_3? drawer_node_action tertiary action if function takes a second selection parameter, pick_items get picked before the call
@@ -138,6 +138,10 @@ function DrawerUI:create_tree(bufnr)
     bufnr = bufnr,
     prepare_node = function(node)
       local line = NuiLine()
+
+      if node.type == "separator" then
+        return line
+      end
 
       line:append(string.rep("  ", node:get_depth() - 1))
 

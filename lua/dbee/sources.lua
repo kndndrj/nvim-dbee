@@ -260,17 +260,19 @@ sources.MemorySource = {}
 ---@param name? string optional display name
 ---@return Source
 function sources.MemorySource:new(conns, name)
+  name = name or "memory"
+
   local parsed = {}
   for i, conn in pairs(conns or {}) do
     if type(conn) == "table" and conn.url and conn.type then
-      conn.id = "memory_source_" .. os.clock() .. i
+      conn.id = "memory_source_" .. name .. i
       table.insert(parsed, conn)
     end
   end
 
   local o = {
     conns = parsed,
-    display_name = name or "memory",
+    display_name = name,
   }
   setmetatable(o, self)
   self.__index = self

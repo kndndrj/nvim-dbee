@@ -7,7 +7,7 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.17.1
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/google/uuid v1.5.0
-	github.com/jedib0t/go-pretty/v6 v6.4.6
+	github.com/jedib0t/go-pretty/v6 v6.5.8
 	github.com/lib/pq v1.10.7
 	github.com/marcboeker/go-duckdb v1.4.0
 	github.com/microsoft/go-mssqldb v1.0.0
@@ -60,7 +60,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.2.3 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
-	github.com/mattn/go-runewidth v0.0.13 // indirect
+	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/minio/asm2plan9s v0.0.0-20200509001527-cdd76441f9d8 // indirect
 	github.com/minio/c2goasm v0.0.0-20190812172519-36a3d3bbc4f3 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
@@ -85,7 +85,7 @@ require (
 	golang.org/x/mod v0.9.0 // indirect
 	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/oauth2 v0.7.0 // indirect
-	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/sys v0.17.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.7.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect

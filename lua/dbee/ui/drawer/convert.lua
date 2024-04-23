@@ -311,7 +311,7 @@ function M.separator_node()
   return NuiTree.Node {
     id = "__separator_node__" .. tostring(math.random()),
     name = "",
-    type = "",
+    type = "separator",
   } --[[@as DrawerUINode]]
 end
 
