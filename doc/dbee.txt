@@ -8,7 +8,7 @@ Table of Contents                                     *dbee-table-of-contents*
   - Configuration                             |dbee-neovim-dbee-configuration|
   - Usage                                             |dbee-neovim-dbee-usage|
   - API                                                 |dbee-neovim-dbee-api|
-  - Projector Integration             |dbee-neovim-dbee-projector-integration|
+  - Extensions                                   |dbee-neovim-dbee-extensions|
 2. DBee Architecture Overview                |dbee-dbee-architecture-overview|
   - Lua Architecture        |dbee-dbee-architecture-overview-lua-architecture|
   - Go Architecture          |dbee-dbee-architecture-overview-go-architecture|
@@ -625,14 +625,13 @@ You can access it like this:
 <
 
 
-PROJECTOR INTEGRATION                 *dbee-neovim-dbee-projector-integration*
+EXTENSIONS                                       *dbee-neovim-dbee-extensions*
 
-DBee is compatible with my other plugin nvim-projector
-<https://github.com/kndndrj/nvim-projector>, a
-code-runner/project-configurator.
-
-To use dbee with it, use this extension
-<https://github.com/kndndrj/projector-dbee>.
+- `nvim-projector` <https://github.com/kndndrj/nvim-projector> To use dbee with
+    projector, use this extension <https://github.com/kndndrj/projector-dbee>.
+- `nvim-cmp` <https://github.com/hrsh7th/nvim-cmp> Here
+    <https://github.com/MattiasMTS/cmp-dbee>, a completion plugin with dbee
+    support.
 
 
 ==============================================================================
