@@ -326,7 +326,7 @@ function M.help_node(mappings)
       table.insert(
         children,
         NuiTree.Node {
-          id = "__help_action_" .. tostring(os.clock()),
+          id = "__help_action_" .. utils.random_string(),
           name = km.action .. " = " .. km.key .. " (" .. km.mode .. ")",
           type = "",
         }
