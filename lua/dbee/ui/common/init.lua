@@ -1,4 +1,5 @@
 local floats = require("dbee.ui.common.floats")
+local utils = require("dbee.utils")
 
 local M = {}
 
@@ -18,7 +19,7 @@ function M.create_blank_buffer(name, opts)
   -- try setting buffer name - fallback to random string
   local ok = pcall(vim.api.nvim_buf_set_name, bufnr, name)
   if not ok then
-    pcall(vim.api.nvim_buf_set_name, bufnr, name .. "-" .. tostring(os.clock()))
+    pcall(vim.api.nvim_buf_set_name, bufnr, name .. "-" .. utils.random_string())
   end
 
   M.configure_buffer_options(bufnr, opts)

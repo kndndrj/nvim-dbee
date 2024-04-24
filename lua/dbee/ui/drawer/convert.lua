@@ -389,7 +389,7 @@ local function editor_namespace_nodes(editor, namespace, refresh)
       action_1 = function(cb, _, input)
         input {
           title = "Enter Note Name",
-          default = "note_" .. tostring(os.clock()) .. ".sql",
+          default = "note_" .. utils.random_string() .. ".sql",
           on_confirm = function(value)
             if not value or value == "" then
               return

@@ -76,7 +76,7 @@ function EditorUI:search_existing_namespaces()
       for _, file in pairs(vim.split(vim.fn.glob(dir .. "/*"), "\n")) do
         if vim.fn.filereadable(file) == 1 then
           local namespace = vim.fs.basename(dir)
-          local id = file .. tostring(os.clock())
+          local id = file .. utils.random_string()
 
           self.notes[namespace] = self.notes[namespace] or {}
           self.notes[namespace][id] = {
@@ -276,7 +276,7 @@ function EditorUI:namespace_create_note(id, name)
   end
 
   local file = self:dir(namespace) .. "/" .. name
-  local note_id = file .. tostring(os.clock())
+  local note_id = file .. utils.random_string()
   ---@type note_details
   local s = {
     id = note_id,

@@ -1,4 +1,5 @@
 -- this package contains various floating window utilities such as floating editor and an input prompt
+local utils = require("dbee.utils")
 
 local M = {}
 
@@ -72,7 +73,7 @@ function M.prompt(prompt, spec)
 
   -- create new buffer
   local bufnr = vim.api.nvim_create_buf(false, false)
-  local name = spec.title or tostring(os.clock())
+  local name = spec.title or utils.random_string()
   vim.api.nvim_buf_set_name(bufnr, name)
   vim.api.nvim_buf_set_option(bufnr, "filetype", "dbee")
   vim.api.nvim_buf_set_option(bufnr, "buftype", "acwrite")
