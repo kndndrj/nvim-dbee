@@ -395,12 +395,13 @@ require("dbee").api.core.some_func()
 require("dbee").api.ui.some_func()
 ```
 
-## Projector Integration
+## Extensions
 
-DBee is compatible with my other plugin [nvim-projector](https://github.com/kndndrj/nvim-projector),
-a code-runner/project-configurator.
+- [`nvim-projector`](https://github.com/kndndrj/nvim-projector)
+  To use dbee with projector, use [this extension](https://github.com/kndndrj/projector-dbee).
 
-To use dbee with it, use [this extension](https://github.com/kndndrj/projector-dbee).
+- [`nvim-cmp`](https://github.com/hrsh7th/nvim-cmp)
+  [Here](https://github.com/MattiasMTS/cmp-dbee), a completion plugin with dbee support.
 
 <!-- DOCGEN_IGNORE_START -->
 
