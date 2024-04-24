@@ -397,11 +397,11 @@ require("dbee").api.ui.some_func()
 
 ## Extensions
 
-- [`nvim-projector`](https://github.com/kndndrj/nvim-projector)
-  To use dbee with projector, use [this extension](https://github.com/kndndrj/projector-dbee).
+- [`nvim-projector`](https://github.com/kndndrj/nvim-projector) To use dbee with projector, use
+  [this extension](https://github.com/kndndrj/projector-dbee).
 
-- [`nvim-cmp`](https://github.com/hrsh7th/nvim-cmp)
-  [Here](https://github.com/MattiasMTS/cmp-dbee), a completion plugin with dbee support.
+- [`nvim-cmp`](https://github.com/hrsh7th/nvim-cmp) [Here](https://github.com/MattiasMTS/cmp-dbee),
+  a completion plugin with dbee support.
 
 <!-- DOCGEN_IGNORE_START -->
 
