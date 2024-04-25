@@ -27,6 +27,9 @@ type Databricks struct{}
 //
 // requires the 'catalog' parameter to be set.
 
+// TODO: This could be extended with databricks connect by looking up
+// the config if connectionURL is empty. Added in the future
+
 // see https://github.com/databricks/databricks-sql-go for more information.
 func (d *Databricks) Connect(connectionURL string) (core.Driver, error) {
 	parsedURL, err := url.Parse(connectionURL)

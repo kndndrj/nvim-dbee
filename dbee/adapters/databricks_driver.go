@@ -73,8 +73,8 @@ func (d *databricksDriver) Close() {
 	d.c.Close()
 }
 
-// ListDatabases returns the current database/catalog and a list of
-// available databases/catalogs.
+// ListDatabases returns the current catalog and a list of
+// available catalogs.
 func (d *databricksDriver) ListDatabases() (current string, available []string, err error) {
 	query := `SHOW CATALOGS;`
 

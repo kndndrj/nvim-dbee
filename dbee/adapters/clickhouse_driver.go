@@ -50,7 +50,7 @@ func (c *clickhouseDriver) Structure() ([]*core.Structure, error) {
 		return nil, err
 	}
 
-	return getPGStructure(rows)
+	return core.GetGenericStructure(rows, getPGStructureType)
 }
 
 func (c *clickhouseDriver) Close() {
