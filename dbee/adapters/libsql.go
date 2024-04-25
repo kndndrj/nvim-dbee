@@ -18,7 +18,7 @@ func init() {
 	_ = register(&LibSQL{}, "libsql", "libSQL")
 }
 
-var _ core.Adapter = (*SQLite)(nil)
+var _ core.Adapter = (*LibSQL)(nil)
 
 type LibSQL struct{}
 
@@ -45,10 +45,10 @@ func (s *LibSQL) Connect(url string) (core.Driver, error) {
 
 	db, err := sql.Open("libsql", path)
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to sqlite database: %v", err)
+		return nil, fmt.Errorf("unable to connect to libsql database: %v", err)
 	}
 
-	return &sqliteDriver{
+	return &libSQLDriver{
 		c: builders.NewClient(db),
 	}, nil
 }
