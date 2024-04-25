@@ -70,7 +70,7 @@ func (r *redshiftDriver) Structure() ([]*core.Structure, error) {
 		return nil, err
 	}
 
-	return getPGStructure(rows)
+	return core.GetGenericStructure(rows, getPGStructureType)
 }
 
 func (r *redshiftDriver) ListDatabases() (current string, available []string, err error) {
