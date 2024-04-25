@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/gob"
 	"encoding/json"
-	"errors"
 	"fmt"
 	nurl "net/url"
 	"strings"
@@ -57,7 +56,7 @@ func (c *postgresDriver) Structure() ([]*core.Structure, error) {
 		return nil, err
 	}
 
-	return getPGStructure(rows)
+	return core.GetGenericStructure(rows, getPGStructureType)
 }
 
 func (c *postgresDriver) Close() {
@@ -102,50 +101,19 @@ func (c *postgresDriver) SelectDatabase(name string) error {
 	return nil
 }
 
-// getPGStructure fetches the layout from the postgres database.
-// rows is at least 3 column wide result
-func getPGStructure(rows core.ResultStream) ([]*core.Structure, error) {
-	children := make(map[string][]*core.Structure)
-
-	for rows.HasNext() {
-		row, err := rows.Next()
-		if err != nil {
-			return nil, err
-		}
-		if len(row) < 3 {
-			return nil, errors.New("could not retrieve structure: insufficient info")
-		}
-
-		schema, table, tableType := row[0].(string), row[1].(string), row[2].(string)
-
-		children[schema] = append(children[schema], &core.Structure{
-			Name:   table,
-			Schema: schema,
-			Type:   getPGStructureType(tableType),
-		})
-	}
-
-	var structure []*core.Structure
-
-	for k, v := range children {
-		structure = append(structure, &core.Structure{
-			Name:     k,
-			Schema:   k,
-			Type:     core.StructureTypeNone,
-			Children: v,
-		})
-	}
-
-	return structure, nil
-}
-
 // getPGStructureType returns the structure type based on the provided string.
 func getPGStructureType(typ string) core.StructureType {
 	switch typ {
-	case "TABLE", "BASE TABLE", "FOREIGN", "FOREIGN TABLE":
+	case "TABLE", "BASE TABLE", "FOREIGN", "FOREIGN TABLE", "SYSTEM TABLE":
 		return core.StructureTypeTable
 	case "VIEW", "SYSTEM VIEW":
 		return core.StructureTypeView
+	case "MATERIALIZED VIEW":
+		return core.StructureTypeMaterializedView
+	case "SINK":
+		return core.StructureTypeSink
+	case "SOURCE":
+		return core.StructureTypeSource
 	default:
 		return core.StructureTypeNone
 	}
