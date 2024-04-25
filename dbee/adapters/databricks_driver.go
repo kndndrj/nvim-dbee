@@ -23,7 +23,7 @@ type databricksDriver struct {
 	// a DSN structure in the format of:
 	// token:[my_token]@[hostname]:[port]/[endpoint http path]?param=value
 	connectionURL *url.URL
-	// currentCatalog is the current database/catalog.
+	// currentCatalog is the current catalog.
 	// Retrieved from the connectionURL parameters.
 	currentCatalog string
 }
@@ -57,7 +57,26 @@ WHERE table_catalog = '%s';
 		return nil, err
 	}
 
-	return getPGStructure(rows)
+	return core.GetGenericStructure(rows, getDatabricksStructureType)
+}
+
+// getDatabricksStructureType returns the core.StructureType based on the
+// given type string for databricks adapter.
+func getDatabricksStructureType(typ string) core.StructureType {
+	switch typ {
+	case "TABLE", "BASE TABLE", "SYSTEM TABLE":
+		return core.StructureTypeTable
+	case "VIEW", "SYSTEM VIEW":
+		return core.StructureTypeView
+	case "MATERIALIZED_VIEW":
+		return core.StructureTypeMaterializedView
+	case "STREAMING_TABLE":
+		return core.StructureTypeStreamingTable
+	case "MANAGED":
+		return core.StructureTypeManaged
+	default:
+		return core.StructureTypeNone
+	}
 }
 
 // Close closes the connection to the database.
@@ -65,8 +84,8 @@ func (d *databricksDriver) Close() {
 	d.c.Close()
 }
 
-// ListDatabases returns the current database/catalog and a list of
-// available databases/catalogs.
+// ListDatabases returns the current catalog and a list of
+// available catalogs.
 func (d *databricksDriver) ListDatabases() (current string, available []string, err error) {
 	query := `SHOW CATALOGS;`
 
