@@ -1,5 +1,3 @@
-//go:build (darwin && (amd64 || arm64)) || (freebsd && (386 || amd64 || arm || arm64)) || (linux && (386 || amd64 || arm || arm64 || ppc64le || riscv64 || s390x)) || (netbsd && amd64) || (openbsd && (amd64 || arm64)) || (windows && (amd64 || arm64))
-
 package adapters
 
 import (
@@ -11,6 +9,7 @@ import (
 
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
+	_ "github.com/tursodatabase/libsql-client-go/libsql"
 )
 
 // Register client
