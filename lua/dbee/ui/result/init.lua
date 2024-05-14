@@ -2,7 +2,7 @@ local utils = require("dbee.utils")
 local progress = require("dbee.ui.result.progress")
 local common = require("dbee.ui.common")
 
--- ResultTile represents the part of ui with displayed results
+-- ResultUI represents the part of ui with displayed results
 ---@class ResultUI
 ---@field private handler Handler
 ---@field private winid? integer
@@ -14,20 +14,18 @@ local common = require("dbee.ui.common")
 ---@field private page_ammount integer number of pages in the current result set
 ---@field private stop_progress fun() function that stops progress display
 ---@field private progress_opts progress_config
----@field private switch_handle fun(bufnr: integer)
-local ResultTile = {}
+---@field private window_options table<string, any> a table of window options.
+---@field private buffer_options table<string, any> a table of buffer options.
+local ResultUI = {}
 
 ---@param handler Handler
----@param quit_handle? fun()
----@param switch_handle? fun(bufnr: integer)
 ---@param opts? result_config
 ---@return ResultUI
-function ResultTile:new(handler, quit_handle, switch_handle, opts)
+function ResultUI:new(handler, opts)
   opts = opts or {}
-  quit_handle = quit_handle or function() end
 
   if not handler then
-    error("no Handler passed to ResultTile")
+    error("no Handler passed to ResultUI")
   end
 
   -- class object
@@ -39,21 +37,29 @@ function ResultTile:new(handler, quit_handle, switch_handle, opts)
     mappings = opts.mappings or {},
     stop_progress = function() end,
     progress_opts = opts.progress or {},
-    switch_handle = switch_handle or function() end,
+    window_options = vim.tbl_extend("force", {
+      wrap = false,
+      winfixheight = true,
+      winfixwidth = true,
+      number = false,
+      relativenumber = false,
+      spell = false,
+    }, opts.window_options or {}),
+    buffer_options = vim.tbl_extend("force", {
+      buflisted = false,
+      bufhidden = "delete",
+      buftype = "nofile",
+      swapfile = false,
+      modifiable = false,
+      filetype = "dbee",
+    }, opts.buffer_options or {}),
   }
   setmetatable(o, self)
   self.__index = self
 
   -- create a buffer for drawer and configure it
-  o.bufnr = common.create_blank_buffer("dbee-result", {
-    buflisted = false,
-    bufhidden = "delete",
-    buftype = "nofile",
-    swapfile = false,
-    modifiable = false,
-  })
+  o.bufnr = common.create_blank_buffer("dbee-result", o.buffer_options)
   common.configure_buffer_mappings(o.bufnr, o:get_actions(), opts.mappings)
-  common.configure_buffer_quit_handle(o.bufnr, quit_handle)
 
   handler:register_event_listener("call_state_changed", function(data)
     o:on_call_state_changed(data)
@@ -65,7 +71,7 @@ end
 -- event listener for new calls
 ---@private
 ---@param data { call: CallDetails }
-function ResultTile:on_call_state_changed(data)
+function ResultUI:on_call_state_changed(data)
   local call = data.call
 
   -- we only care about the current call
@@ -92,7 +98,7 @@ function ResultTile:on_call_state_changed(data)
 end
 
 ---@private
-function ResultTile:apply_highlight(winid)
+function ResultUI:apply_highlight(winid)
   -- switch to provided window, apply hightlight and jump back
   local current_win = vim.api.nvim_get_current_win()
   vim.api.nvim_set_current_win(winid)
@@ -102,14 +108,25 @@ function ResultTile:apply_highlight(winid)
 end
 
 ---@private
-function ResultTile:display_progress()
-  self.stop_progress = progress.display(self.bufnr, self.progress_opts)
-
-  vim.api.nvim_set_current_win(self.winid)
+---@return boolean
+function ResultUI:has_window()
+  if self.winid and vim.api.nvim_win_is_valid(self.winid) then
+    return true
+  end
+  return false
 end
 
 ---@private
-function ResultTile:display_status()
+function ResultUI:display_progress()
+  self.stop_progress = progress.display(self.bufnr, self.progress_opts)
+
+  if self:has_window() then
+    vim.api.nvim_set_current_win(self.winid)
+  end
+end
+
+---@private
+function ResultUI:display_status()
   if not self.current_call then
     error("no call set to result")
   end
@@ -141,20 +158,21 @@ function ResultTile:display_status()
 
   vim.api.nvim_buf_set_option(self.bufnr, "modifiable", false)
 
-  -- set winbar
-  vim.api.nvim_win_set_option(self.winid, "winbar", "Results")
+  -- set winbar and set focus
+  if self:has_window() then
+    vim.api.nvim_win_set_option(self.winid, "winbar", "Results")
+    vim.api.nvim_set_current_win(self.winid)
+  end
 
   -- reset modified flag
   vim.api.nvim_buf_set_option(self.bufnr, "modified", false)
-
-  vim.api.nvim_set_current_win(self.winid)
 end
 
 --- Displays a page of the current result in the results buffer
 ---@private
 ---@param page integer zero based page index
 ---@return integer # current page
-function ResultTile:display_result(page)
+function ResultUI:display_result(page)
   if not self.current_call then
     error("no call set to result")
   end
@@ -181,24 +199,26 @@ function ResultTile:display_result(page)
   local seconds = self.current_call.time_taken_us / 1000000
 
   -- set winbar status
-  if self.winid and vim.api.nvim_win_is_valid(self.winid) then
+  if self:has_window() then
     vim.api.nvim_win_set_option(
       self.winid,
       "winbar",
-      string.format("%d/%d%%=Took %.3fs", page + 1, self.page_ammount + 1, seconds)
+      string.format("%d/%d (%d)%%=Took %.3fs", page + 1, self.page_ammount + 1, length, seconds)
     )
+
+    -- set focus if window exists
+    vim.api.nvim_set_current_win(self.winid)
   end
 
-  -- reset modified flag and set focus
+  -- reset modified flag
   vim.api.nvim_buf_set_option(self.bufnr, "modified", false)
-  vim.api.nvim_set_current_win(self.winid)
 
   return page
 end
 
 ---@private
 ---@return table<string, fun()>
-function ResultTile:get_actions()
+function ResultUI:get_actions()
   return {
     page_next = function()
       self:page_next()
@@ -241,9 +261,19 @@ function ResultTile:get_actions()
   }
 end
 
+---Triggers an in-built action.
+---@param action string
+function ResultUI:do_action(action)
+  local act = self:get_actions()[action]
+  if not act then
+    error("unknown action: " .. action)
+  end
+  act()
+end
+
 -- sets call's result to Result's buffer
 ---@param call CallDetails
-function ResultTile:set_call(call)
+function ResultUI:set_call(call)
   self.page_index = 0
   self.page_ammount = 0
   self.current_call = call
@@ -253,28 +283,27 @@ end
 
 -- Gets the currently displayed call.
 ---@return CallDetails?
-function ResultTile:get_call()
+function ResultUI:get_call()
   return self.current_call
 end
 
-function ResultTile:page_current()
+function ResultUI:page_current()
   self.page_index = self:display_result(self.page_index)
 end
 
-function ResultTile:page_next()
+function ResultUI:page_next()
   self.page_index = self:display_result(self.page_index + 1)
 end
 
-function ResultTile:page_prev()
+function ResultUI:page_prev()
   self.page_index = self:display_result(self.page_index - 1)
 end
 
-
-function ResultTile:page_last()
+function ResultUI:page_last()
   self.page_index = self:display_result(self.page_ammount)
 end
 
-function ResultTile:page_first()
+function ResultUI:page_first()
   self.page_index = self:display_result(0)
 end
 
@@ -282,7 +311,7 @@ end
 ---@private
 ---@param format string
 ---@param register string
-function ResultTile:store_current_wrapper(format, register)
+function ResultUI:store_current_wrapper(format, register)
   if not self.current_call then
     error("no call set to result")
   end
@@ -308,7 +337,7 @@ end
 ---@private
 ---@param format string
 ---@param register string
-function ResultTile:store_selection_wrapper(format, register)
+function ResultUI:store_selection_wrapper(format, register)
   if not self.current_call then
     error("no call set to result")
   end
@@ -332,7 +361,7 @@ end
 ---@private
 ---@param format string
 ---@param register string
-function ResultTile:store_all_wrapper(format, register)
+function ResultUI:store_all_wrapper(format, register)
   if not self.current_call then
     error("no call set to result")
   end
@@ -341,7 +370,7 @@ end
 
 ---@private
 ---@return number # index of the current row
-function ResultTile:current_row_index()
+function ResultUI:current_row_index()
   -- get position of the current line identifier
   local row = vim.fn.search([[^\s*[0-9]\+]], "bnc", 1)
   if row == 0 then
@@ -361,8 +390,8 @@ end
 ---@private
 ---@return number # number of the first row
 ---@return number # number of the last row
-function ResultTile:current_row_range()
-  if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
+function ResultUI:current_row_range()
+  if not self:has_window() then
     error("result cannot operate without a valid window")
   end
   -- get current selection
@@ -412,33 +441,19 @@ function ResultTile:current_row_range()
 end
 
 ---@param winid integer
-function ResultTile:show(winid)
+function ResultUI:show(winid)
   self.winid = winid
-
-  -- configure window options
-  common.configure_window_options(self.winid, {
-    wrap = false,
-    winfixheight = true,
-    winfixwidth = true,
-    number = false,
-  })
 
   -- configure window highlights
   self:apply_highlight(self.winid)
 
   vim.api.nvim_win_set_buf(self.winid, self.bufnr)
 
-  common.configure_buffer_options(self.bufnr, {
-    buflisted = false,
-    bufhidden = "delete",
-    buftype = "nofile",
-    swapfile = false,
-    modifiable = false,
-  })
+  common.configure_buffer_options(self.bufnr, self.buffer_options)
   common.configure_buffer_mappings(self.bufnr, self:get_actions(), self.mappings)
 
-  -- configure window immutablity
-  common.configure_window_immutable_buffer(self.winid, self.bufnr, self.switch_handle)
+  -- configure window options (needs to be set after setting the buffer to window)
+  common.configure_window_options(self.winid, self.window_options)
 
   -- display the current result
   local ok = pcall(self.page_current, self)
@@ -447,4 +462,4 @@ function ResultTile:show(winid)
   end
 end
 
-return ResultTile
+return ResultUI

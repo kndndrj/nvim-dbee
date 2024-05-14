@@ -142,4 +142,21 @@ function M.create_singleton_autocmd(events, opts)
   vim.api.nvim_create_autocmd(events, opts)
 end
 
+local random_charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+
+--- Generate a random string
+---@return string _ random string of 10 characters
+function M.random_string()
+  local function r(length)
+    if length < 1 then
+      return ""
+    end
+
+    local i = math.random(1, #random_charset)
+    return r(length - 1) .. random_charset:sub(i, i)
+  end
+
+  return r(10)
+end
+
 return M

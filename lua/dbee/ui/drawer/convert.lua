@@ -128,8 +128,8 @@ local function handler_real_nodes(handler, result)
     ---@type DrawerUINode[]
     local children = {}
 
-    -- source can save edits
-    if type(source.save) == "function" then
+    -- source can add connections
+    if type(source.create) == "function" then
       table.insert(
         children,
         NuiTree.Node {
@@ -146,12 +146,11 @@ local function handler_real_nodes(handler, result)
               title = "Add Connection",
               callback = function(res)
                 local spec = {
-                  id = res.id,
                   name = res.name,
                   url = res.url,
                   type = res.type,
                 }
-                pcall(handler.source_add_connections, handler, source_id, { spec })
+                pcall(handler.source_add_connection, handler, source_id, spec)
                 cb()
               end,
             })
@@ -183,17 +182,11 @@ local function handler_real_nodes(handler, result)
 
     -- get connections of that source
     for _, conn in ipairs(handler:source_get_connections(source_id)) do
-      local node = NuiTree.Node {
-        id = conn.id,
-        name = conn.name,
-        type = "connection",
-        -- set connection as active manually
-        action_1 = function(cb)
-          handler:set_current_connection(conn.id)
-          cb()
-        end,
-        -- edit connection
-        action_2 = function(cb)
+      -- if source has update, we can edit connections
+      ---@type drawer_node_action
+      local edit_action
+      if type(source.update) == "function" then
+        edit_action = function(cb)
           local original_details = handler:connection_get_params(conn.id)
           if not original_details then
             return
@@ -207,31 +200,48 @@ local function handler_real_nodes(handler, result)
             title = "Edit Connection",
             callback = function(res)
               local spec = {
-                -- keep the old id
-                id = original_details.id,
                 name = res.name,
                 url = res.url,
                 type = res.type,
-                page_size = tonumber(res["page size"]),
               }
-              pcall(handler.source_add_connections, handler, source_id, { spec })
+              pcall(handler.source_update_connection, handler, source_id, conn.id, spec)
               cb()
             end,
           })
-        end,
-        -- remove connection
-        action_3 = function(cb, select)
+        end
+      end
+
+      -- if source has delete, we can delete connections
+      ---@type drawer_node_action
+      local delete_action
+      if type(source.delete) == "function" then
+        delete_action = function(cb, select)
           select {
             title = "Confirm Deletion",
             items = { "Yes", "No" },
             on_confirm = function(selection)
               if selection == "Yes" then
-                handler:source_remove_connections(source_id, conn)
+                pcall(handler.source_remove_connection, handler, source_id, conn.id)
               end
               cb()
             end,
           }
+        end
+      end
+
+      local node = NuiTree.Node {
+        id = conn.id,
+        name = conn.name,
+        type = "connection",
+        -- set connection as active manually
+        action_1 = function(cb)
+          handler:set_current_connection(conn.id)
+          cb()
         end,
+        -- edit connection
+        action_2 = edit_action,
+        -- remove connection
+        action_3 = delete_action,
         lazy_children = function()
           return connection_nodes(handler, conn, result)
         end,
@@ -301,7 +311,7 @@ function M.separator_node()
   return NuiTree.Node {
     id = "__separator_node__" .. tostring(math.random()),
     name = "",
-    type = "",
+    type = "separator",
   } --[[@as DrawerUINode]]
 end
 
@@ -316,7 +326,7 @@ function M.help_node(mappings)
       table.insert(
         children,
         NuiTree.Node {
-          id = "__help_action_" .. tostring(os.clock()),
+          id = "__help_action_" .. utils.random_string(),
           name = km.action .. " = " .. km.key .. " (" .. km.mode .. ")",
           type = "",
         }
@@ -379,7 +389,7 @@ local function editor_namespace_nodes(editor, namespace, refresh)
       action_1 = function(cb, _, input)
         input {
           title = "Enter Note Name",
-          default = "note_" .. tostring(os.clock()) .. ".sql",
+          default = "note_" .. utils.random_string() .. ".sql",
           on_confirm = function(value)
             if not value or value == "" then
               return

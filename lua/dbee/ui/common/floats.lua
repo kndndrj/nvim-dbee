@@ -1,6 +1,29 @@
 -- this package contains various floating window utilities such as floating editor and an input prompt
+local utils = require("dbee.utils")
 
 local M = {}
+
+---User defined options for floating windows
+---@type table<string, any>
+local OPTS = {}
+
+---Set up custom floating window parameters
+---@param opts? table<string, any>
+function M.configure(opts)
+  OPTS = vim.tbl_extend("force", {
+    border = "rounded",
+    title_pos = "center",
+    style = "minimal",
+    title = "",
+    zindex = 150,
+  }, opts or {})
+end
+
+---Merges user defined options with provided spec.
+---@param spec table<string, any>
+local function enrich_float_opts(spec)
+  return vim.tbl_extend("keep", spec, OPTS)
+end
 
 ---@alias prompt { name: string, default: string }[] list of lines with optional defaults to display as prompt
 
@@ -31,9 +54,9 @@ local function highlight_prompt(prompt, winid)
 end
 
 ---@param prompt prompt
----@param opts? { width: integer, height: integer, title: string, border: string|string[], callback: fun(result: table<string, string>) } optional parameters
-function M.prompt(prompt, opts)
-  opts = opts or {}
+---@param spec? { title: string, callback: fun(result: table<string, string>) }
+function M.prompt(prompt, spec)
+  spec = spec or {}
 
   -- create lines to display
   ---@type string[]
@@ -42,15 +65,15 @@ function M.prompt(prompt, opts)
     table.insert(display_prompt, p.name .. ": " .. (p.default or ""))
   end
 
-  local win_width = opts.width or 100
-  local win_height = opts.height or #display_prompt
+  local win_width = 100
+  local win_height = #display_prompt
   local ui_spec = vim.api.nvim_list_uis()[1]
   local x = math.floor((ui_spec["width"] - win_width) / 2)
   local y = math.floor((ui_spec["height"] - win_height) / 2)
 
   -- create new buffer
   local bufnr = vim.api.nvim_create_buf(false, false)
-  local name = opts.title or tostring(os.clock())
+  local name = spec.title or utils.random_string()
   vim.api.nvim_buf_set_name(bufnr, name)
   vim.api.nvim_buf_set_option(bufnr, "filetype", "dbee")
   vim.api.nvim_buf_set_option(bufnr, "buftype", "acwrite")
@@ -61,21 +84,22 @@ function M.prompt(prompt, opts)
   vim.api.nvim_buf_set_option(bufnr, "modified", false)
 
   -- open window
-  local winid = vim.api.nvim_open_win(bufnr, true, {
-    relative = "editor",
-    width = win_width,
-    height = win_height,
-    col = x,
-    row = y,
-    border = opts.border or "rounded",
-    title = opts.title or "",
-    title_pos = "center",
-    style = "minimal",
-  })
+  local winid = vim.api.nvim_open_win(
+    bufnr,
+    true,
+    enrich_float_opts {
+      relative = "editor",
+      width = win_width,
+      height = win_height,
+      col = x,
+      row = y,
+      title = spec.title or "",
+    }
+  )
   -- apply the highlighting of keys to window
   highlight_prompt(prompt, winid)
 
-  local callback = opts.callback or function() end
+  local callback = spec.callback or function() end
 
   -- set callbacks
   vim.api.nvim_create_autocmd("BufWriteCmd", {
@@ -134,13 +158,13 @@ function M.prompt(prompt, opts)
 end
 
 ---@param file string file to edit
----@param opts? { width: integer, height: integer, title: string, border: string|string[], callback: fun() } optional parameters
-function M.editor(file, opts)
-  opts = opts or {}
+---@param spec? { title: string, callback: fun() } required parameters for float.
+function M.editor(file, spec)
+  spec = spec or {}
 
   local ui_spec = vim.api.nvim_list_uis()[1]
-  local win_width = opts.width or (ui_spec["width"] - 50)
-  local win_height = opts.height or (ui_spec["height"] - 10)
+  local win_width = ui_spec["width"] - 50
+  local win_height = ui_spec["height"] - 10
   local x = math.floor((ui_spec["width"] - win_width) / 2)
   local y = math.floor((ui_spec["height"] - win_height) / 2)
 
@@ -148,24 +172,25 @@ function M.editor(file, opts)
   local tmp_buf = vim.api.nvim_create_buf(false, true)
 
   -- open window
-  local winid = vim.api.nvim_open_win(tmp_buf, true, {
-    relative = "editor",
-    width = win_width,
-    height = win_height,
-    col = x,
-    row = y,
-    border = opts.border or "rounded",
-    title = opts.title or "",
-    title_pos = "center",
-    style = "minimal",
-  })
+  local winid = vim.api.nvim_open_win(
+    tmp_buf,
+    true,
+    enrich_float_opts {
+      title = spec.title or "",
+      relative = "editor",
+      width = win_width,
+      height = win_height,
+      col = x,
+      row = y,
+    }
+  )
 
   -- open the file
   vim.cmd("e " .. file)
   local bufnr = vim.api.nvim_get_current_buf()
   vim.api.nvim_buf_set_option(bufnr, "bufhidden", "delete")
 
-  local callback = opts.callback or function() end
+  local callback = spec.callback or function() end
 
   -- set callbacks
   vim.api.nvim_create_autocmd("BufWritePost", {
@@ -235,6 +260,7 @@ function M.hover(relative_winid, contents)
   -- create new buffer with contents
   local bufnr = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, contents)
+  vim.api.nvim_buf_set_option(bufnr, "filetype", "dbee")
   vim.api.nvim_buf_set_option(bufnr, "bufhidden", "delete")
 
   -- row is relative to cursor in the "parent" window
@@ -250,17 +276,20 @@ function M.hover(relative_winid, contents)
   end
 
   -- open window
-  local winid = vim.api.nvim_open_win(bufnr, false, {
-    relative = "win",
-    win = relative_winid,
-    width = win_width,
-    height = win_height,
-    col = col,
-    row = cursor_row - 1,
-    anchor = anchor,
-    border = "rounded",
-    style = "minimal",
-  })
+
+  local winid = vim.api.nvim_open_win(
+    bufnr,
+    false,
+    enrich_float_opts {
+      relative = "win",
+      win = relative_winid,
+      width = win_width,
+      height = win_height,
+      col = col,
+      row = cursor_row - 1,
+      anchor = anchor,
+    }
+  )
 
   return function()
     pcall(vim.api.nvim_win_close, winid, true)

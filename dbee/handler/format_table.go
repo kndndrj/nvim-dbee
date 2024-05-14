@@ -40,6 +40,7 @@ func (tf *Table) Format(header core.Header, rows []core.Row, opts *core.Formatte
 		Row:    text.FormatDefault,
 	}
 	t.Style().Options.DrawBorder = false
+	t.SuppressTrailingSpaces()
 	render := t.Render()
 
 	return []byte(render), nil

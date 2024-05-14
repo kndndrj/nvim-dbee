@@ -7,6 +7,7 @@ local config = {}
 ---@field default_connection? string
 ---@field sources? Source[] list of connection sources
 ---@field extra_helpers? table<string, table<string, string>>
+---@field float_options? table<string, any>
 ---@field drawer? drawer_config
 ---@field editor? editor_config
 ---@field result? result_config
@@ -24,16 +25,16 @@ local config = {}
 ---@divider -
 
 ---Configuration for result UI tile.
----@alias result_config { mappings: key_mapping[], page_size: integer, progress: progress_config }
+---@alias result_config { mappings: key_mapping[], page_size: integer, progress: progress_config, window_options: table<string, any>, buffer_options: table<string, any> }
 
 ---Configuration for editor UI tile.
----@alias editor_config { directory: string, mappings: key_mapping[] }
+---@alias editor_config { directory: string, mappings: key_mapping[], window_options: table<string, any>, buffer_options: table<string, any> }
 
 ---Configuration for call log UI tile.
----@alias call_log_config { mappings: key_mapping[], disable_candies: boolean, candies: table<string, Candy> }
+---@alias call_log_config { mappings: key_mapping[], disable_candies: boolean, candies: table<string, Candy>, window_options: table<string, any>, buffer_options: table<string, any> }
 
 ---Configuration for drawer UI tile.
----@alias drawer_config { disable_candies: boolean, candies: table<string, Candy>, mappings: key_mapping[], disable_help: boolean }
+---@alias drawer_config { disable_candies: boolean, candies: table<string, Candy>, mappings: key_mapping[], disable_help: boolean, window_options: table<string, any>, buffer_options: table<string, any> }
 
 ---@divider -
 
@@ -48,7 +49,7 @@ config.default = {
   -- loads connections from files and environment variables
   sources = {
     require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
-    require("dbee.sources").FileSource:new(vim.fn.stdpath("cache") .. "/dbee/persistence.json"),
+    require("dbee.sources").FileSource:new(vim.fn.stdpath("state") .. "/dbee/persistence.json"),
   },
   -- extra table helpers per connection type
   -- every helper value is a go-template with values set for
@@ -59,14 +60,23 @@ config.default = {
     --   ["List All"] = "select * from {{ .Table }}",
     -- },
   },
+  -- options passed to floating windows - :h nvim_open_win()
+  float_options = {},
+
   -- drawer window config
   drawer = {
+    -- these two option settings can be added to all UI elements and
+    -- allow for passing specific window/buffer options.
+    -- Note that you probably shouldn't be passing buffer options, since
+    -- the functionality of the plugin might rely on them.
+    -- TL;DR: only use this if you know what you are doing!
+    window_options = {},
+    buffer_options = {},
+
     -- show help or not
     disable_help = false,
     -- mappings for the buffer
     mappings = {
-      -- quit the dbee interface
-      { key = "q", mode = "n", action = "quit" },
       -- manually refresh drawer
       { key = "r", mode = "n", action = "refresh" },
       -- actions perform different stuff depending on the node:
@@ -175,6 +185,10 @@ config.default = {
 
   -- results window config
   result = {
+    -- see drawer comment.
+    window_options = {},
+    buffer_options = {},
+
     -- number of rows in the results set to display per page
     page_size = 100,
 
@@ -208,6 +222,13 @@ config.default = {
 
   -- editor window config
   editor = {
+    -- see drawer comment.
+    window_options = {},
+    buffer_options = {},
+
+    -- directory where to store the scratchpads.
+    --directory = "path/to/scratchpad/dir",
+
     -- mappings for the buffer
     mappings = {
       -- run what's currently selected on the active connection
@@ -219,6 +240,10 @@ config.default = {
 
   -- call log window config
   call_log = {
+    -- see drawer comment.
+    window_options = {},
+    buffer_options = {},
+
     -- mappings for the buffer
     mappings = {
       -- show the result of the currently selected call record
@@ -286,6 +311,7 @@ function config.validate(cfg)
   vim.validate {
     sources = { cfg.sources, "table" },
     extra_helpers = { cfg.extra_helpers, "table" },
+    float_options = { cfg.float_options, "table" },
 
     drawer_disable_candies = { cfg.drawer.disable_candies, "boolean" },
     drawer_disable_help = { cfg.drawer.disable_help, "boolean" },
@@ -299,8 +325,32 @@ function config.validate(cfg)
 
     window_layout = { cfg.window_layout, "table" },
     window_layout_open = { cfg.window_layout.open, "function" },
+    window_layout_is_open = { cfg.window_layout.is_open, "function" },
     window_layout_close = { cfg.window_layout.close, "function" },
   }
+end
+
+-- Merges changes from config on top of default config.
+-- Keys settings provided via arguments take precedence.
+---@package
+---@param changes? Config
+---@return Config
+function config.merge_with_default(changes)
+  changes = changes or {}
+
+  -- merge basic settings
+  ---@type Config
+  local merged = vim.tbl_deep_extend("force", config.default, changes)
+
+  -- classes need some extra love (frustrating, I know)
+  if changes.sources and #changes.sources > 0 then
+    merged.sources = changes.sources
+  end
+  if changes.window_layout then
+    merged.window_layout = changes.window_layout
+  end
+
+  return merged
 end
 
 return config

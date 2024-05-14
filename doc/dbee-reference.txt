@@ -41,20 +41,6 @@ dbee.is_open()                                                    *dbee.is_open*
         (boolean)
 
 
-dbee.is_core_loaded()                                      *dbee.is_core_loaded*
-    Check if dbee core has been loaded.
-
-    Returns: ~
-        (boolean)
-
-
-dbee.is_ui_loaded()                                          *dbee.is_ui_loaded*
-    Check if dbee UI has been loaded.
-
-    Returns: ~
-        (boolean)
-
-
 dbee.execute({query})                                             *dbee.execute*
     Execute a query on current connection.
     Convenience wrapper around some api functions that executes a query on
@@ -104,6 +90,7 @@ Config                                                                  *Config*
         {default_connection}  (nil|string)
         {sources}             (nil|Source[])                            list of connection sources
         {extra_helpers}       (nil|table<string,table<string,string>>)
+        {float_options}       (nil|table<string,any>)
         {drawer}              (nil|drawer_config)
         {editor}              (nil|editor_config)
         {result}              (nil|result_config)
@@ -132,28 +119,28 @@ result_config                                                    *result_config*
     Configuration for result UI tile.
 
     Type: ~
-        {mappings:key_mapping[],page_size:integer,progress:progress_config}
+        {mappings:key_mapping[],page_size:integer,progress:progress_config,window_options:table<string,any>,buffer_options:table<string,any>}
 
 
 editor_config                                                    *editor_config*
     Configuration for editor UI tile.
 
     Type: ~
-        {directory:string,mappings:key_mapping[]}
+        {directory:string,mappings:key_mapping[],window_options:table<string,any>,buffer_options:table<string,any>}
 
 
 call_log_config                                                *call_log_config*
     Configuration for call log UI tile.
 
     Type: ~
-        {mappings:key_mapping[],disable_candies:boolean,candies:table<string,Candy>}
+        {mappings:key_mapping[],disable_candies:boolean,candies:table<string,Candy>,window_options:table<string,any>,buffer_options:table<string,any>}
 
 
 drawer_config                                                    *drawer_config*
     Configuration for drawer UI tile.
 
     Type: ~
-        {disable_candies:boolean,candies:table<string,Candy>,mappings:key_mapping[],disable_help:boolean}
+        {disable_candies:boolean,candies:table<string,Candy>,mappings:key_mapping[],disable_help:boolean,window_options:table<string,any>,buffer_options:table<string,any>}
 
 
 ------------------------------------------------------------------------------
@@ -303,7 +290,6 @@ core_event_name                                                *core_event_name*
 
     Variants: ~
         ("call_state_changed")
-        ("current_connection_changed")
 
 
 editor_event_name                                            *editor_event_name*
@@ -311,9 +297,6 @@ editor_event_name                                            *editor_event_name*
 
     Variants: ~
         ("note_state_changed")
-        ("note_removed")
-        ("note_created")
-        ("current_note_changed")
 
 
 event_listener                                                  *event_listener*
@@ -336,22 +319,21 @@ source_id                                                            *source_id*
         string
 
 
-source_save_action                                          *source_save_action*
-    Action enum for saving connections to source.
-
-    Variants: ~
-        ("add")
-        ("delete")
-
-
 Source                                                                  *Source*
     Source interface
+    "name" and "load" methods are mandatory for basic functionality.
+    "create", "update" and "delete" methods are optional and provide interactive CRUD.
+    "file" method is used for providing optional manual edits of the source's file.
+    A source is also in charge of managing ids of connections. A connection parameter without
+    a unique id results in an error or undefined behavior.
 
     Fields: ~
-        {name}  (fun(self:Source):string)                                                  function to return the name of the source
-        {load}  (fun(self:Source):ConnectionParams[])                                      function to load connections from external source
-        {save}  (nil|fun(self:Source,conns:ConnectionParams[],action:source_save_action))  function to save connections to external source (optional)
-        {file}  (nil|fun(self:Source):string)                                              function which returns a source file to edit (optional)
+        {name}    (fun(self:Source):string)                                         function to return the name of the source
+        {load}    (fun(self:Source):ConnectionParams[])                             function to load connections from external source
+        {create}  (nil|fun(self:Source,details:ConnectionParams):connection_id)     create a connection and return its id (optional)
+        {delete}  (nil|fun(self:Source,id:connection_id))                           delete a connection from its id (optional)
+        {update}  (nil|fun(self:Source,id:connection_id,details:ConnectionParams))  update provided connection (optional)
+        {file}    (nil|fun(self:Source):string)                                     function which returns a source file to edit (optional)
 
 
 ------------------------------------------------------------------------------
@@ -399,13 +381,15 @@ MemorySource : Source                                             *MemorySource*
     Loads connections from lua table.
 
     Fields: ~
-        {conns}  (ConnectionParams[])
 
 
-sources.MemorySource:new({conns})                     *sources.MemorySource:new*
+
+                                                      *sources.MemorySource:new*
+sources.MemorySource:new({conns}, {name?})
 
     Parameters: ~
         {conns}  (ConnectionParams[])  list of connections
+        {name}   (nil|string)          optional display name
 
     Returns: ~
         (Source)
@@ -420,18 +404,18 @@ The default layout is already defined, but it's possible to define your own layo
 Layout implementation should implement the |Layout| interface and show the UI on screen
 as seen fit.
 
-layout_uis                                                          *layout_uis*
-    Layout UIs that are passed to ̏|Layout| open method.
-
-    Type: ~
-        {drawer:DrawerUI,editor:EditorUI,result:ResultUI,call_log:CallLogUI}
-
-
 Layout                                                                  *Layout*
+    Layout that defines how windows are opened.
+    Layouts are free to use both core and ui apis.
+    see |dbee.ref.api.core| and |dbee.ref.api.ui|
+
+    Important for layout implementations: when opening windows, they must be
+    exclusive to dbee. When closing windows, make sure to not reuse any windows dbee left over.
 
     Fields: ~
-        {open}   (fun(self:Layout,uis:layout_uis))  function to open ui.
-        {close}  (fun(self:Layout))                 function to close ui.
+        {is_open}  (fun(self:Layout):boolean)  function that returns the state of ui.
+        {open}     (fun(self:Layout))          function to open ui.
+        {close}    (fun(self:Layout))          function to close ui.
 
 
 ------------------------------------------------------------------------------
@@ -442,17 +426,10 @@ DefaultLayout : Layout                                           *DefaultLayout*
 
 
 
-layouts.Default:new({opts?})                               *layouts.Default:new*
-    Create a default layout.
-
-    Parameters: ~
-        {opts}  (nil|{drawer_width:integer,result_height:integer,call_log_height:integer})
+layouts.Default:new()                                      *layouts.Default:new*
 
     Returns: ~
         (DefaultLayout)
-
-
-DefaultLayout                                                    *DefaultLayout*
 
 
 ==============================================================================
@@ -464,6 +441,13 @@ Access it like this:
 >
 require("dbee").api.core.func()
 <
+
+core.is_loaded()                                                *core.is_loaded*
+    Returns true if dbee core is loaded.
+
+    Returns: ~
+        (boolean)
+
 
                                                   *core.register_event_listener*
 core.register_event_listener({event}, {listener})
@@ -495,24 +479,38 @@ core.source_reload({id})                                    *core.source_reload*
         {id}  (source_id)
 
 
-                                                   *core.source_add_connections*
-core.source_add_connections({id}, {details})
-    Add connections to the source.
+                                                    *core.source_add_connection*
+core.source_add_connection({id}, {details})
+    Add connection to the source.
+    In case the source cannot add connections, this call fails.
 
     Parameters: ~
         {id}       (source_id)
-        {details}  (ConnectionParams[])
+        {details}  (ConnectionParams)
+
+    Returns: ~
+        (connection_id)
 
 
-                                                *core.source_remove_connections*
-core.source_remove_connections({id}, {details})
+                                                 *core.source_remove_connection*
+core.source_remove_connection({id}, {conn_id})
     Remove a connection from the source.
-    If source can edit connections, it also removes the
-    connection permanently.
+    In case the source cannot delete connections, this call fails.
 
     Parameters: ~
         {id}       (source_id)
-        {details}  (ConnectionParams[])
+        {conn_id}  (connection_id)
+
+
+                                                 *core.source_update_connection*
+core.source_update_connection({id}, {conn_id}, {details})
+    Update an existing connection from the source.
+    In case the source cannot edit connections, this call fails.
+
+    Parameters: ~
+        {id}       (source_id)
+        {conn_id}  (connection_id)
+        {details}  (ConnectionParams)
 
 
 core.source_get_connections({id})                  *core.source_get_connections*
@@ -702,6 +700,13 @@ Functions are prefixed with a ui name:
 require("dbee").api.ui.func()
 <
 
+ui.is_loaded()                                                    *ui.is_loaded*
+    Returns true if dbee ui is loaded.
+
+    Returns: ~
+        (boolean)
+
+
 ------------------------------------------------------------------------------
 
                                                         *dbee.ref.api.ui.editor*
@@ -717,10 +722,32 @@ ui.editor_register_event_listener({event}, {listener})
 
 
 ui.editor_search_note({id})                              *ui.editor_search_note*
-     Search for a note across namespaces.
+     Search for a note with provided id across namespaces.
 
     Parameters: ~
         {id}  (note_id)
+
+    Returns: ~
+        (note_details|nil)
+        (namespace_id)      namespace of the note
+
+
+ui.editor_search_note_with_buf({bufnr})         *ui.editor_search_note_with_buf*
+     Search for a note with provided buffer across namespaces.
+
+    Parameters: ~
+        {bufnr}  (integer)
+
+    Returns: ~
+        (note_details|nil)
+        (namespace_id)      namespace of the note
+
+
+ui.editor_search_note_with_file({file})        *ui.editor_search_note_with_file*
+     Search for a note with provided file name across namespaces.
+
+    Parameters: ~
+        {file}  (string)
 
     Returns: ~
         (note_details|nil)
@@ -793,6 +820,13 @@ ui.editor_show({winid})                                         *ui.editor_show*
         {winid}  (integer)
 
 
+ui.editor_do_action({action})                              *ui.editor_do_action*
+     Trigger an action in editor.
+
+    Parameters: ~
+        {action}  (string)
+
+
 ------------------------------------------------------------------------------
 
                                                       *dbee.ref.api.ui.call_log*
@@ -809,6 +843,13 @@ ui.call_log_show({winid})                                     *ui.call_log_show*
         {winid}  (integer)
 
 
+ui.call_log_do_action({action})                          *ui.call_log_do_action*
+     Trigger an action in call_log.
+
+    Parameters: ~
+        {action}  (string)
+
+
 ------------------------------------------------------------------------------
 
                                                         *dbee.ref.api.ui.drawer*
@@ -823,6 +864,13 @@ ui.drawer_show({winid})                                         *ui.drawer_show*
 
     Parameters: ~
         {winid}  (integer)
+
+
+ui.drawer_do_action({action})                              *ui.drawer_do_action*
+     Trigger an action in drawer.
+
+    Parameters: ~
+        {action}  (string)
 
 
 ------------------------------------------------------------------------------
@@ -869,6 +917,13 @@ ui.result_show({winid})                                         *ui.result_show*
 
     Parameters: ~
         {winid}  (integer)
+
+
+ui.result_do_action({action})                              *ui.result_do_action*
+     Trigger an action in result.
+
+    Parameters: ~
+        {action}  (string)
 
 
 vim:tw=78:ts=8:noet:ft=help:norl:

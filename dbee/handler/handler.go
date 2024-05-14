@@ -83,15 +83,26 @@ func (h *Handler) CreateConnection(params *core.ConnectionParams) (core.Connecti
 		return "", fmt.Errorf("adapters.NewConnection: %w", err)
 	}
 
-	old, ok := h.lookupConnection[c.GetID()]
+	_, ok := h.lookupConnection[c.GetID()]
 	if ok {
-		go old.Close()
+		c.Close()
+		return "", fmt.Errorf("connection with id already exists. id: %s", params.ID)
 	}
 
 	h.lookupConnection[c.GetID()] = c
 	_ = h.SetCurrentConnection(c.GetID())
 
 	return c.GetID(), nil
+}
+
+func (h *Handler) DeleteConnection(id core.ConnectionID) error {
+	c, ok := h.lookupConnection[id]
+	if !ok {
+		return fmt.Errorf("connection with id does not exist. id: %s", id)
+	}
+	c.Close()
+	delete(h.lookupConnection, id)
+	return nil
 }
 
 func (h *Handler) GetConnections(ids []core.ConnectionID) []*core.Connection {
@@ -151,12 +162,12 @@ func (h *Handler) ConnectionExecute(connID core.ConnectionID, query string) (*co
 		return nil, fmt.Errorf("unknown connection with id: %q", connID)
 	}
 
-	call := c.Execute(query, func(cl *core.Call) {
-		if err := cl.Err(); err != nil {
+	call := c.Execute(query, func(state core.CallState, c *core.Call) {
+		if err := c.Err(); err != nil {
 			h.log.Errorf("cl.Err: %s", err)
 		}
 
-		h.events.CallStateChanged(cl)
+		h.events.CallStateChanged(c)
 	})
 
 	id := call.GetID()
@@ -257,6 +268,7 @@ func (h *Handler) ConnectionSelectDatabase(connID core.ConnectionID, database st
 	if err != nil {
 		return fmt.Errorf("c.SelectDatabase: %w", err)
 	}
+	h.events.DatabaseSelected(connID, database)
 
 	return nil
 }

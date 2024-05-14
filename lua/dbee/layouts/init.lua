@@ -1,4 +1,6 @@
 local tools = require("dbee.layouts.tools")
+local utils = require("dbee.utils")
+local api_ui = require("dbee.api.ui")
 
 ---@mod dbee.ref.layout UI Layout
 ---@brief [[
@@ -9,12 +11,15 @@ local tools = require("dbee.layouts.tools")
 ---as seen fit.
 ---@brief ]]
 
----Layout UIs that are passed to ̏|Layout| open method.
----@alias layout_uis { drawer: DrawerUI, editor: EditorUI, result: ResultUI, call_log: CallLogUI }
-
--- Layout interface that defines how windows are opened.
+---Layout that defines how windows are opened.
+---Layouts are free to use both core and ui apis.
+---see |dbee.ref.api.core| and |dbee.ref.api.ui|
+---
+---Important for layout implementations: when opening windows, they must be
+---exclusive to dbee. When closing windows, make sure to not reuse any windows dbee left over.
 ---@class Layout
----@field open fun(self: Layout, uis: layout_uis) function to open ui.
+---@field is_open fun(self: Layout):boolean function that returns the state of ui.
+---@field open fun(self: Layout) function to open ui.
 ---@field close fun(self: Layout) function to close ui.
 
 local layouts = {}
@@ -30,10 +35,13 @@ local layouts = {}
 ---@field private call_log_height integer
 ---@field private egg? layout_egg
 ---@field private windows integer[]
+---@field private on_switch "immutable"|"close"
+---@field private is_opened boolean
 layouts.Default = {}
 
 ---Create a default layout.
----@param opts? { drawer_width: integer, result_height: integer, call_log_height: integer }
+---The on_switch parameter defines what to do in case another buffer wants to be open in any window. default: "immutable"
+---@param opts? { on_switch: "immutable"|"close", drawer_width: integer, result_height: integer, call_log_height: integer }
 ---@return DefaultLayout
 function layouts.Default:new(opts)
   opts = opts or {}
@@ -45,10 +53,12 @@ function layouts.Default:new(opts)
     end
   end
 
-  ---@class DefaultLayout
+  ---@type DefaultLayout
   local o = {
     egg = nil,
     windows = {},
+    on_switch = opts.on_switch or "immutable",
+    is_opened = false,
     drawer_width = opts.drawer_width or 40,
     result_height = opts.result_height or 20,
     call_log_height = opts.call_log_height or 20,
@@ -58,9 +68,66 @@ function layouts.Default:new(opts)
   return o
 end
 
+---Action taken when another (inapropriate) buffer is open in the window.
 ---@package
----@param uis layout_uis
-function layouts.Default:open(uis)
+---@param on_switch "immutable"|"close"
+---@param winid integer
+---@param open_fn fun(winid: integer)
+---@param is_editor? boolean special care needs to be taken with editor - it uses multiple buffers.
+function layouts.Default:configure_window_on_switch(on_switch, winid, open_fn, is_editor)
+  local action
+  if on_switch == "close" then
+    action = function(_, buf, file)
+      if is_editor then
+        local note, _ = api_ui.editor_search_note_with_file(file)
+        if note then
+          -- do nothing
+          return
+        end
+        note, _ = api_ui.editor_search_note_with_buf(buf)
+        if note then
+          -- do nothing
+          return
+        end
+      end
+      -- close dbee and open buffer
+      self:close()
+      vim.api.nvim_win_set_buf(0, buf)
+    end
+  else
+    action = function(win, _, _)
+      open_fn(win)
+    end
+  end
+
+  utils.create_singleton_autocmd({ "BufWinEnter", "BufReadPost", "BufNewFile" }, {
+    window = winid,
+    callback = function(event)
+      action(winid, event.buf, event.file)
+    end,
+  })
+end
+
+---Close all other windows when one is closed.
+---@package
+---@param winid integer
+function layouts.Default:configure_window_on_quit(winid)
+  utils.create_singleton_autocmd({ "QuitPre" }, {
+    window = winid,
+    callback = function()
+      self:close()
+    end,
+  })
+end
+
+---@package
+---@return boolean
+function layouts.Default:is_open()
+  return self.is_opened
+end
+
+---@package
+function layouts.Default:open()
   -- save layout before opening ui
   self.egg = tools.save()
 
@@ -70,28 +137,38 @@ function layouts.Default:open(uis)
   tools.make_only(0)
   local editor_win = vim.api.nvim_get_current_win()
   table.insert(self.windows, editor_win)
-  uis.editor:show(editor_win)
+  api_ui.editor_show(editor_win)
+  self:configure_window_on_switch(self.on_switch, editor_win, api_ui.editor_show, true)
+  self:configure_window_on_quit(editor_win)
 
   -- result
   vim.cmd("bo" .. self.result_height .. "split")
   local win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
-  uis.result:show(win)
+  api_ui.result_show(win)
+  self:configure_window_on_switch(self.on_switch, win, api_ui.result_show)
+  self:configure_window_on_quit(win)
 
   -- drawer
   vim.cmd("to" .. self.drawer_width .. "vsplit")
   win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
-  uis.drawer:show(win)
+  api_ui.drawer_show(win)
+  self:configure_window_on_switch(self.on_switch, win, api_ui.drawer_show)
+  self:configure_window_on_quit(win)
 
   -- call log
   vim.cmd("belowright " .. self.call_log_height .. "split")
   win = vim.api.nvim_get_current_win()
   table.insert(self.windows, win)
-  uis.call_log:show(win)
+  api_ui.call_log_show(win)
+  self:configure_window_on_switch(self.on_switch, win, api_ui.call_log_show)
+  self:configure_window_on_quit(win)
 
-  -- set cursor to drawer
+  -- set cursor to editor
   vim.api.nvim_set_current_win(editor_win)
+
+  self.is_opened = true
 end
 
 ---@package
@@ -104,6 +181,7 @@ function layouts.Default:close()
   -- restore layout
   tools.restore(self.egg)
   self.egg = nil
+  self.is_opened = false
 end
 
 return layouts

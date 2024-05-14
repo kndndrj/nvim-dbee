@@ -10,21 +10,21 @@ local welcome = require("dbee.ui.editor.welcome")
 ---@class EditorUI
 ---@field private handler Handler
 ---@field private result ResultUI
----@field private quit_handle fun()
 ---@field private winid? integer
 ---@field private mappings key_mapping[]
 ---@field private notes table<namespace_id, table<note_id, note_details>> namespace: { id: note_details } mapping
 ---@field private current_note_id? note_id
 ---@field private directory string directory where notes are stored
 ---@field private event_callbacks table<editor_event_name, event_listener[]> callbacks for events
-local EditorTile = {}
+---@field private window_options table<string, any> a table of window options.
+---@field private buffer_options table<string, any> a table of buffer options for all notes.
+local EditorUI = {}
 
 ---@param handler Handler
 ---@param result ResultUI
----@param quit_handle? fun()
 ---@param opts? editor_config
 ---@return EditorUI
-function EditorTile:new(handler, result, quit_handle, opts)
+function EditorUI:new(handler, result, opts)
   opts = opts or {}
 
   if not handler then
@@ -39,11 +39,15 @@ function EditorTile:new(handler, result, quit_handle, opts)
   local o = {
     handler = handler,
     result = result,
-    quit_handle = quit_handle or function() end,
     notes = {},
     event_callbacks = {},
-    directory = opts.directory or vim.fn.stdpath("cache") .. "/dbee/notes",
+    directory = opts.directory or vim.fn.stdpath("state") .. "/dbee/notes",
     mappings = opts.mappings,
+    window_options = vim.tbl_extend("force", {}, opts.window_options or {}),
+    buffer_options = vim.tbl_extend("force", {
+      buflisted = false,
+      swapfile = false,
+    }, opts.buffer_options or {}),
   }
   setmetatable(o, self)
   self.__index = self
@@ -51,19 +55,28 @@ function EditorTile:new(handler, result, quit_handle, opts)
   -- search for existing notes
   o:search_existing_namespaces()
 
+  -- set the current note as first note from global namespace
+  local notes = o:namespace_get_notes("global")
+  if not vim.tbl_isempty(notes) then
+    o.current_note_id = notes[1].id
+  else
+    -- otherwise create a welcome note in global namespace
+    o.current_note_id = o:create_welcome_note()
+  end
+
   return o
 end
 
 -- Look for existing namespaces and their notes on disk.
 ---@private
-function EditorTile:search_existing_namespaces()
+function EditorUI:search_existing_namespaces()
   -- search all directories (namespaces) and their notes
   for _, dir in pairs(vim.split(vim.fn.glob(self.directory .. "/*"), "\n")) do
     if vim.fn.isdirectory(dir) == 1 then
       for _, file in pairs(vim.split(vim.fn.glob(dir .. "/*"), "\n")) do
         if vim.fn.filereadable(file) == 1 then
           local namespace = vim.fs.basename(dir)
-          local id = file .. tostring(os.clock())
+          local id = file .. utils.random_string()
 
           self.notes[namespace] = self.notes[namespace] or {}
           self.notes[namespace][id] = {
@@ -78,8 +91,42 @@ function EditorTile:search_existing_namespaces()
 end
 
 ---@private
+---@return note_id
+function EditorUI:create_welcome_note()
+  local note_id = self:namespace_create_note("global", "welcome")
+  local note = self:search_note(note_id)
+  if not note then
+    error("failed creating welcome note")
+  end
+
+  -- create note buffer with contents
+  local bufnr = vim.api.nvim_create_buf(false, false)
+  vim.api.nvim_buf_set_name(bufnr, note.file)
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, welcome.banner())
+  vim.api.nvim_buf_set_option(bufnr, "modified", false)
+
+  self.notes["global"][note_id].bufnr = bufnr
+
+  -- remove all text when first change happens to text
+  vim.api.nvim_create_autocmd({ "InsertEnter" }, {
+    once = true,
+    buffer = bufnr,
+    callback = function()
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, {})
+      vim.api.nvim_buf_set_option(bufnr, "modified", false)
+    end,
+  })
+
+  -- configure options and mappings on new buffer
+  common.configure_buffer_options(bufnr, self.buffer_options)
+  common.configure_buffer_mappings(bufnr, self:get_actions(), self.mappings)
+
+  return note_id
+end
+
+---@private
 ---@return table<string, fun()>
-function EditorTile:get_actions()
+function EditorUI:get_actions()
   return {
     run_file = function()
       if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
@@ -112,10 +159,20 @@ function EditorTile:get_actions()
   }
 end
 
+---Triggers an in-built action.
+---@param action string
+function EditorUI:do_action(action)
+  local act = self:get_actions()[action]
+  if not act then
+    error("unknown action: " .. action)
+  end
+  act()
+end
+
 ---@private
 ---@param event editor_event_name
 ---@param data any
-function EditorTile:trigger_event(event, data)
+function EditorUI:trigger_event(event, data)
   local cbs = self.event_callbacks[event] or {}
   for _, cb in ipairs(cbs) do
     cb(data)
@@ -124,7 +181,7 @@ end
 
 ---@param event editor_event_name
 ---@param listener event_listener
-function EditorTile:register_event_listener(event, listener)
+function EditorUI:register_event_listener(event, listener)
   self.event_callbacks[event] = self.event_callbacks[event] or {}
   table.insert(self.event_callbacks[event], listener)
 end
@@ -132,7 +189,7 @@ end
 ---@private
 ---@param namespace string
 ---@return string
-function EditorTile:dir(namespace)
+function EditorUI:dir(namespace)
   return self.directory .. "/" .. namespace
 end
 
@@ -140,7 +197,7 @@ end
 ---@param id namespace_id
 ---@param name string name to check
 ---@return boolean # true - conflict, false - no conflict
-function EditorTile:namespace_check_conflict(id, name)
+function EditorUI:namespace_check_conflict(id, name)
   local notes = self.notes[id] or {}
   for _, note in pairs(notes) do
     if note.name == name then
@@ -153,7 +210,7 @@ end
 ---@param id note_id
 ---@return note_details?
 ---@return namespace_id namespace
-function EditorTile:search_note(id)
+function EditorUI:search_note(id)
   for namespace, per_namespace in pairs(self.notes) do
     for _, note in pairs(per_namespace) do
       if note.id == id then
@@ -164,14 +221,27 @@ function EditorTile:search_note(id)
   return nil, ""
 end
 
----@private
 ---@param bufnr integer
 ---@return note_details?
 ---@return namespace_id namespace
-function EditorTile:search_note_by_buf(bufnr)
+function EditorUI:search_note_with_buf(bufnr)
   for namespace, per_namespace in pairs(self.notes) do
     for _, note in pairs(per_namespace) do
       if note.bufnr and note.bufnr == bufnr then
+        return note, namespace
+      end
+    end
+  end
+  return nil, ""
+end
+
+---@param file string
+---@return note_details?
+---@return namespace_id namespace
+function EditorUI:search_note_with_file(file)
+  for namespace, per_namespace in pairs(self.notes) do
+    for _, note in pairs(per_namespace) do
+      if note.file and note.file == file then
         return note, namespace
       end
     end
@@ -185,7 +255,7 @@ end
 ---@param id namespace_id
 ---@param name string
 ---@return note_id
-function EditorTile:namespace_create_note(id, name)
+function EditorUI:namespace_create_note(id, name)
   local namespace = id
   if not namespace or namespace == "" then
     error("invalid namespace id")
@@ -206,7 +276,7 @@ function EditorTile:namespace_create_note(id, name)
   end
 
   local file = self:dir(namespace) .. "/" .. name
-  local note_id = file .. tostring(os.clock())
+  local note_id = file .. utils.random_string()
   ---@type note_details
   local s = {
     id = note_id,
@@ -224,7 +294,7 @@ end
 
 ---@param id namespace_id
 ---@return note_details[]
-function EditorTile:namespace_get_notes(id)
+function EditorUI:namespace_get_notes(id)
   local namespace = id
   if not namespace or namespace == "" then
     error("invalid namespace id")
@@ -242,7 +312,7 @@ end
 -- Errors if there is no note with provided id in namespace.
 ---@param id namespace_id
 ---@param note_id note_id
-function EditorTile:namespace_remove_note(id, note_id)
+function EditorUI:namespace_remove_note(id, note_id)
   local namespace = id
   if not self.notes[namespace] then
     error("invalid namespace id to remove the note from")
@@ -267,7 +337,7 @@ end
 -- there is already an existing note with the same name in the same namespace.
 ---@param id note_id
 ---@param name string new name
-function EditorTile:note_rename(id, name)
+function EditorUI:note_rename(id, name)
   local note, namespace = self:search_note(id)
   if not note then
     error("invalid note id to rename")
@@ -304,7 +374,7 @@ function EditorTile:note_rename(id, name)
 end
 
 ---@return note_details?
-function EditorTile:get_current_note()
+function EditorUI:get_current_note()
   local note, _ = self:search_note(self.current_note_id)
   return note
 end
@@ -312,7 +382,7 @@ end
 -- Sets note with id as the current note
 -- and opens it in the window
 ---@param id note_id
-function EditorTile:set_current_note(id)
+function EditorUI:set_current_note(id)
   if id and self.current_note_id == id then
     self:display_note(id)
     return
@@ -332,7 +402,7 @@ end
 
 ---@private
 ---@param id note_id
-function EditorTile:display_note(id)
+function EditorUI:display_note(id)
   if not self.winid or not vim.api.nvim_win_is_valid(self.winid) then
     return
   end
@@ -356,108 +426,20 @@ function EditorTile:display_note(id)
   local bufnr = vim.api.nvim_get_current_buf()
   self.notes[namespace][id].bufnr = bufnr
 
-  -- configure options on new buffer
-  common.configure_buffer_options(bufnr, {
-    buflisted = false,
-    swapfile = false,
-    filetype = "sql",
-  })
-end
-
----@private
----@param winid integer
-function EditorTile:configure_autocommands(winid)
-  -- remove current note if another buffer is opened in the window
-  -- and set current note if any known note is opened in the window.
-  utils.create_singleton_autocmd({ "BufWinEnter" }, {
-    window = winid,
-    callback = function(event)
-      if not self.current_note_id then
-        local note, _ = self:search_note_by_buf(event.buf)
-        if note then
-          self.current_note_id = note.id
-          self:trigger_event("current_note_changed", { note_id = note.id })
-        end
-        return
-      end
-
-      local note, _ = self:search_note(self.current_note_id)
-      if not note then
-        self.current_note_id = nil
-        self:trigger_event("current_note_changed", { note_id = nil })
-        return
-      end
-
-      if not note.bufnr or note.bufnr ~= event.buf then
-        self.current_note_id = nil
-        self:trigger_event("current_note_changed", { note_id = nil })
-        return
-      end
-    end,
-  })
-end
-
----@private
----@return note_id
-function EditorTile:create_welcome_note()
-  local note_id = self:namespace_create_note("global", "welcome")
-  local note = self:search_note(note_id)
-  if not note then
-    error("failed creating welcome note")
-  end
-
-  -- create note buffer with contents
-  local bufnr = vim.api.nvim_create_buf(false, false)
-  vim.api.nvim_buf_set_name(bufnr, note.file)
-  vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, welcome.banner(self.directory))
-  vim.api.nvim_buf_set_option(bufnr, "modified", false)
-
-  self.notes["global"][note_id].bufnr = bufnr
-
-  -- remove all text when first change happens to text
-  vim.api.nvim_create_autocmd({ "InsertEnter" }, {
-    once = true,
-    buffer = bufnr,
-    callback = function()
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, {})
-      vim.api.nvim_buf_set_option(bufnr, "modified", false)
-    end,
-  })
-
-  return note_id
-end
-
--- Sets a buffer to editor window.
----@param bufnr integer
-function EditorTile:set_buf(bufnr)
-  pcall(vim.api.nvim_win_set_buf, self.winid, bufnr)
-  pcall(vim.api.nvim_set_current_win, self.winid)
+  -- configure options and mappings on new buffer
+  common.configure_buffer_options(bufnr, self.buffer_options)
+  common.configure_buffer_mappings(bufnr, self:get_actions(), self.mappings)
 end
 
 ---@param winid integer
-function EditorTile:show(winid)
+function EditorUI:show(winid)
   self.winid = winid
-  self:configure_autocommands(winid)
 
-  common.configure_window_mappings(winid, self:get_actions(), self.mappings)
-  common.configure_window_quit_handle(winid, self.quit_handle)
+  -- open current note
+  self:display_note(self.current_note_id)
 
-  -- open current note if configured
-  if self.current_note_id then
-    self:display_note(self.current_note_id)
-    return
-  end
-
-  -- else show the first global note
-  local notes = self:namespace_get_notes("global")
-  if not vim.tbl_isempty(notes) then
-    self:set_current_note(notes[1].id)
-    return
-  end
-
-  -- otherwise create a welcome note in global namespace
-  local note_id = self:create_welcome_note()
-  self:set_current_note(note_id)
+  -- configure window options (needs to be set after setting the buffer to window)
+  common.configure_window_options(winid, self.window_options)
 end
 
-return EditorTile
+return EditorUI

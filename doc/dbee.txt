@@ -8,7 +8,7 @@ Table of Contents                                     *dbee-table-of-contents*
   - Configuration                             |dbee-neovim-dbee-configuration|
   - Usage                                             |dbee-neovim-dbee-usage|
   - API                                                 |dbee-neovim-dbee-api|
-  - Projector Integration             |dbee-neovim-dbee-projector-integration|
+  - Extensions                                   |dbee-neovim-dbee-extensions|
 2. DBee Architecture Overview                |dbee-dbee-architecture-overview|
   - Lua Architecture        |dbee-dbee-architecture-overview-lua-architecture|
   - Go Architecture          |dbee-dbee-architecture-overview-go-architecture|
@@ -138,7 +138,7 @@ Here are the defaults:
       -- loads connections from files and environment variables
       sources = {
         require("dbee.sources").EnvSource:new("DBEE_CONNECTIONS"),
-        require("dbee.sources").FileSource:new(vim.fn.stdpath("cache") .. "/dbee/persistence.json"),
+        require("dbee.sources").FileSource:new(vim.fn.stdpath("state") .. "/dbee/persistence.json"),
       },
       -- extra table helpers per connection type
       -- every helper value is a go-template with values set for
@@ -149,14 +149,23 @@ Here are the defaults:
         --   ["List All"] = "select * from {{ .Table }}",
         -- },
       },
+      -- options passed to floating windows - :h nvim_open_win()
+      float_options = {},
+    
       -- drawer window config
       drawer = {
+        -- these two option settings can be added to all UI elements and
+        -- allow for passing specific window/buffer options.
+        -- Note that you probably shouldn't be passing buffer options, since
+        -- the functionality of the plugin might rely on them.
+        -- TL;DR: only use this if you know what you are doing!
+        window_options = {},
+        buffer_options = {},
+    
         -- show help or not
         disable_help = false,
         -- mappings for the buffer
         mappings = {
-          -- quit the dbee interface
-          { key = "q", mode = "n", action = "quit" },
           -- manually refresh drawer
           { key = "r", mode = "n", action = "refresh" },
           -- actions perform different stuff depending on the node:
@@ -265,6 +274,10 @@ Here are the defaults:
     
       -- results window config
       result = {
+        -- see drawer comment.
+        window_options = {},
+        buffer_options = {},
+    
         -- number of rows in the results set to display per page
         page_size = 100,
     
@@ -298,6 +311,13 @@ Here are the defaults:
     
       -- editor window config
       editor = {
+        -- see drawer comment.
+        window_options = {},
+        buffer_options = {},
+    
+        -- directory where to store the scratchpads.
+        --directory = "path/to/scratchpad/dir",
+    
         -- mappings for the buffer
         mappings = {
           -- run what's currently selected on the active connection
@@ -309,6 +329,10 @@ Here are the defaults:
     
       -- call log window config
       call_log = {
+        -- see drawer comment.
+        window_options = {},
+        buffer_options = {},
+    
         -- mappings for the buffer
         mappings = {
           -- show the result of the currently selected call record
@@ -403,48 +427,49 @@ Here are a few steps to quickly get started:
         - Press `r` to manually refresh the tree.
     - Connections:
         - Press `cw` to edit the connection
-        - Press `dd` to delete it (if source supports saving, it’s also removed from
-            there - see more below.)
-        - Press `<CR>` to perform an action - view history or look at helper
-            queries. Pressing `<CR>` directly on the connection node will set it as
-            the active one
+        - Press `dd` to delete it (if source supports saving, it’s also removed from there - see more
+            below.)
+        - Press `<CR>` to perform an action - view history or look at helper queries. Pressing `<CR>`
+            directly on the connection node will set it as the active one
     - Scratchpads:
         - Press `<CR>` on the `new` node to create a new scratchpad.
-        - When you try to save it to disk (`:w`), the path is automatically filled
-            for you. You can change the name to anything you want, if you save it to
-            the suggested directory, it will load the next time you open DBee.
+        - When you try to save it to disk (`:w`), the path is automatically filled for you. You can
+            change the name to anything you want, if you save it to the suggested directory, it will load
+            the next time you open DBee.
         - Press `cw` to rename the scratchpad.
         - Press `dd` to delete it (also from disk).
-        - Pressing `<CR>` on an existing scratchpad in the drawer will open it in
-            the editor pane.
+        - Pressing `<CR>` on an existing scratchpad in the drawer will open it in the editor pane.
     - Help:
         - Just view the key bindings.
 - Once you selected the connection and created a scratchpad, you can navigate to
     the editor pane (top-right by default) and start writing queries. In editor
     pane, you can use the following actions:
-    - Highlight some text in visual mode and press `BB` - this will run the
-        selected query on the active connection.
-    - If you press `BB` in normal mode, you run the whole scratchpad on the active
-        connection.
+    - Highlight some text in visual mode and press `BB` - this will run the selected query on the
+        active connection.
+    - If you press `BB` in normal mode, you run the whole scratchpad on the active connection.
 - If the request was successful, the results should appear in the "result" buffer
     (bottom right by default). If the total number of results was lower than the
     `page_size` parameter in config (100 by default), all results should already be
     present. If there are more than `page_size` results, you can "page" through
     them using one of the following:
 
-  ----------------------------------------------------------------------------------------------------
-  Navigation using lua script (even if your            Description         Default key mapping (cursor
-  cursor is outside the result buffer)                                       should be inside result
-                                                                                     buffer)
-  -------------------------------------------- --------------------------- ---------------------------
-  require("dbee").api.ui.result_page_next()          Go to next page                    L
+  -------------------------------------------------------------------------------------
+  Navigation using lua script (even if your     Description     Default key mapping
+  cursor is outside the result buffer)                        (cursor should be inside
+                                                                   result buffer)
+  -------------------------------------------- ------------- --------------------------
+  require("dbee").api.ui.result_page_next()     Go to next               L
+                                                   page      
 
-  require("dbee").api.ui.result_page_prev()      Go to the previous page                H
+  require("dbee").api.ui.result_page_prev()      Go to the               H
+                                               previous page 
 
-  require("dbee").api.ui.result_page_last()        Go to the last page                  E
+  require("dbee").api.ui.result_page_last()      Go to the               E
+                                                 last page   
 
-  require("dbee").api.ui.result_page_first()      Go to the first page                  F
-  ----------------------------------------------------------------------------------------------------
+  require("dbee").api.ui.result_page_first()     Go to the               F
+                                                first page   
+  -------------------------------------------------------------------------------------
 - Once in the "result" buffer, you can yank the results with the following keys:
     - `yaj` yank current row as json (or row range in visual mode)
     - `yac` yank current row as CSV (or row range in visual mode)
@@ -600,14 +625,13 @@ You can access it like this:
 <
 
 
-PROJECTOR INTEGRATION                 *dbee-neovim-dbee-projector-integration*
+EXTENSIONS                                       *dbee-neovim-dbee-extensions*
 
-DBee is compatible with my other plugin nvim-projector
-<https://github.com/kndndrj/nvim-projector>, a
-code-runner/project-configurator.
-
-To use dbee with it, use this extension
-<https://github.com/kndndrj/projector-dbee>.
+- `nvim-projector` <https://github.com/kndndrj/nvim-projector> To use dbee with
+    projector, use this extension <https://github.com/kndndrj/projector-dbee>.
+- `nvim-cmp` <https://github.com/hrsh7th/nvim-cmp> Here
+    <https://github.com/MattiasMTS/cmp-dbee>, a completion plugin with dbee
+    support.
 
 
 ==============================================================================
@@ -657,17 +681,15 @@ Description:
 
 - The "dbee" package consists of 2 major functional packages, ui and handler
     (core).
-    - `handler` or core package is a wrapper around the go backend handler. The
-        only extra thing lua handler does on top is information about sources.
+    - `handler` or core package is a wrapper around the go backend handler. The only extra thing lua
+        handler does on top is information about sources.
     - `ui` package consists of the following packages:
-        - `Drawer` represents the tree view. It uses the handler and editor to
-            provide the view of connections and notes.
-        - `Editor` represents the notepad view. It manages notes per namespace
-            (namespace is an arbitrary name - Drawer uses it to have connection-local
-            notes).
+        - `Drawer` represents the tree view. It uses the handler and editor to provide the view of
+            connections and notes.
+        - `Editor` represents the notepad view. It manages notes per namespace (namespace is an
+            arbitrary name - Drawer uses it to have connection-local notes).
         - `Result` represents the results view.
-        - `Call Log` represents the history of calls vie view and supports managing
-            past calls.
+        - `Call Log` represents the history of calls vie view and supports managing past calls.
 - `install` package is independent of the other packages and is used for
     installation of the compiled go binary using the manifest generated by the CI
     pipeline.

@@ -102,15 +102,16 @@
 
 ---Avaliable core events.
 ---@alias core_event_name
----| '"call_state_changed"'
----| '"current_connection_changed"'
+---| '"call_state_changed"' {call}
+---| '"current_connection_changed"' {conn_id}
+---| '"database_selected"' {conn_id, database_name}
 
 ---Available editor events.
 ---@alias editor_event_name
----| '"note_state_changed"'
----| '"note_removed"'
----| '"note_created"'
----| '"current_note_changed"'
+---| '"note_state_changed"' {note_id}
+---| '"note_removed"' {note_id}
+---| '"note_created"' {note_id}
+---| '"current_note_changed"' {note_id}
 
 ---Event handler function.
 ---@alias event_listener fun(data: any)

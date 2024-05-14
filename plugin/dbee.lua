@@ -71,7 +71,6 @@ end, {
     if #line < 1 then
       return vim.tbl_keys(commands)
     end
-    vim.print(line)
 
     if line[1] ~= "store" then
       return {}

@@ -12,7 +12,7 @@ local expansion = require("dbee.ui.drawer.expansion")
 ---@class DrawerUINode: NuiTree.Node
 ---@field id string unique identifier
 ---@field name string display name
----@field type ""|"table"|"view"|"column"|"history"|"note"|"connection"|"database_switch"|"add"|"edit"|"remove"|"help"|"source" type of node
+---@field type ""|"table"|"view"|"column"|"history"|"note"|"connection"|"database_switch"|"add"|"edit"|"remove"|"help"|"source"|"separator" type of node
 ---@field action_1? drawer_node_action primary action if function takes a second selection parameter, pick_items get picked before the call
 ---@field action_2? drawer_node_action secondary action if function takes a second selection parameter, pick_items get picked before the call
 ---@field action_3? drawer_node_action tertiary action if function takes a second selection parameter, pick_items get picked before the call
@@ -28,20 +28,18 @@ local expansion = require("dbee.ui.drawer.expansion")
 ---@field private disable_help boolean show help or not
 ---@field private winid? integer
 ---@field private bufnr integer
----@field private quit_handle fun() function that closes the whole ui
----@field private switch_handle fun(bufnr: integer)
 ---@field private current_conn_id? connection_id current active connection
 ---@field private current_note_id? note_id current active note
+---@field private window_options table<string, any> a table of window options.
+---@field private buffer_options table<string, any> a table of buffer options.
 local DrawerUI = {}
 
 ---@param handler Handler
 ---@param editor EditorUI
 ---@param result ResultUI
----@param quit_handle? fun()
----@param switch_handle? fun(bufnr: integer)
 ---@param opts? drawer_config
 ---@return DrawerUI
-function DrawerUI:new(handler, editor, result, quit_handle, switch_handle, opts)
+function DrawerUI:new(handler, editor, result, opts)
   opts = opts or {}
 
   if not handler then
@@ -70,23 +68,30 @@ function DrawerUI:new(handler, editor, result, quit_handle, switch_handle, opts)
     mappings = opts.mappings or {},
     candies = candies,
     disable_help = opts.disable_help or false,
-    quit_handle = quit_handle or function() end,
-    switch_handle = switch_handle or function() end,
     current_conn_id = current_conn.id,
     current_note_id = current_note.id,
+    window_options = vim.tbl_extend("force", {
+      wrap = false,
+      winfixheight = true,
+      winfixwidth = true,
+      number = false,
+      relativenumber = false,
+      spell = false,
+    }, opts.window_options or {}),
+    buffer_options = vim.tbl_extend("force", {
+      buflisted = false,
+      bufhidden = "delete",
+      buftype = "nofile",
+      swapfile = false,
+      filetype = "dbee",
+    }, opts.buffer_options or {}),
   }
   setmetatable(o, self)
   self.__index = self
 
   -- create a buffer for drawer and configure it
-  o.bufnr = common.create_blank_buffer("dbee-drawer", {
-    buflisted = false,
-    bufhidden = "delete",
-    buftype = "nofile",
-    swapfile = false,
-  })
+  o.bufnr = common.create_blank_buffer("dbee-drawer", o.buffer_options)
   common.configure_buffer_mappings(o.bufnr, o:get_actions(), opts.mappings)
-  common.configure_buffer_quit_handle(o.bufnr, o.quit_handle)
 
   -- create tree
   o.tree = o:create_tree(o.bufnr)
@@ -133,6 +138,10 @@ function DrawerUI:create_tree(bufnr)
     bufnr = bufnr,
     prepare_node = function(node)
       local line = NuiLine()
+
+      if node.type == "separator" then
+        return line
+      end
 
       line:append(string.rep("  ", node:get_depth() - 1))
 
@@ -235,7 +244,6 @@ function DrawerUI:get_actions()
   end
 
   return {
-    quit = self.quit_handle,
     refresh = function()
       self:refresh()
     end,
@@ -288,6 +296,17 @@ function DrawerUI:get_actions()
   }
 end
 
+---Triggers an in-built action.
+---@param action string
+function DrawerUI:do_action(action)
+  local act = self:get_actions()[action]
+  if not act then
+    error("unknown action: " .. action)
+  end
+  act()
+end
+
+---Refreshes the tree.
 function DrawerUI:refresh()
   -- assemble tree layout
   ---@type DrawerUINode[]
@@ -319,19 +338,11 @@ end
 function DrawerUI:show(winid)
   self.winid = winid
 
-  -- configure window options
-  common.configure_window_options(self.winid, {
-    wrap = false,
-    winfixheight = true,
-    winfixwidth = true,
-    number = false,
-  })
-
-  -- configure window immutablity
-  common.configure_window_immutable_buffer(self.winid, self.bufnr, self.switch_handle)
-
   -- set buffer to window
   vim.api.nvim_win_set_buf(self.winid, self.bufnr)
+
+  -- configure window options (needs to be set after setting the buffer to window)
+  common.configure_window_options(self.winid, self.window_options)
 
   self:refresh()
 end

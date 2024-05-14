@@ -1,5 +1,6 @@
-local entry = require("dbee.entry")
 local install = require("dbee.install")
+local api = require("dbee.api")
+local config = require("dbee.config")
 
 ---@toc dbee.ref.contents
 
@@ -9,47 +10,54 @@ local install = require("dbee.install")
 ---@brief ]]
 
 local dbee = {
-  api = require("dbee.api"),
+  api = {
+    core = api.core,
+    ui = api.ui,
+  },
 }
 
 ---Setup function.
 ---Needs to be called before calling any other function.
 ---@param cfg? Config
 function dbee.setup(cfg)
-  entry.setup(cfg)
+  -- merge with defaults
+  local merged = config.merge_with_default(cfg)
+
+  -- validate config
+  config.validate(merged)
+
+  api.setup(merged)
 end
 
 ---Toggle dbee UI.
 function dbee.toggle()
-  entry.toggle_ui()
+  if api.current_config().window_layout:is_open() then
+    dbee.close()
+  else
+    dbee.open()
+  end
 end
 
 ---Open dbee UI.
 function dbee.open()
-  entry.open_ui()
+  if api.current_config().window_layout:is_open() then
+    return
+  end
+  api.current_config().window_layout:open()
 end
 
 ---Close dbee UI.
 function dbee.close()
-  entry.close_ui()
+  if not api.current_config().window_layout:is_open() then
+    return
+  end
+  api.current_config().window_layout:close()
 end
 
 ---Check if dbee UI is open or not.
 ---@return boolean
 function dbee.is_open()
-  return entry.is_ui_open()
-end
-
----Check if dbee core has been loaded.
----@return boolean
-function dbee.is_core_loaded()
-  return entry.is_core_loaded()
-end
-
----Check if dbee UI has been loaded.
----@return boolean
-function dbee.is_ui_loaded()
-  return entry.is_ui_loaded()
+  return api.current_config().window_layout:is_open()
 end
 
 ---Execute a query on current connection.
@@ -57,18 +65,15 @@ end
 ---current connection and pipes the output to result UI.
 ---@param query string
 function dbee.execute(query)
-  local handler = entry.get_handler()
-  local result = entry.get_ui().result
-
-  local conn = handler:get_current_connection()
+  local conn = api.core.get_current_connection()
   if not conn then
     error("no connection currently selected")
   end
 
-  local call = handler:connection_execute(conn.id, query)
-  result:set_call(call)
+  local call = api.core.connection_execute(conn.id, query)
+  api.ui.result_set_call(call)
 
-  entry.open_ui()
+  dbee.open()
 end
 
 ---Store currently displayed result.
@@ -77,15 +82,12 @@ end
 ---@param output string where to pipe the results -> "file"|"yank"|"buffer"
 ---@param opts { from: integer, to: integer, extra_arg: any }
 function dbee.store(format, output, opts)
-  local result = entry.get_ui().result
-  local handler = entry.get_handler()
-
-  local call = result:get_call()
+  local call = api.ui.result_get_call()
   if not call then
     error("no current call to store")
   end
 
-  handler:call_store_result(call.id, format, output, opts)
+  api.core.call_store_result(call.id, format, output, opts)
 end
 
 ---Supported install commands.
