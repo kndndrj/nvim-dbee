@@ -133,6 +133,7 @@ have a few options:
   # Clone the repository and cd into the "go subfolder"
   git clone <this_repo>
   cd <this_repo>/dbee
+  go mod tidy
   # Build the binary (optional output path)
   go build [-o ~/.local/share/nvim/dbee/bin/dbee]
   ```
