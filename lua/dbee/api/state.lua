@@ -33,7 +33,11 @@ local function setup_handler()
   register()
 
   -- add install binary to path
-  vim.env.PATH = install.dir() .. ":" .. vim.env.PATH
+  local pathsep = ":"
+  if vim.fn.has("win32") then
+    pathsep = ";"
+  end
+  vim.env.PATH = install.dir() .. pathsep .. vim.env.PATH
 
   m.handler = Handler:new(m.config.sources)
   m.handler:add_helpers(m.config.extra_helpers)
