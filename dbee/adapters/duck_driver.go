@@ -18,34 +18,35 @@ func (c *duckDriver) Query(ctx context.Context, query string) (core.ResultStream
 }
 
 func (c *duckDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	return c.c.ColumnsFromQuery("DESCRIBE %q", opts.Table)
+	query := `
+SELECT
+	column_name
+	, data_type
+FROM information_schema.columns
+WHERE table_schema = '%s'
+	AND table_name = '%s'`
+	return c.c.ColumnsFromQuery(query, opts.Schema, opts.Table)
 }
 
 func (c *duckDriver) Structure() ([]*core.Structure, error) {
-	query := `SHOW TABLES;`
+	query := `
+SELECT
+	s.schema_name
+  , t.table_name
+  , t.table_type
+FROM information_schema.schemata AS s
+LEFT JOIN information_schema.tables AS t
+	ON s.schema_name = t.table_schema
+WHERE s.schema_name NOT IN ('information_schema', 'pg_catalog')
+GROUP BY 1, 2, 3;
+`
 
 	rows, err := c.Query(context.TODO(), query)
 	if err != nil {
 		return nil, err
 	}
 
-	var schema []*core.Structure
-	for rows.HasNext() {
-		row, err := rows.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		// We know for a fact there is only one string field (see query above)
-		table := row[0].(string)
-		schema = append(schema, &core.Structure{
-			Name:   table,
-			Schema: "",
-			Type:   core.StructureTypeTable,
-		})
-	}
-
-	return schema, nil
+	return getPGStructure(rows)
 }
 
 func (c *duckDriver) Close() {
