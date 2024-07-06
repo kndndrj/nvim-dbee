@@ -35,6 +35,14 @@
 
 <!-- DOCGEN_IGNORE_END -->
 
+<!-- DOCGEN_IGNORE_START -->
+
+### Video Introduction
+
+If you prefer to watch a video than to browse through docs, I made a video, which you can watch [here](https://youtu.be/MDlYsGbKJyQ?si=YKhnkOwlX1Y_gyus)
+
+<!-- DOCGEN_IGNORE_END -->
+
 ## Installation
 
 - packer.nvim:
