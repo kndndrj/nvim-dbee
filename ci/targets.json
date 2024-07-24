@@ -157,10 +157,6 @@
         "goarch": "arm64"
     },
     {
-        "goos": "openbsd",
-        "goarch": "mips64"
-    },
-    {
         "goos": "solaris",
         "goarch": "amd64"
     },
@@ -179,6 +175,10 @@
     //
     // Unsupported targets.
     //
+    // {
+    //     "goos": "openbsd",
+    //     "goarch": "mips64"
+    // },
     // {
     //     "goos": "aix",
     //     "goarch": "ppc64"
