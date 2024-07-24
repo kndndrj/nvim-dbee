@@ -15,7 +15,11 @@ end
 
 ---@return string _ path to binary
 function M.bin()
-  return M.dir() .. "/dbee"
+  local suffix = ""
+  if vim.fn.has("win32") then
+    suffix = ".exe"
+  end
+  return M.dir() .. "/dbee" .. suffix
 end
 
 ---@return string _ version (hash of install manifest)
