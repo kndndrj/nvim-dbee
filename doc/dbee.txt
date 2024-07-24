@@ -35,6 +35,8 @@ Table of Contents                                     *dbee-table-of-contents*
 
 INSTALLATION                                   *dbee-neovim-dbee-installation*
 
+**requires nvim>=0.10**
+
 - packer.nvim:
     >lua
         use {
