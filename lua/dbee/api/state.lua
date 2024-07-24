@@ -34,7 +34,7 @@ local function setup_handler()
 
   -- add install binary to path
   local pathsep = ":"
-  if vim.fn.has("win32") then
+  if vim.fn.has("win32") == 1 then
     pathsep = ";"
   end
   vim.env.PATH = install.dir() .. pathsep .. vim.env.PATH

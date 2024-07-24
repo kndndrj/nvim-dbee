@@ -16,7 +16,7 @@ end
 ---@return string _ path to binary
 function M.bin()
   local suffix = ""
-  if vim.fn.has("win32") then
+  if vim.fn.has("win32") == 1 then
     suffix = ".exe"
   end
   return M.dir() .. "/dbee" .. suffix
