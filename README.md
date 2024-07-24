@@ -39,11 +39,14 @@
 
 ### Video Introduction
 
-If you prefer to watch a video than to browse through docs, I made a video, which you can watch [here](https://youtu.be/MDlYsGbKJyQ?si=YKhnkOwlX1Y_gyus)
+If you prefer to watch a video than to browse through docs, I made a video, which you can watch
+[here](https://youtu.be/MDlYsGbKJyQ?si=YKhnkOwlX1Y_gyus)
 
 <!-- DOCGEN_IGNORE_END -->
 
 ## Installation
+
+**requires nvim>=0.10**
 
 - packer.nvim:
 
@@ -141,7 +144,6 @@ have a few options:
   # Clone the repository and cd into the "go subfolder"
   git clone <this_repo>
   cd <this_repo>/dbee
-  go mod tidy
   # Build the binary (optional output path)
   go build [-o ~/.local/share/nvim/dbee/bin/dbee]
   ```
