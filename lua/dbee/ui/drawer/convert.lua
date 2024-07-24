@@ -360,13 +360,7 @@ local function modified_suffix(bufnr, refresh)
   end
 
   local suffix = ""
-  local modified
-  if vim.fn.has('nvim-0.10') == 1 then
-    modified = vim.api.nvim_get_option_value("modified", {buf = bufnr})
-  else
-    modified = vim.api.nvim_buf_get_option(bufnr, "modified")
-  end
-  if modified then
+  if vim.api.nvim_get_option_value("modified", { buf = bufnr }) then
     suffix = " ●"
   end
 
