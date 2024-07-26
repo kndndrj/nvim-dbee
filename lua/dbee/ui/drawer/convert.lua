@@ -335,7 +335,7 @@ function M.help_node(mappings)
   end
 
   table.sort(children, function(k1, k2)
-    return k1.id < k2.id
+    return k1.name < k2.name
   end)
 
   local node = NuiTree.Node({
