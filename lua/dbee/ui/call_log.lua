@@ -241,6 +241,27 @@ function CallLogUI:refresh()
   self.tree:render()
 end
 
+---@param winid integer window to get the position of
+---@return "left"|"right"
+local function get_hover_position(winid)
+  ---@param wid integer window to chech the neighbors of
+  ---@return boolean # true if window has a right neighbor
+  local has_neighbor_right = function(wid)
+    local right_winid = vim.fn.win_getid(vim.fn.winnr("l"))
+    if right_winid == 0 then
+      return false
+    end
+
+    return wid ~= right_winid
+  end
+
+  if has_neighbor_right(winid) then
+    return "right"
+  end
+
+  return "left"
+end
+
 ---@private
 ---@param bufnr integer
 function CallLogUI:configure_preview(bufnr)
@@ -260,22 +281,22 @@ function CallLogUI:configure_preview(bufnr)
       end
 
       local call_summary = {
-        string.format("id:                   %s", call.id),
-        string.format("query:                %s", string.gsub(call.query, "\n", " ")),
-        string.format("state:                %s", call.state),
-        string.format("time_taken [seconds]: %.3f", (call.time_taken_us or 0) / 1000000),
-        string.format("timestamp:            %s", tostring(os.date("%c", (call.timestamp_us or 0) / 1000000))),
+        { key = "id", value = call.id },
+        { key = "query", value = string.gsub(call.query, "\n", " ") },
+        { key = "state", value = call.state },
+        { key = "time_taken", value = string.format("%.3f seconds", (call.time_taken_us or 0) / 1000000) },
+        { key = "timestamp", value = tostring(os.date("%c", (call.timestamp_us or 0) / 1000000)) },
       }
 
       if call.error and call.error ~= "" then
-        table.insert(call_summary, string.format("error:                %s", string.gsub(call.error, "\n", " ")))
+        table.insert(call_summary, { key = "error", value = string.gsub(call.error, "\n", " ") })
       end
 
-      self.hover_close = common.float_hover(self.winid, call_summary)
+      self.hover_close = common.float_hover(self.winid, call_summary, { position = get_hover_position(self.winid) })
     end,
   })
 
-  utils.create_singleton_autocmd({ "BufLeave", "QuitPre" }, {
+  utils.create_singleton_autocmd({ "BufLeave", "QuitPre", "BufWinLeave", "WinLeave", "WinClosed" }, {
     buffer = bufnr,
     callback = function()
       self.hover_close()

@@ -25,20 +25,21 @@ local function enrich_float_opts(spec)
   return vim.tbl_extend("keep", spec, OPTS)
 end
 
----@alias prompt { name: string, default: string }[] list of lines with optional defaults to display as prompt
+---@alias kv_pair { key: string, value: string }
 
 --- highlight the prompt keys
----@param prompt prompt
+---@param prompt kv_pair[]
 ---@param winid integer window to apply the highlight to
-local function highlight_prompt(prompt, winid)
+---@param hl_group string
+local function highlight_keys(prompt, winid, hl_group)
   -- assemble the command
   ---@type string[]
   local patterns = {}
   for _, p in ipairs(prompt) do
-    table.insert(patterns, string.format([[^\s*%s]], p.name))
+    table.insert(patterns, string.format([[^\s*%s]], p.key))
   end
 
-  local cmd = string.format("match Question /%s/", table.concat(patterns, [[\|]]))
+  local cmd = string.format("match %s /%s/", hl_group, table.concat(patterns, [[\|]]))
 
   local current_win = vim.api.nvim_get_current_win()
   -- just apply the highlight if we apply the highlight to current win
@@ -53,7 +54,7 @@ local function highlight_prompt(prompt, winid)
   vim.api.nvim_set_current_win(current_win)
 end
 
----@param prompt prompt
+---@param prompt kv_pair[] list of lines with optional defaults to display as prompt
 ---@param spec? { title: string, callback: fun(result: table<string, string>) }
 function M.prompt(prompt, spec)
   spec = spec or {}
@@ -62,7 +63,7 @@ function M.prompt(prompt, spec)
   ---@type string[]
   local display_prompt = {}
   for _, p in ipairs(prompt) do
-    table.insert(display_prompt, p.name .. ": " .. (p.default or ""))
+    table.insert(display_prompt, p.key .. ": " .. (p.value or ""))
   end
 
   local win_width = 100
@@ -97,7 +98,7 @@ function M.prompt(prompt, spec)
     }
   )
   -- apply the highlighting of keys to window
-  highlight_prompt(prompt, winid)
+  highlight_keys(prompt, winid, "Question")
 
   local callback = spec.callback or function() end
 
@@ -122,13 +123,13 @@ function M.prompt(prompt, spec)
       local kv = {}
       for _, p in ipairs(prompt) do
         -- get key from prompt and store it as empty string by default
-        local key = p.name
+        local key = p.key
         kv[key] = ""
 
         for _, l in ipairs(lines) do
           -- if line has prompt prefix, get the value and strip whitespace
-          if l:find("^%s*" .. p.name .. ":") then
-            local val = l:gsub("^%s*" .. p.name .. ":%s*(.-)%s*$", "%1")
+          if l:find("^%s*" .. p.key .. ":") then
+            local val = l:gsub("^%s*" .. p.key .. ":%s*(.-)%s*$", "%1")
             kv[key] = val
           end
         end
@@ -217,49 +218,78 @@ function M.editor(file, spec)
   end, { silent = true, buffer = bufnr })
 end
 
----@param winid integer window to chech the neighbors of
----@return boolean # true if window has a right neighbor
-local function has_neighbor_right(winid)
-  local right_winid = vim.fn.win_getid(vim.fn.winnr("l"))
-  if right_winid == 0 then
-    return false
+-- This function splits lines that are too long so that they fit inside "max_width".
+-- A single can be split over at most "max_split" lines
+---@param line string
+---@param max_width integer
+---@param max_split integer
+---@return string[] # list of split lines
+local function split_line(line, max_width, max_split)
+  if #line <= max_width then
+    return { line }
   end
 
-  return winid ~= right_winid
-end
+  local text_width = max_width - 4 -- indentation
 
----@param winid integer window to chech the neighbors of
----@return boolean # true if window has a left neighbor
-local function has_neighbor_left(winid)
-  local left_winid = vim.fn.win_getid(vim.fn.winnr("h"))
-  if left_winid == 0 then
-    return false
+  local spl = {}
+  for i = 1, max_split * text_width, text_width do
+    local s
+
+    if i == 1 then
+      s = line:sub(i, i + max_width)
+    else
+      s = line:sub(i, i + text_width)
+      if s == "" then
+        break
+      end
+      s = "    " .. s
+    end
+
+    table.insert(spl, s)
   end
-
-  return winid ~= left_winid
+  return spl
 end
 
 -- hover window with custom content
 ---@param relative_winid? integer window to set the hover relative to
----@param contents string[] file to edit
+---@param contents kv_pair[] list of key_value pairs to display in the hover
+---@param opts? { position: "left"|"right", width: integer, max_split: integer }
 ---@return fun() # close handle
-function M.hover(relative_winid, contents)
+function M.hover(relative_winid, contents, opts)
+  opts = opts or {}
+  opts.position = opts.position or "right"
+  opts.width = opts.width or 80
+  opts.max_split = opts.max_split or 6
+
   if not contents or #contents < 1 or not relative_winid or not vim.api.nvim_win_is_valid(relative_winid) then
     return function() end
   end
 
-  local win_width = 1
-  for _, line in ipairs(contents) do
-    if #line > win_width then
-      win_width = #line
+  local key_width = 10
+  for _, p in ipairs(contents) do
+    if #p.key > key_width then
+      key_width = #p.key
     end
   end
 
-  local win_height = #contents
+  -- create lines to display
+  ---@type string[]
+  local display = {}
+  for _, p in ipairs(contents) do
+    local n_spaces = key_width - #p.key
+    table.insert(display, p.key .. ": " .. string.rep(" ", n_spaces) .. (p.value or ""))
+  end
+
+  local lines = {}
+  for _, line in ipairs(display) do
+    for _, spl in ipairs(split_line(line, opts.width, opts.max_split)) do
+      table.insert(lines, spl)
+    end
+  end
 
   -- create new buffer with contents
   local bufnr = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, contents)
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
   vim.api.nvim_buf_set_option(bufnr, "filetype", "dbee")
   vim.api.nvim_buf_set_option(bufnr, "bufhidden", "delete")
 
@@ -267,29 +297,33 @@ function M.hover(relative_winid, contents)
   local cursor_row, _ = unpack(vim.api.nvim_win_get_cursor(relative_winid))
 
   -- open to left/right based on window position
-  local col = 0
-  local anchor = "NW"
-  if has_neighbor_right(relative_winid) then
-    col = vim.api.nvim_win_get_width(relative_winid)
-  elseif has_neighbor_left(relative_winid) then
+  local col
+  local anchor
+  if opts.position == "left" then
+    col = 0
     anchor = "NE"
+  else -- "right"
+    col = vim.api.nvim_win_get_width(relative_winid)
+    anchor = "NW"
   end
 
   -- open window
-
   local winid = vim.api.nvim_open_win(
     bufnr,
     false,
     enrich_float_opts {
       relative = "win",
       win = relative_winid,
-      width = win_width,
-      height = win_height,
+      width = opts.width,
+      height = #lines,
       col = col,
       row = cursor_row - 1,
       anchor = anchor,
     }
   )
+
+  -- apply highlight
+  highlight_keys(contents, winid, "CursorLineNr")
 
   return function()
     pcall(vim.api.nvim_win_close, winid, true)
