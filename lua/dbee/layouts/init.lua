@@ -33,6 +33,7 @@ local layouts = {}
 ---@field private drawer_width integer
 ---@field private result_height integer
 ---@field private call_log_height integer
+---@field private call_log_enabled boolean
 ---@field private egg? layout_egg
 ---@field private windows integer[]
 ---@field private on_switch "immutable"|"close"
@@ -41,7 +42,7 @@ layouts.Default = {}
 
 ---Create a default layout.
 ---The on_switch parameter defines what to do in case another buffer wants to be open in any window. default: "immutable"
----@param opts? { on_switch: "immutable"|"close", drawer_width: integer, result_height: integer, call_log_height: integer }
+---@param opts? { on_switch: "immutable"|"close", drawer_width: integer, result_height: integer, call_log_height: integer, call_log_enabled: boolean  }
 ---@return DefaultLayout
 function layouts.Default:new(opts)
   opts = opts or {}
@@ -62,6 +63,7 @@ function layouts.Default:new(opts)
     drawer_width = opts.drawer_width or 40,
     result_height = opts.result_height or 20,
     call_log_height = opts.call_log_height or 20,
+    call_log_enabled = opts.call_log_enabled == nil or opts.call_log_enabled,
   }
   setmetatable(o, self)
   self.__index = self
@@ -158,12 +160,14 @@ function layouts.Default:open()
   self:configure_window_on_quit(win)
 
   -- call log
-  vim.cmd("belowright " .. self.call_log_height .. "split")
-  win = vim.api.nvim_get_current_win()
-  table.insert(self.windows, win)
-  api_ui.call_log_show(win)
-  self:configure_window_on_switch(self.on_switch, win, api_ui.call_log_show)
-  self:configure_window_on_quit(win)
+  if self.call_log_enabled then
+    vim.cmd("belowright " .. self.call_log_height .. "split")
+    win = vim.api.nvim_get_current_win()
+    table.insert(self.windows, win)
+    api_ui.call_log_show(win)
+    self:configure_window_on_switch(self.on_switch, win, api_ui.call_log_show)
+    self:configure_window_on_quit(win)
+  end
 
   -- set cursor to editor
   vim.api.nvim_set_current_win(editor_win)
