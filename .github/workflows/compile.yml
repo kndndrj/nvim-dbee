@@ -6,10 +6,10 @@ on:
   push:
     tags-ignore:
       # ignore all pushed tags
-      - '**'
+      - "**"
     branches:
       # run for all branches
-      - '**'
+      - "**"
 
 jobs:
   assemble-os-matrix:
@@ -34,7 +34,7 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.21.x'
+          go-version: "1.22.x"
           check-latest: true
           cache-dependency-path: dbee/go.sum
       - name: Setup Zig for C Cross Compilation
