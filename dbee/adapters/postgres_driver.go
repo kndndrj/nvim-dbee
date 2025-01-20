@@ -97,6 +97,13 @@ func (c *postgresDriver) SelectDatabase(name string) error {
 		return fmt.Errorf("unable to switch databases: %w", err)
 	}
 
+	// sql.Open just validate its arguments
+	// without creating a connection to the database
+	// so we need to ping the database to check if it's valid
+	if err = db.Ping(); err != nil {
+		return fmt.Errorf("unable to connect to database: %q, err: %w", name, err)
+	}
+
 	c.c.Swap(db)
 
 	return nil
