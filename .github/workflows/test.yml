@@ -1,26 +1,53 @@
 name: Testing
 
 on:
+  workflow_dispatch: # allow manual invocation of this workflow (e.g. integration tests)
+  pull_request:
   push:
     tags-ignore:
       # ignore all tags
-      - '**'
+      - "**"
     branches:
-      # run for all branches
-      - '**'
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: dbee
+
+env:
+  GO_VERSION: 1.22
 
 jobs:
-  go-test:
+  go-unit-test:
     runs-on: ubuntu-22.04
-    name: Go Test
+    name: Go Unit Test
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Go
-        uses: actions/setup-go@v4
+      - uses: actions/checkout@v4
+      - name: Setup Go v${{ env.GO_VERSION }}
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.21.x'
+          go-version: v${{ env.GO_VERSION }}
           check-latest: true
-          cache-dependency-path: dbee/go.sum
-      - name: Test
-        run: go test ./...
-        working-directory: dbee
+          cache-dependency-path: ./dbee/go.sum
+      # exclude tests folder (not used for unit tests)
+      - name: Run Unit Tests
+        run: go test $(go list ./... | grep -v tests) -v
+
+  go-integration-test:
+    if: ${{ github.event_name != 'pull_request' }}
+    runs-on: ubuntu-22.04
+    name: Go Integration Test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go v${{ env.GO_VERSION }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          check-latest: true
+          cache-dependency-path: ./dbee/go.sum
+      - name: Run Integration Tests
+        run: go test ./tests/integration... -v
