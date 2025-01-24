@@ -18,7 +18,7 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Create Matrix
         id: set-matrix
         run: ./ci/target-matrix.sh >> "$GITHUB_OUTPUT"
@@ -30,9 +30,9 @@ jobs:
       matrix: ${{ fromJson(needs.assemble-os-matrix.outputs.matrix) }}
     runs-on: ${{ matrix.buildplatform }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: "1.23.x"
           check-latest: true
@@ -89,7 +89,7 @@ jobs:
     env:
       MANIFEST_FILE: "lua/dbee/install/__manifest.lua"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get metadata
         uses: actions/download-artifact@v3
         with:

@@ -16,7 +16,7 @@ jobs:
     env:
       TEMP_README: "__temp_readme.md"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Prepare markdown file
         run: |
           TEMP_CONFIG="$(mktemp)"
@@ -60,7 +60,7 @@ jobs:
     name: Generate Reference Docs
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Generating help
         shell: bash
         run: |
