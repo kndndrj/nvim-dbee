@@ -48,13 +48,6 @@
         "buildplatform": "windows-latest",
         "cgo": true
     },
-    //
-    // Supported, but might get dropped if it's causing too much problems.
-    //
-    {
-        "goos": "android",
-        "goarch": "amd64"
-    },
     {
         "goos": "android",
         "goarch": "arm64"
