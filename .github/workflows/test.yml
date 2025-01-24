@@ -19,7 +19,7 @@ defaults:
     working-directory: dbee
 
 env:
-  GO_VERSION: 1.22
+  GO_VERSION: "1.23.x"
 
 jobs:
   go-unit-test:
