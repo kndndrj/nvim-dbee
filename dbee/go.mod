@@ -7,6 +7,7 @@ toolchain go1.23.4
 require (
 	cloud.google.com/go/bigquery v1.61.0
 	github.com/ClickHouse/clickhouse-go/v2 v2.17.1
+	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/databricks/databricks-sql-go v1.5.3
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/google/uuid v1.6.0
@@ -17,7 +18,7 @@ require (
 	github.com/neovim/go-client v1.2.1
 	github.com/redis/go-redis/v9 v9.0.2
 	github.com/sijms/go-ora/v2 v2.7.6
-	github.com/stretchr/testify v1.9.0
+	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.35.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.35.0
 	go.mongodb.org/mongo-driver v1.11.6
