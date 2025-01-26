@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"time"
 
 	_ "github.com/lib/pq"
 
@@ -51,18 +52,18 @@ func (r *redshiftDriver) Columns(opts *core.TableOptions) ([]*core.Column, error
 func (r *redshiftDriver) Structure() ([]*core.Structure, error) {
 	query := `
 		SELECT
-		trim(n.nspname) AS schema_name
-		, trim(c.relname) AS table_name
-		, CASE
-			WHEN c.relkind = 'v' THEN 'VIEW'
-			ELSE 'TABLE'
+			trim(n.nspname) AS schema_name,
+			trim(c.relname) AS table_name,
+			CASE
+				WHEN c.relkind = 'v' THEN 'VIEW'
+				ELSE 'TABLE'
 			END AS table_type
 			FROM
-					pg_class AS c
+				pg_class AS c
 			INNER JOIN
-					pg_namespace AS n ON c.relnamespace = n.oid
+				pg_namespace AS n ON c.relnamespace = n.oid
 			WHERE
-					n.nspname NOT IN ('information_schema', 'pg_catalog');
+				n.nspname NOT IN ('information_schema', 'pg_catalog');
 	`
 
 	rows, err := r.Query(context.Background(), query)
@@ -75,14 +76,10 @@ func (r *redshiftDriver) Structure() ([]*core.Structure, error) {
 
 func (r *redshiftDriver) ListDatabases() (current string, available []string, err error) {
 	query := `
-SELECT
-	current_database() AS current
-	, datname
-FROM pg_database
--- exclude template databases and the current one
-WHERE datistemplate = false
-	AND datname != current;
-`
+		SELECT current_database() AS current, datname
+		FROM pg_database
+		WHERE datistemplate = false
+		  AND datname != current_database();`
 
 	rows, err := r.Query(context.Background(), query)
 	if err != nil {
@@ -109,6 +106,13 @@ func (r *redshiftDriver) SelectDatabase(name string) error {
 	if err != nil {
 		return fmt.Errorf("unable to switch databases: %w", err)
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err = db.PingContext(ctx); err != nil {
+		return fmt.Errorf("unable to ping redshift: %w", err)
+	}
+
 	r.c.Swap(db)
 	return nil
 }

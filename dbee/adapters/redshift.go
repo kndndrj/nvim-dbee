@@ -1,9 +1,11 @@
 package adapters
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
@@ -29,6 +31,12 @@ func (r *Redshift) Connect(rawURL string) (core.Driver, error) {
 	db, err := sql.Open("postgres", connURL.String())
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to redshift: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		return nil, fmt.Errorf("unable to ping redshift: %w", err)
 	}
 
 	return &redshiftDriver{
