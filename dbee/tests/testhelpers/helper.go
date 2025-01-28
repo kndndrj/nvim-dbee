@@ -3,12 +3,15 @@ package testhelpers
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/core"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 )
 
@@ -47,15 +50,16 @@ func GetResult(t *testing.T, d *core.Connection, query string) ([]core.Row, core
 		var err error
 		if state == core.CallStateRetrieving {
 			result, err = c.GetResult()
-			assert.NoError(t, err)
+			require.NoError(t, err, "failed getting result with %s, err: %s", state, c.Err())
 			outRows, err = result.Rows(0, result.Len())
-			assert.NoError(t, err)
+			require.NoError(t, err, "failed getting rows with %s, err: %s", state, c.Err())
 		}
 	})
 
 	select {
 	case <-call.Done():
 		time.Sleep(eventBufferTime)
+		require.NotNil(t, result, call.Err())
 		return outRows, result.Header(), outStates, nil
 
 	case <-time.After(eventTimeout):
@@ -116,4 +120,25 @@ func GetModels(t *testing.T, structure []*core.Structure, modelType core.Structu
 		}
 	}
 	return out
+}
+
+// GetTestDataPath returns the path to the testdata directory.
+func GetTestDataPath() (string, error) {
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		return "", fmt.Errorf("failed to get current file path")
+	}
+
+	return filepath.Join(filepath.Dir(currentFile), "../testdata"), nil
+}
+
+// GetTestDataFile returns a file from the testdata directory.
+func GetTestDataFile(filename string) (*os.File, error) {
+	testDataPath, err := GetTestDataPath()
+	if err != nil {
+		return nil, err
+	}
+
+	path := filepath.Join(testDataPath, filename)
+	return os.Open(path)
 }
