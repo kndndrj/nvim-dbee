@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"reflect"
 	"strconv"
+	"strings"
+	"unicode"
 
 	"cloud.google.com/go/bigquery"
 	"github.com/kndndrj/nvim-dbee/dbee/core"
@@ -16,56 +19,52 @@ import (
 var _ core.Driver = (*bigQueryDriver)(nil)
 
 type bigQueryDriver struct {
-	c                 *bigquery.Client
-	location          string
-	maxBytesBilled    int64
-	disableQueryCache bool
-	useLegacySQL      bool
+	c *bigquery.Client
+	bigquery.QueryConfig
 }
 
-func (c *bigQueryDriver) Query(ctx context.Context, queryStr string) (core.ResultStream, error) {
-	query := c.c.Query(queryStr)
-	query.DisableQueryCache = c.disableQueryCache
-	query.MaxBytesBilled = c.maxBytesBilled
-	query.UseLegacySQL = c.useLegacySQL
-	query.Location = c.location
+func (d *bigQueryDriver) Query(ctx context.Context, queryStr string) (core.ResultStream, error) {
+	query := d.c.Query(queryStr)
+	d.Q = query.Q
+	query.QueryConfig = d.QueryConfig
 
 	iter, err := query.Read(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// schema isn't available until the first call to iter.Next()
-	var firstRowLoader bigqueryRowLoader
-	if err := iter.Next(&firstRowLoader); err != nil {
-		return nil, err
-	}
-
-	header := c.buildHeader("", iter.Schema)
-
+	var currentRow bigqueryRowLoader
 	hasNext := true
-	nextFn := func() (core.Row, error) {
-		if firstRowLoader.row != nil {
-			row := firstRowLoader.row
-			firstRowLoader.row = nil
-			return row, nil
-		}
 
-		var loader bigqueryRowLoader
-		if err := iter.Next(&loader); err != nil {
-			if errors.Is(err, iterator.Done) {
-				hasNext = false
-			}
-
+	// schema and header only detectable after retrieving the first reslt
+	if err := iter.Next(&currentRow); err != nil {
+		if errors.Is(err, iterator.Done) {
+			hasNext = false
+		} else {
 			return nil, err
 		}
-
-		return loader.row, nil
 	}
 
-	hasNextFn := func() bool {
-		return hasNext
+	header := d.buildHeader("", iter.Schema)
+
+	nextFn := func() (core.Row, error) {
+		if !hasNext {
+			return nil, nil
+		}
+
+		row := currentRow.row
+		var nextLoader bigqueryRowLoader
+		if err := iter.Next(&nextLoader); err != nil {
+			if errors.Is(err, iterator.Done) {
+				hasNext = false
+				return row, nil
+			}
+			return nil, err
+		}
+		currentRow = nextLoader
+		return row, nil
 	}
+	hasNextFn := func() bool { return hasNext }
 
 	result := builders.NewResultStreamBuilder().
 		WithNextFunc(nextFn, hasNextFn).
@@ -74,10 +73,12 @@ func (c *bigQueryDriver) Query(ctx context.Context, queryStr string) (core.Resul
 	return result, nil
 }
 
-func (c *bigQueryDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	query := fmt.Sprintf("SELECT * FROM `%s.INFORMATION_SCHEMA.COLUMNS` WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s'", opts.Schema, opts.Schema, opts.Table)
+func (d *bigQueryDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
+	query := fmt.Sprintf(
+		"SELECT COLUMN_NAME, DATA_TYPE FROM `%s.INFORMATION_SCHEMA.COLUMNS` WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s'",
+		opts.Schema, opts.Schema, opts.Table)
 
-	result, err := c.Query(context.Background(), query)
+	result, err := d.Query(context.Background(), query)
 	if err != nil {
 		return nil, err
 	}
@@ -85,10 +86,10 @@ func (c *bigQueryDriver) Columns(opts *core.TableOptions) ([]*core.Column, error
 	return builders.ColumnsFromResultStream(result)
 }
 
-func (c *bigQueryDriver) Structure() (layouts []*core.Structure, err error) {
-	ctx := context.TODO()
+func (d *bigQueryDriver) Structure() (layouts []*core.Structure, err error) {
+	ctx := context.Background()
 
-	datasetsIter := c.c.Datasets(ctx)
+	datasetsIter := d.c.Datasets(ctx)
 	for {
 		dataset, err := datasetsIter.Next()
 		if err != nil {
@@ -131,18 +132,16 @@ func (c *bigQueryDriver) Structure() (layouts []*core.Structure, err error) {
 	return layouts, nil
 }
 
-func (c *bigQueryDriver) Close() {
-	_ = c.c.Close()
-}
+func (d *bigQueryDriver) Close() { _ = d.c.Close() }
 
-func (c *bigQueryDriver) buildHeader(parentName string, schema bigquery.Schema) (columns core.Header) {
+func (d *bigQueryDriver) buildHeader(parentName string, schema bigquery.Schema) (columns core.Header) {
 	for _, field := range schema {
 		if field.Type == bigquery.RecordFieldType {
 			nestedName := field.Name
 			if parentName != "" {
 				nestedName = parentName + "." + nestedName
 			}
-			columns = append(columns, c.buildHeader(nestedName, field.Schema)...)
+			columns = append(columns, d.buildHeader(nestedName, field.Schema)...)
 		} else {
 			columns = append(columns, field.Name)
 		}
@@ -151,9 +150,7 @@ func (c *bigQueryDriver) buildHeader(parentName string, schema bigquery.Schema) 
 	return columns
 }
 
-type bigqueryRowLoader struct {
-	row core.Row
-}
+type bigqueryRowLoader struct{ row core.Row }
 
 func (l *bigqueryRowLoader) Load(row []bigquery.Value, schema bigquery.Schema) error {
 	l.row = make(core.Row, len(row))
@@ -162,35 +159,6 @@ func (l *bigqueryRowLoader) Load(row []bigquery.Value, schema bigquery.Schema) e
 		l.row[i] = col
 	}
 
-	return nil
-}
-
-func setBoolOption(field *bool, name string, params url.Values) error {
-	return setOption(field, name, params, strconv.ParseBool)
-}
-
-func setInt64Option(field *int64, name string, params url.Values) error {
-	return setOption(field, name, params, func(s string) (int64, error) {
-		return strconv.ParseInt(s, 10, 64)
-	})
-}
-
-func setStringOption(field *string, name string, params url.Values) error {
-	return setOption(field, name, params, func(s string) (string, error) { return s, nil })
-}
-
-func setOption[T any](field *T, name string, params url.Values, parse func(string) (T, error)) error {
-	setting := params.Get(name)
-	if setting == "" {
-		return nil
-	}
-
-	val, err := parse(setting)
-	if err != nil {
-		return fmt.Errorf("invalid value for %q: %w", name, err)
-	}
-
-	*field = val
 	return nil
 }
 
@@ -226,4 +194,74 @@ func callIfSet[T any](name string, params url.Values, parse func(string) (T, err
 	}
 
 	return cb(val)
+}
+
+func setQueryConfigFromParams(config *bigquery.QueryConfig, params url.Values) error {
+	v := reflect.ValueOf(config).Elem()
+	t := v.Type()
+
+	// NumField panics if it isn't a struct
+	if t.Kind() != reflect.Struct {
+		return fmt.Errorf("expected struct, got %v", t.Kind())
+	}
+
+	for i := 0; i < t.NumField(); i++ {
+		field, fieldValue := t.Field(i), v.Field(i)
+
+		paramName := toKebabCase(field.Name)
+		if val := params.Get(paramName); val != "" {
+			return setFieldFromString(fieldValue, val)
+		}
+	}
+	return nil
+}
+
+// toKebabCase converts a string to kebab-case
+func toKebabCase(s string) string {
+	var result strings.Builder
+	for i, r := range s {
+		if (unicode.IsUpper(r)) && (i != 0 &&
+			!unicode.IsUpper(rune(s[i-1]))) && i+1 != len(s) {
+			result.WriteByte('-')
+		}
+		result.WriteString(strings.ToLower(string(r)))
+	}
+	return result.String()
+}
+
+// setFieldFromString sets a field value from its string representation
+func setFieldFromString(fieldValue reflect.Value, val string) error {
+	if !fieldValue.CanSet() {
+		return fmt.Errorf("field is not settable")
+	}
+
+	if val == "" {
+		return nil
+	}
+
+	switch fieldValue.Kind() {
+	case reflect.Bool:
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			return fmt.Errorf("failed to parse bool: %w", err)
+		}
+		fieldValue.SetBool(b)
+	case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int:
+		i, err := strconv.ParseInt(val, 10, 64)
+		if err != nil {
+			return fmt.Errorf("failed to parse int: %w", err)
+		}
+		fieldValue.SetInt(i)
+	case reflect.String:
+		fieldValue.SetString(val)
+	case reflect.Ptr:
+		if fieldValue.IsNil() {
+			fieldValue.Set(reflect.New(fieldValue.Type().Elem()))
+		}
+		return setFieldFromString(fieldValue.Elem(), val)
+
+	default:
+		return fmt.Errorf("unsupported field type %s", fieldValue.Kind())
+	}
+	return nil
 }
