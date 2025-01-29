@@ -9,6 +9,7 @@ local common = require("dbee.ui.common")
 ---@field private bufnr integer
 ---@field private current_call? CallDetails
 ---@field private page_size integer
+---@field private focus_result boolean
 ---@field private mappings key_mapping[]
 ---@field private page_index integer index of the current page
 ---@field private page_ammount integer number of pages in the current result set
@@ -28,12 +29,20 @@ function ResultUI:new(handler, opts)
     error("no Handler passed to ResultUI")
   end
 
+  local focus_result
+  if opts.focus_result ~= nil then
+    focus_result = opts.focus_result
+  else
+    focus_result = true
+  end
+
   -- class object
   local o = {
     handler = handler,
     page_size = opts.page_size or 100,
     page_index = 0,
     page_ammount = 0,
+    focus_result = focus_result,
     mappings = opts.mappings or {},
     stop_progress = function() end,
     progress_opts = opts.progress or {},
@@ -442,7 +451,7 @@ end
 
 ---@param winid integer
 function ResultUI:show(winid)
-  self.winid = winid
+  self.winid = self.focus_result and winid or 0
 
   -- configure window highlights
   self:apply_highlight(self.winid)
