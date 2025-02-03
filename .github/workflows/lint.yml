@@ -1,13 +1,14 @@
 name: Linting and Style Checking
 
 on:
+  pull_request:
+    branches: [master]
   push:
-    tags-ignore:
-      # ignore all tags
-      - '**'
-    branches:
-      # run for all branches
-      - '**'
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
 
 jobs:
   luacheck:

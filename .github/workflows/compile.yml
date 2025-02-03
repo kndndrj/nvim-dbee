@@ -3,13 +3,10 @@ name: Compile and Upload Binaries
 on:
   release:
     types: [published]
+  pull_request:
+    branches: [master]
   push:
-    tags-ignore:
-      # ignore all pushed tags
-      - "**"
-    branches:
-      # run for all branches
-      - "**"
+    branches: [master]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
