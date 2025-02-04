@@ -4,11 +4,7 @@ on:
   workflow_dispatch: # allow manual invocation of this workflow (e.g. integration tests)
   pull_request:
   push:
-    tags-ignore:
-      # ignore all tags
-      - "**"
-    branches:
-      - master
+    branches: [master]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
