@@ -1,7 +1,9 @@
 package adapters
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/kndndrj/nvim-dbee/dbee/core"
@@ -31,10 +33,16 @@ func (p *Clickhouse) Connect(url string) (core.Driver, error) {
 
 		return newPostgresJSONResponse(b)
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	db := clickhouse.OpenDB(options)
+	if err := db.PingContext(ctx); err != nil {
+		return nil, fmt.Errorf("pinging connection failed with %v", err)
+	}
 
 	return &clickhouseDriver{
-		c: builders.NewClient(
-			clickhouse.OpenDB(options),
+		c: builders.NewClient(db,
 			builders.WithCustomTypeProcessor("json", jsonProcessor),
 		),
 		opts: options,
