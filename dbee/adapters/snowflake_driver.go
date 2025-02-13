@@ -3,8 +3,11 @@ package adapters
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 
 	_ "github.com/snowflakedb/gosnowflake"
 
@@ -23,6 +26,82 @@ var (
 // e.g. "snowflake://user:password@account/db" -> "user:password@account/db"
 type SnowflakeURL struct {
 	url.URL
+}
+
+func getColumnIndex(header []string, column_name string) (int, bool) {
+	for i, s := range header {
+		if s == column_name {
+			return i, true
+		}
+	}
+	return -1, false
+}
+
+func printHeader(header []string) string {
+	out := ""
+	for _, s := range header {
+		out = out + ", " + s
+	}
+	return out
+}
+
+func specificColumnsFromResultStream(rows core.ResultStream, wanted_column_names []string) ([]map[string]string, error) {
+	out := []map[string]string{}
+
+	for rows.HasNext() {
+		row_meta := make(map[string]string)
+
+		row, err := rows.Next()
+		if err != nil {
+			return nil, fmt.Errorf("result.Next: %w", err)
+		}
+
+		if len(row) < 2 {
+			return nil, errors.New("columns in result are less than wanted columns")
+		}
+
+		for _, col_name := range wanted_column_names {
+			idx, ok := getColumnIndex(rows.Header(), col_name)
+			if !ok {
+				return nil, errors.New("could not find column: " + col_name + "Header: " + printHeader(rows.Header()))
+			}
+			var value string
+
+			switch col_name {
+			case "data_type":
+				parsed := make(map[string]any)
+				unparsed := row[idx].([]byte)
+				if !ok {
+					return nil, errors.New("could not retreive column info for " + col_name + ": type not a string")
+				}
+				err := json.Unmarshal(unparsed, parsed)
+				fmt.Sprintf("parsed json type: %T", parsed)
+				if err != nil {
+					return nil, errors.New("could not parse data_type map from snowflake row")
+				}
+				value, ok = parsed["type"].(string)
+				if !ok {
+					return nil, errors.New("could not retreive column info for " + col_name + ": type not a string")
+				}
+				value = strings.ToLower(value)
+				if value == "fixed" {
+					value = "numeric"
+				}
+				// return nil, fmt.Errorf("data_type: %s, type: %T", row[idx], row[idx])
+				row_meta[col_name] = value
+			default:
+				value, ok := row[idx].(string)
+				if !ok {
+					return nil, errors.New("could not retreive column info for " + col_name + ": type not a string")
+				}
+				value = strings.ToLower(value)
+				row_meta[col_name] = value
+			}
+		}
+		out = append(out, row_meta)
+	}
+
+	return out, nil
 }
 
 func (c *SnowflakeURL) String() string {
@@ -58,14 +137,33 @@ func (r *snowflakeDriver) Close() {
 }
 
 func (r *snowflakeDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	return r.c.ColumnsFromQuery(`
-		SELECT column_name, data_type
-		FROM information_schema.columns
-		WHERE
-			table_schema=UPPER('%s') AND
-			table_name=UPPER('%s')
-		ORDER BY ordinal_position
-		`, opts.Schema, opts.Table)
+	// return r.c.ColumnsFromQuery(`
+	// 	SELECT column_name, data_type
+	// 	FROM information_schema.columns
+	// 	WHERE
+	// 		table_schema=UPPER('%s') AND
+	// 		table_name=UPPER('%s')
+	// 	ORDER BY ordinal_position
+	// 	`, opts.Schema, opts.Table)
+	query := `show columns in %s.%s`
+	result, err := r.c.Query(context.Background(), fmt.Sprintf(query, opts.Schema, opts.Table))
+	if err != nil {
+		return nil, err
+	}
+
+	column_map, err := specificColumnsFromResultStream(result, []string{"column_name", "data_type"})
+	if err != nil {
+		return nil, err
+	}
+
+	out := []*core.Column{}
+	for _, meta := range column_map {
+		out = append(out, &core.Column{
+			Name: meta["column_name"],
+			Type: meta["data_type"],
+		})
+	}
+	return out, nil
 }
 
 // Structure returns the layout of the database. This represents the
