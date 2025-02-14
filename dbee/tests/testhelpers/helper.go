@@ -48,7 +48,7 @@ func GetResult(t *testing.T, d *core.Connection, query string) ([]core.Row, core
 		outStates = append(outStates, state)
 
 		var err error
-		if state == core.CallStateRetrieving {
+		if state == core.CallStateArchived || state == core.CallStateRetrieving {
 			result, err = c.GetResult()
 			require.NoError(t, err, "failed getting result with %s, err: %s", state, c.Err())
 			outRows, err = result.Rows(0, result.Len())
