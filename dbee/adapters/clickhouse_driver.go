@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/kndndrj/nvim-dbee/dbee/core"
@@ -84,8 +85,15 @@ func (c *clickhouseDriver) ListDatabases() (current string, available []string, 
 }
 
 func (c *clickhouseDriver) SelectDatabase(name string) error {
+	oldDB := c.opts.Auth.Database
 	c.opts.Auth.Database = name
-	c.c.Swap(clickhouse.OpenDB(c.opts))
 
+	db := clickhouse.OpenDB(c.opts)
+	if err := db.PingContext(context.Background()); err != nil {
+		c.opts.Auth.Database = oldDB
+		return fmt.Errorf("pinging connection failed with %v", err)
+	}
+
+	c.c.Swap(db)
 	return nil
 }
