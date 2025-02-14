@@ -5,6 +5,8 @@ package adapters
 import (
 	"database/sql"
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	_ "github.com/marcboeker/go-duckdb"
 
@@ -21,14 +23,27 @@ var _ core.Adapter = (*Duck)(nil)
 
 type Duck struct{}
 
+// Helper function to get database from url
+func parseDatabaseFromPath(path string) string {
+	base := filepath.Base(path)
+	name := strings.TrimSuffix(base, filepath.Ext(base))
+	return name
+}
+
 func (d *Duck) Connect(url string) (core.Driver, error) {
 	db, err := sql.Open("duckdb", url)
 	if err != nil {
 		return nil, fmt.Errorf("unable to connect to duckdb database: %v", err)
 	}
 
+	currentCatalog := "memory"
+	if url != "" {
+		currentCatalog = parseDatabaseFromPath(url)
+	}
+
 	return &duckDriver{
-		c: builders.NewClient(db),
+		c:              builders.NewClient(db),
+		currentCatalog: currentCatalog,
 	}, nil
 }
 
