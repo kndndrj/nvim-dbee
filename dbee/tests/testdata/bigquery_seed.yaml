@@ -1,0 +1,49 @@
+# https://golang.testcontainers.org/modules/gcloud/#data-yaml-seed-file
+projects:
+  - id: test-project
+    datasets:
+      - id: dataset_test
+        tables:
+          - id: table_test
+            columns:
+              - name: id
+                type: INTEGER
+              - name: name
+                type: STRING
+              - name: createdAt
+                type: TIMESTAMP
+            data:
+              - id: 1
+                name: john
+                createdAt: "2025-01-21T00:00:00"
+              - id: 2
+                name: bob
+                createdAt: "2025-01-21T00:01:00"
+      - id: dataset_test.INFORMATION_SCHEMA
+        tables:
+          - id: COLUMNS
+            columns:
+              - name: TABLE_SCHEMA
+                type: STRING
+              - name: TABLE_NAME
+                type: STRING
+              - name: COLUMN_NAME
+                type: STRING
+              - name: DATA_TYPE
+                type: STRING
+            data:
+              - TABLE_SCHEMA: dataset_test
+                TABLE_NAME: table_test
+                COLUMN_NAME: id
+                DATA_TYPE: INTEGER
+              - TABLE_SCHEMA: dataset_test
+                TABLE_NAME: table_test
+                COLUMN_NAME: name
+                DATA_TYPE: STRING
+              - TABLE_SCHEMA: dataset_test
+                TABLE_NAME: table_test
+                COLUMN_NAME: createdAt
+                DATA_TYPE: TIMESTAMP
+
+  - id: test-project2
+    datasets: []

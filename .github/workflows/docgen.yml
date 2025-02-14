@@ -1,13 +1,14 @@
 name: Documentation Generation
 
 on:
+  pull_request:
+    branches: [master]
   push:
-    tags-ignore:
-      # ignore all tags
-      - '**'
-    branches:
-      # run for all branches
-      - '**'
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
 
 jobs:
   readme-docs:
@@ -16,7 +17,7 @@ jobs:
     env:
       TEMP_README: "__temp_readme.md"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Prepare markdown file
         run: |
           TEMP_CONFIG="$(mktemp)"
@@ -60,7 +61,7 @@ jobs:
     name: Generate Reference Docs
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Generating help
         shell: bash
         run: |

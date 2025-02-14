@@ -420,4 +420,13 @@ require("dbee").api.ui.some_func()
 
 Reffer to [ARCHITECTURE.md](ARCHITECTURE.md) for a brief overview of the architecture.
 
+## Contributing
+
+Contributions are more than welcome!
+
+Do so by creating an `issue` or a `PR`.
+
+You are also welcome to join the [#nvim-dbee:matrix.org](https://matrix.to/#/#nvim-dbee:matrix.org)
+chat for more direct communication.
+
 <!-- DOCGEN_IGNORE_END -->

@@ -118,8 +118,24 @@ config.default = {
       database_switch = {
         icon = "",
         icon_highlight = "Character",
+        text_highlight = "",
+      },
+      schema = {
+        icon = "",
+        icon_highlight = "Removed",
+        text_highlight = "",
       },
       table = {
+        icon = "",
+        icon_highlight = "Conditional",
+        text_highlight = "",
+      },
+      streaming_table = {
+        icon = "",
+        icon_highlight = "Conditional",
+        text_highlight = "",
+      },
+      managed = {
         icon = "",
         icon_highlight = "Conditional",
         text_highlight = "",
@@ -127,6 +143,16 @@ config.default = {
       view = {
         icon = "",
         icon_highlight = "Debug",
+        text_highlight = "",
+      },
+      materialized_view = {
+        icon = "",
+        icon_highlight = "Type",
+        text_highlight = "",
+      },
+      sink = {
+        icon = "",
+        icon_highlight = "String",
         text_highlight = "",
       },
       column = {
@@ -164,21 +190,26 @@ config.default = {
       -- use this for normal nodes...
       none = {
         icon = " ",
+        icon_highlight = "",
+        text_highlight = "",
       },
       -- ...and use this for nodes with children
       none_dir = {
         icon = "",
         icon_highlight = "NonText",
+        text_highlight = "",
       },
 
       -- chevron icons for expanded/closed nodes
       node_expanded = {
         icon = "",
         icon_highlight = "NonText",
+        text_highlight = "",
       },
       node_closed = {
         icon = "",
         icon_highlight = "NonText",
+        text_highlight = "",
       },
     },
   },

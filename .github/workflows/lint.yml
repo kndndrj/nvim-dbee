@@ -1,20 +1,21 @@
 name: Linting and Style Checking
 
 on:
+  pull_request:
+    branches: [master]
   push:
-    tags-ignore:
-      # ignore all tags
-      - '**'
-    branches:
-      # run for all branches
-      - '**'
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
 
 jobs:
   luacheck:
     runs-on: ubuntu-22.04
     name: Lint Lua Code
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Luacheck Linter
         uses: lunarmodules/luacheck@v0
         with:
@@ -24,9 +25,9 @@ jobs:
     runs-on: ubuntu-22.04
     name: Check Lua Style
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Lua Style Check
-        uses: JohnnyMorganz/stylua-action@v3
+        uses: JohnnyMorganz/stylua-action@v4
         with:
           version: v0.17
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -36,11 +37,11 @@ jobs:
     runs-on: ubuntu-22.04
     name: Check Markdown Format
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Python Setup
-        uses: actions/setup-python@v3
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.8'
+          python-version: "3.10"
       - name: Install mdformat
         run: |
           pip install mdformat-gfm

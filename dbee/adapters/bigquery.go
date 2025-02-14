@@ -7,6 +7,9 @@ import (
 
 	"cloud.google.com/go/bigquery"
 	"google.golang.org/api/option"
+	"google.golang.org/api/option/internaloption"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 )
@@ -25,23 +28,27 @@ type BigQuery struct{}
 //
 //	bigquery://[project][?options]
 //
-// Where:
-//   - "project" is optional. If not set, the project will attempt to be
-//     detected from the credentials and current gcloud settings.
-//   - "options" is a ampersand-separated list of key=value arguments.
+// where project is optional. If not set, the project will attempt to be
+// detected from the credentials and current gcloud settings.
 //
-// The supported "options" are:
-//   - credentials=path/to/creds/file.json
-//   - disable-cache=true|false
-//   - max-bytes-billed=integer
-//   - enable-storage-read=true|false
-//   - use-legacy-sql=true|false
-//   - location=google-cloud-location
+// The options query parameters map directly to [bigquery.QueryConfig] fields
+// using kebab-case. For example, MaxBytesBilled becomes max-bytes-billed.
 //
-// If credentials are not explicitly specified, credentials will attempt
-// to be located according to the Google Default Credentials process.
+// Common options include:
+//   - credentials=path/to/creds.json: Path to credentials file
+//   - max-bytes-billed=integer: Maximum bytes to be billed
+//   - disable-query-cache=bool: Whether to disable query cache
+//   - use-legacy-sql=bool: Whether to use legacy SQL
+//   - location=string: Query location
+//   - enable-storage-read=bool: Enable BigQuery Storage API
+//
+// For internal testing:
+//   - endpoint=url: Custom endpoint for test containers
+//
+// If credentials are not specified, they will be located according to
+// the Google Default Credentials process.
 func (bq *BigQuery) Connect(rawURL string) (core.Driver, error) {
-	ctx := context.TODO()
+	ctx := context.Background()
 
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -56,40 +63,35 @@ func (bq *BigQuery) Connect(rawURL string) (core.Driver, error) {
 		u.Host = bigquery.DetectProjectID
 	}
 
-	options := []option.ClientOption{
-		option.WithTelemetryDisabled(),
-	}
-
+	options := []option.ClientOption{option.WithTelemetryDisabled()}
 	params := u.Query()
-	_ = callIfStringSet("credentials", params, func(file string) error {
-		options = append(options, option.WithCredentialsFile(file))
-		return nil
-	})
+
+	// special param to indicate we are running in testcontainer.
+	if endpoint := params.Get("endpoint"); endpoint != "" {
+		options = append(options,
+			option.WithEndpoint(endpoint),
+			option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
+			option.WithoutAuthentication(),
+			internaloption.SkipDialSettingsValidation(),
+		)
+	} else {
+		callIfStringSet("credentials", params, func(file string) error {
+			options = append(options, option.WithCredentialsFile(file))
+			return nil
+		})
+	}
 
 	bqc, err := bigquery.NewClient(ctx, u.Host, options...)
 	if err != nil {
 		return nil, err
 	}
 
-	client := &bigQueryDriver{
-		c: bqc,
-	}
-
-	_ = setStringOption(&client.location, "location", params)
-
-	if err := setInt64Option(&client.maxBytesBilled, "max-bytes-billed", params); err != nil {
+	client := &bigQueryDriver{c: bqc}
+	if err = setQueryConfigFromParams(&client.QueryConfig, params); err != nil {
 		return nil, err
 	}
 
-	if err := setBoolOption(&client.disableQueryCache, "disable-cache", params); err != nil {
-		return nil, err
-	}
-
-	if err := setBoolOption(&client.useLegacySQL, "use-legacy-sql", params); err != nil {
-		return nil, err
-	}
-
-	if err := callIfBoolSet("enable-storage-read", params, func() error {
+	if err = callIfBoolSet("enable-storage-read", params, func() error {
 		return client.c.EnableStorageReadClient(ctx, options...)
 	}, nil); err != nil {
 		return nil, err

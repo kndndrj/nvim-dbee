@@ -3,13 +3,15 @@ name: Compile and Upload Binaries
 on:
   release:
     types: [published]
+  workflow_dispatch: # manual trigger for full matrix
+  pull_request:
+    branches: [master]
   push:
-    tags-ignore:
-      # ignore all pushed tags
-      - '**'
-    branches:
-      # run for all branches
-      - '**'
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
 
 jobs:
   assemble-os-matrix:
@@ -18,10 +20,15 @@ jobs:
     outputs:
       matrix: ${{ steps.set-matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Create Matrix
         id: set-matrix
-        run: ./ci/target-matrix.sh >> "$GITHUB_OUTPUT"
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            ./ci/target-matrix.sh --primary >> "$GITHUB_OUTPUT"
+          else
+            ./ci/target-matrix.sh >> "$GITHUB_OUTPUT"
+          fi
 
   go-build:
     needs: [assemble-os-matrix]
@@ -30,11 +37,11 @@ jobs:
       matrix: ${{ fromJson(needs.assemble-os-matrix.outputs.matrix) }}
     runs-on: ${{ matrix.buildplatform }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.21.x'
+          go-version: "1.23.x"
           check-latest: true
           cache-dependency-path: dbee/go.sum
       - name: Setup Zig for C Cross Compilation
@@ -43,6 +50,8 @@ jobs:
         id: build
         working-directory: dbee
         shell: bash
+        env:
+          CGO_ENABLED: ${{ matrix.cgo }}
         run: |
           bin="dbee"
           [ '${{ matrix.goos }}' = "windows" ] && bin="dbee.exe"
@@ -74,7 +83,7 @@ jobs:
           echo "${{ matrix.goarch }}" > ci_tmp/meta/arch
       - name: Upload metadata
         if: github.event_name == 'release'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.goos }}_${{ matrix.goarch }}
           path: ci_tmp/meta/*
@@ -87,9 +96,9 @@ jobs:
     env:
       MANIFEST_FILE: "lua/dbee/install/__manifest.lua"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Get metadata
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           path: meta
       - name: Create Install File from metadata
