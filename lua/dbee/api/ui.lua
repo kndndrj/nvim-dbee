@@ -72,6 +72,14 @@ function ui.editor_namespace_create_note(id, name)
   return state.editor():namespace_create_note(id, name)
 end
 
+--- Opens a file as a temporary note in the global namespace
+---@param id namespace_id
+---@param file string
+---@return note_id
+function ui.editor_open_file_as_note(file)
+  return state.editor():open_file_as_note(file)
+end
+
 --- Get notes of a specified namespace.
 ---@param id namespace_id
 ---@return note_details[]
