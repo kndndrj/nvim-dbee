@@ -223,6 +223,9 @@ config.default = {
     -- number of rows in the results set to display per page
     page_size = 100,
 
+    -- whether to focus the result window after a query
+    focus_result = true,
+
     -- progress (loading) screen options
     progress = {
       -- spinner to use in progress display

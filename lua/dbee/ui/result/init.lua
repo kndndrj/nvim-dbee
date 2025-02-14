@@ -32,8 +32,6 @@ function ResultUI:new(handler, opts)
   local focus_result
   if opts.focus_result ~= nil then
     focus_result = opts.focus_result
-  else
-    focus_result = true
   end
 
   -- class object
