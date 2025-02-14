@@ -15,7 +15,7 @@ var (
 
 type duckDriver struct {
 	c              *builders.Client
-	currentCatalog string
+	currentDB string
 }
 
 func (d *duckDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
@@ -31,7 +31,7 @@ func (d *duckDriver) Structure() ([]*core.Structure, error) {
 		SELECT table_schema, table_name, table_type
 		FROM information_schema.tables
 		WHERE table_catalog = '%s';`,
-		d.currentCatalog)
+		d.currentDB)
 
 	rows, err := d.Query(context.Background(), catalogQuery)
 	if err != nil {
@@ -60,7 +60,7 @@ func getDuckDBStructureType(typ string) core.StructureType {
 // current will be shown
 func (d *duckDriver) ListDatabases() (current string, available []string, err error) {
 	// no-op
-	return d.currentCatalog, []string{d.currentCatalog}, nil
+	return d.currentDB, []string{d.currentDB}, nil
 }
 
 // SelectDatabase switches the current database/catalog to the selected one.
