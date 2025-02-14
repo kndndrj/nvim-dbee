@@ -19,7 +19,7 @@ func (c *mySQLDriver) Query(ctx context.Context, query string) (core.ResultStrea
 }
 
 func (c *mySQLDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	return c.c.ColumnsFromQuery("DESCRIBE `%s`", opts.Table)
+	return c.c.ColumnsFromQuery("DESCRIBE `%s`.`%s`", opts.Schema, opts.Table)
 }
 
 func (c *mySQLDriver) Structure() ([]*core.Structure, error) {
