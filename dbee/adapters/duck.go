@@ -39,14 +39,14 @@ func (d *Duck) Connect(url string) (core.Driver, error) {
 		return nil, fmt.Errorf("unable to connect to duckdb database: %v", err)
 	}
 
-	currentCatalog := "memory"
+	currentDB := "memory"
 	if url != "" {
-		currentCatalog = parseDatabaseFromPath(url)
+		currentDB = parseDatabaseFromPath(url)
 	}
 
 	return &duckDriver{
 		c:              builders.NewClient(db),
-		currentCatalog: currentCatalog,
+		currentDB: currentDB,
 	}, nil
 }
 
