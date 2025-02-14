@@ -186,21 +186,15 @@ func (suite *DuckDBTestSuite) TestShouldReturnStructure() {
 	assert.ElementsMatch(t, wantSchemas, gotSchemas)
 }
 
-// TestShouldFailSwitchDatabase validates error connecting to database that
-// doesn't exist
-func (suite *DuckDBTestSuite) TestShouldFailSwitchDatabase() {
+// TestListOnlyOneDatabase validates listing database only return a single database.
+// NOTE: (phdah) As of now, swapping catalogs is not enabled
+func (suite *DuckDBTestSuite) TestListOnlyOneDatabase() {
 	t := suite.T()
 
-	want := "database switching not supported"
-	// create a new connection to avoid changing the default database
-	driver, err := suite.ctr.NewDriver(&core.ConnectionParams{
-		ID:   "test-duckdb-2",
-		Name: "test-duckdb-2",
-	})
+	wantCurrent := "memory"
+	wantAvailable := []string{"memory"}
+	gotCurrent, gotAvailable, err := suite.d.ListDatabases()
 	assert.NoError(t, err)
-
-	newDatabase := "doesnt exist"
-	err = driver.SelectDatabase(newDatabase)
-	assert.Error(t, err)
-	assert.Equal(t, err.Error(), want)
+	assert.Equal(t, wantCurrent, gotCurrent)
+	assert.Equal(t, wantAvailable, gotAvailable)
 }
