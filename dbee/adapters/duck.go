@@ -26,8 +26,11 @@ type Duck struct{}
 // Helper function to get database from url
 func parseDatabaseFromPath(path string) string {
 	base := filepath.Base(path)
-	name := strings.TrimSuffix(base, filepath.Ext(base))
-	return name
+	parts := strings.Split(base, ".")
+	if len(parts) > 1 && parts[0] == "" {
+		parts = parts[1:]
+	}
+	return parts[0]
 }
 
 func (d *Duck) Connect(url string) (core.Driver, error) {
