@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var ErrInvalidRange = func(from int, to int) error { return fmt.Errorf("invalid selection range: %d ... %d", from, to) }
+var ErrInvalidRange = func(from, to int) error { return fmt.Errorf("invalid selection range: %d ... %d", from, to) }
 
 // Result is the cached form of the ResultStream iterator
 type Result struct {
@@ -33,7 +33,7 @@ func (cr *Result) SetIter(iter ResultStream, onFillStart func()) error {
 
 	cr.header = iter.Header()
 	cr.meta = iter.Meta()
-	cr.rows = []Row{}
+	cr.rows = make([]Row, 0)
 
 	cr.isDrained = false
 	cr.isFilled = true
@@ -115,7 +115,7 @@ func (cr *Result) Rows(from, to int) ([]Row, error) {
 }
 
 // getRows returns the row range and adjusted from-to values
-func (cr *Result) getRows(from, to int) (rows []Row, rangeFrom int, rangeTo int, err error) {
+func (cr *Result) getRows(from, to int) (rows []Row, rangeFrom, rangeTo int, err error) {
 	// increment the read mutex
 	cr.readMutex.RLock()
 	defer cr.readMutex.RUnlock()
@@ -136,10 +136,7 @@ func (cr *Result) getRows(from, to int) (rows []Row, rangeFrom int, rangeTo int,
 	defer cancel()
 
 	// Wait for drain, available index or timeout
-	for {
-		if cr.isDrained || (to >= 0 && to <= len(cr.rows)) {
-			break
-		}
+	for !cr.isDrained && (to < 0 || to > len(cr.rows)) {
 
 		if err := ctx.Err(); err != nil {
 			return nil, 0, 0, fmt.Errorf("cache flushing timeout exceeded: %s", err)
