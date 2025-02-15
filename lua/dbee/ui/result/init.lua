@@ -29,18 +29,13 @@ function ResultUI:new(handler, opts)
     error("no Handler passed to ResultUI")
   end
 
-  local focus_result
-  if opts.focus_result ~= nil then
-    focus_result = opts.focus_result
-  end
-
   -- class object
   local o = {
     handler = handler,
     page_size = opts.page_size or 100,
     page_index = 0,
     page_ammount = 0,
-    focus_result = focus_result,
+    focus_result = opts.focus_result,
     mappings = opts.mappings or {},
     stop_progress = function() end,
     progress_opts = opts.progress or {},
