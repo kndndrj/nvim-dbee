@@ -39,45 +39,16 @@ func (c *sqlServerDriver) Columns(opts *core.TableOptions) ([]*core.Column, erro
 }
 
 func (c *sqlServerDriver) Structure() ([]*core.Structure, error) {
-	query := `SELECT table_schema, table_name FROM INFORMATION_SCHEMA.TABLES`
+	query := `
+    SELECT table_schema, table_name, table_type
+    FROM INFORMATION_SCHEMA.TABLES`
 
 	rows, err := c.Query(context.TODO(), query)
 	if err != nil {
 		return nil, err
 	}
 
-	children := make(map[string][]*core.Structure)
-
-	for rows.HasNext() {
-		row, err := rows.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		// We know for a fact there are 2 string fields (see query above)
-		schema := row[0].(string)
-		table := row[1].(string)
-
-		children[schema] = append(children[schema], &core.Structure{
-			Name:   table,
-			Schema: schema,
-			Type:   core.StructureTypeTable,
-		})
-
-	}
-
-	var layout []*core.Structure
-
-	for k, v := range children {
-		layout = append(layout, &core.Structure{
-			Name:     k,
-			Schema:   k,
-			Type:     core.StructureTypeNone,
-			Children: v,
-		})
-	}
-
-	return layout, nil
+	return core.GetGenericStructure(rows, getPGStructureType)
 }
 
 func (c *sqlServerDriver) Close() {
