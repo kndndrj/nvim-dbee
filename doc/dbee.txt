@@ -313,6 +313,9 @@ Here are the defaults:
     
         -- number of rows in the results set to display per page
         page_size = 100,
+
+	-- focus the result window after executing a query
+	focus_result = true,
     
         -- progress (loading) screen options
         progress = {
