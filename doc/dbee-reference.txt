@@ -119,7 +119,7 @@ result_config                                                    *result_config*
     Configuration for result UI tile.
 
     Type: ~
-        {mappings:key_mapping[],page_size:integer,progress:progress_config,window_options:table<string,any>,buffer_options:table<string,any>}
+        {focus_result:boolean,mappings:key_mapping[],page_size:integer,progress:progress_config,window_options:table<string,any>,buffer_options:table<string,any>}
 
 
 editor_config                                                    *editor_config*
