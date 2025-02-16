@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	nurl "net/url"
+	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
@@ -88,6 +89,13 @@ func (c *sqlServerDriver) SelectDatabase(name string) error {
 
 	db, err := sql.Open("sqlserver", c.url.String())
 	if err != nil {
+		return fmt.Errorf("unable to switch databases: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
 		return fmt.Errorf("unable to switch databases: %w", err)
 	}
 
