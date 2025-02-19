@@ -71,27 +71,41 @@ func (suite *PostgresTestSuite) TestShouldCancelQuery() {
 	assert.Equal(t, want, got)
 }
 
-func (suite *PostgresTestSuite) TestShouldReturnRows() {
+func (suite *PostgresTestSuite) TestShouldReturnManyRows() {
 	t := suite.T()
 
 	wantStates := []core.CallState{
 		core.CallStateExecuting, core.CallStateRetrieving, core.CallStateArchived,
 	}
-	wantCols := []string{
-		"usename", "usesysid",
-		"usecreatedb", "usesuper",
-		"userepl", "usebypassrls",
-		"passwd", "valuntil", "useconfig",
-	}
+	wantCols := []string{"id", "username", "email"}
 	wantRows := []core.Row{
-		{"postgres", "10", true, true, true, true, "********", nil, nil},
+		{int64(1), "john_doe", "john@example.com"},
+		{int64(2), "jane_smith", "jane@example.com"},
+		{int64(3), "bob_wilson", "bob@example.com"},
 	}
 
-	query := `
-	SELECT *
-	FROM pg_catalog.pg_user
-	WHERE usename = 'postgres'
-	LIMIT 1`
+	query := "SELECT * FROM test.test_table;"
+
+	gotRows, gotCols, gotStates, err := th.GetResult(t, suite.d, query)
+	assert.NoError(t, err)
+
+	assert.ElementsMatch(t, wantCols, gotCols)
+	assert.ElementsMatch(t, wantStates, gotStates)
+	assert.Equal(t, wantRows, gotRows)
+}
+
+func (suite *PostgresTestSuite) TestShouldReturnSingleRows() {
+	t := suite.T()
+
+	wantStates := []core.CallState{
+		core.CallStateExecuting, core.CallStateRetrieving, core.CallStateArchived,
+	}
+	wantCols := []string{"id", "username", "email"}
+	wantRows := []core.Row{
+		{int64(2), "jane_smith", "jane@example.com"},
+	}
+
+	query := "SELECT * FROM test.test_view;"
 
 	gotRows, gotCols, gotStates, err := th.GetResult(t, suite.d, query)
 	assert.NoError(t, err)
@@ -105,14 +119,17 @@ func (suite *PostgresTestSuite) TestShouldReturnStructure() {
 	t := suite.T()
 
 	// no need to check entire structure, just some key elements
-	wantSchemas := []string{"pg_catalog", "information_schema"}
-	wantSomeTable, wantSomeView := "pg_statistic", "pg_roles"
+	var (
+		wantSomeSchema = "test"
+		wantSomeTable  = "test_table"
+		wantSomeView   = "test_view"
+	)
 
 	structure, err := suite.d.GetStructure()
 	assert.NoError(t, err)
 
 	gotSchemas := th.GetSchemas(t, structure)
-	assert.ElementsMatch(t, wantSchemas, gotSchemas)
+	assert.Contains(t, gotSchemas, wantSomeSchema)
 
 	gotTables := th.GetModels(t, structure, core.StructureTypeTable)
 	assert.Contains(t, gotTables, wantSomeTable)
@@ -125,20 +142,14 @@ func (suite *PostgresTestSuite) TestShouldReturnColumns() {
 	t := suite.T()
 
 	want := []*core.Column{
-		{Name: "usename", Type: "name"},
-		{Name: "usesysid", Type: "oid"},
-		{Name: "usecreatedb", Type: "boolean"},
-		{Name: "usesuper", Type: "boolean"},
-		{Name: "userepl", Type: "boolean"},
-		{Name: "usebypassrls", Type: "boolean"},
-		{Name: "passwd", Type: "text"},
-		{Name: "valuntil", Type: "timestamp with time zone"},
-		{Name: "useconfig", Type: "ARRAY"},
+		{Name: "id", Type: "integer"},
+		{Name: "username", Type: "character varying"},
+		{Name: "email", Type: "character varying"},
 	}
 
 	got, err := suite.d.GetColumns(&core.TableOptions{
-		Table:           "pg_user",
-		Schema:          "pg_catalog",
+		Table:           "test_table",
+		Schema:          "test",
 		Materialization: core.StructureTypeTable,
 	})
 
@@ -174,5 +185,5 @@ func (suite *PostgresTestSuite) TestShouldFailSwitchDatabase() {
 
 	err = driver.SelectDatabase(want)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), want)
+	assert.ErrorContains(t, err, want)
 }

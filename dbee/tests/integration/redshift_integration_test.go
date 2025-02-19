@@ -12,23 +12,25 @@ import (
 	tc "github.com/testcontainers/testcontainers-go"
 )
 
-// ClickHouseTestSuite is the test suite for the clickhouse adapter.
-type ClickHouseTestSuite struct {
+// RedshiftTestSuite is the test suite for the redshift adapter.
+type RedshiftTestSuite struct {
 	tsuite.Suite
-	ctr *th.ClickHouseContainer
+	ctr *th.PostgresContainer
 	ctx context.Context
 	d   *core.Connection
 }
 
-func TestClickHouseTestSuite(t *testing.T) {
-	tsuite.Run(t, new(ClickHouseTestSuite))
+// TestRedshiftTestSuite is the entrypoint for go test.
+func TestRedshiftTestSuite(t *testing.T) {
+	tsuite.Run(t, new(RedshiftTestSuite))
 }
 
-func (suite *ClickHouseTestSuite) SetupSuite() {
+func (suite *RedshiftTestSuite) SetupSuite() {
 	suite.ctx = context.Background()
-	ctr, err := th.NewClickHouseContainer(suite.ctx, &core.ConnectionParams{
-		ID:   "test-clickhouse",
-		Name: "test-clickhouse",
+	ctr, err := th.NewPostgresContainer(suite.ctx, &core.ConnectionParams{
+		ID:   "test-redshift",
+		Name: "test-redshift",
+		Type: "redshift",
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -38,14 +40,14 @@ func (suite *ClickHouseTestSuite) SetupSuite() {
 	suite.d = ctr.Driver
 }
 
-func (suite *ClickHouseTestSuite) TeardownSuite() {
+func (suite *RedshiftTestSuite) TeardownSuite() {
 	tc.CleanupContainer(suite.T(), suite.ctr)
 }
 
-func (suite *ClickHouseTestSuite) TestShouldErrorInvalidQuery() {
+func (suite *RedshiftTestSuite) TestShouldErrorInvalidQuery() {
 	t := suite.T()
 
-	want := "Syntax error"
+	want := "syntax error"
 
 	call := suite.d.Execute("invalid sql", func(cs core.CallState, c *core.Call) {
 		if cs == core.CallStateExecutingFailed {
@@ -55,7 +57,7 @@ func (suite *ClickHouseTestSuite) TestShouldErrorInvalidQuery() {
 	assert.NotNil(t, call)
 }
 
-func (suite *ClickHouseTestSuite) TestShouldCancelQuery() {
+func (suite *RedshiftTestSuite) TestShouldCancelQuery() {
 	t := suite.T()
 	want := []core.CallState{core.CallStateExecuting, core.CallStateCanceled}
 
@@ -65,19 +67,20 @@ func (suite *ClickHouseTestSuite) TestShouldCancelQuery() {
 	assert.Equal(t, want, got)
 }
 
-func (suite *ClickHouseTestSuite) TestShouldReturnManyRows() {
+func (suite *RedshiftTestSuite) TestShouldReturnManyRows() {
 	t := suite.T()
 
 	wantStates := []core.CallState{
 		core.CallStateExecuting, core.CallStateRetrieving, core.CallStateArchived,
 	}
-	wantCols := []string{"id", "username"}
+	wantCols := []string{"id", "username", "email"}
 	wantRows := []core.Row{
-		{uint32(1), "john_doe"},
-		{uint32(2), "jane_smith"},
+		{int64(1), "john_doe", "john@example.com"},
+		{int64(2), "jane_smith", "jane@example.com"},
+		{int64(3), "bob_wilson", "bob@example.com"},
 	}
 
-	query := "SELECT id, username FROM test.test_view"
+	query := "SELECT * FROM test.test_table;"
 
 	gotRows, gotCols, gotStates, err := th.GetResult(t, suite.d, query)
 	assert.NoError(t, err)
@@ -87,16 +90,18 @@ func (suite *ClickHouseTestSuite) TestShouldReturnManyRows() {
 	assert.Equal(t, wantRows, gotRows)
 }
 
-func (suite *ClickHouseTestSuite) TestShouldReturnOneRow() {
+func (suite *RedshiftTestSuite) TestShouldReturnSingleRows() {
 	t := suite.T()
 
 	wantStates := []core.CallState{
 		core.CallStateExecuting, core.CallStateRetrieving, core.CallStateArchived,
 	}
-	wantCols := []string{"id", "username"}
-	wantRows := []core.Row{{uint32(1), "john_doe"}}
+	wantCols := []string{"id", "username", "email"}
+	wantRows := []core.Row{
+		{int64(2), "jane_smith", "jane@example.com"},
+	}
 
-	query := "SELECT id, username FROM test.test_table WHERE id = 1"
+	query := "SELECT * FROM test.test_view;"
 
 	gotRows, gotCols, gotStates, err := th.GetResult(t, suite.d, query)
 	assert.NoError(t, err)
@@ -106,9 +111,10 @@ func (suite *ClickHouseTestSuite) TestShouldReturnOneRow() {
 	assert.Equal(t, wantRows, gotRows)
 }
 
-func (suite *ClickHouseTestSuite) TestShouldReturnStructure() {
+func (suite *RedshiftTestSuite) TestShouldReturnStructure() {
 	t := suite.T()
 
+	// no need to check entire structure, just some key elements
 	var (
 		wantSomeSchema = "test"
 		wantSomeTable  = "test_table"
@@ -128,15 +134,13 @@ func (suite *ClickHouseTestSuite) TestShouldReturnStructure() {
 	assert.Contains(t, gotViews, wantSomeView)
 }
 
-func (suite *ClickHouseTestSuite) TestShouldReturnColumns() {
+func (suite *RedshiftTestSuite) TestShouldReturnColumns() {
 	t := suite.T()
 
 	want := []*core.Column{
-		{Name: "id", Type: "UInt32"},
-		{Name: "username", Type: "String"},
-		{Name: "email", Type: "String"},
-		{Name: "created_at", Type: "DateTime"},
-		{Name: "is_active", Type: "UInt8"},
+		{Name: "id", Type: "integer"},
+		{Name: "username", Type: "character varying"},
+		{Name: "email", Type: "character varying"},
 	}
 
 	got, err := suite.d.GetColumns(&core.TableOptions{
@@ -149,11 +153,11 @@ func (suite *ClickHouseTestSuite) TestShouldReturnColumns() {
 	assert.Equal(t, want, got)
 }
 
-func (suite *ClickHouseTestSuite) TestShouldSwitchDatabase() {
+func (suite *RedshiftTestSuite) TestShouldSwitchDatabase() {
 	t := suite.T()
 
-	want := "dev"
-	wantAllExceptCurrent := []string{"default", "information_schema", "system", "test"}
+	want := "postgres" // default database always present
+	wantAllExceptCurrent := []string{"dev"}
 
 	err := suite.d.SelectDatabase(want)
 	assert.NoError(t, err)
@@ -164,14 +168,15 @@ func (suite *ClickHouseTestSuite) TestShouldSwitchDatabase() {
 	assert.Equal(t, wantAllExceptCurrent, gotAllExceptCurrent)
 }
 
-func (suite *ClickHouseTestSuite) TestShouldFailSwitchDatabase() {
+func (suite *RedshiftTestSuite) TestShouldFailSwitchDatabase() {
 	t := suite.T()
 
 	want := "doesnt exist"
 	// create a new connection to avoid changing the default database
 	driver, err := suite.ctr.NewDriver(&core.ConnectionParams{
-		ID:   "test-clickhouse-2",
-		Name: "test-clickhouse-2",
+		ID:   "test-redshift-2",
+		Name: "test-redshift-2",
+		Type: "redshift",
 	})
 	assert.NoError(t, err)
 

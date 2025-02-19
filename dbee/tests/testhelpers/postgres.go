@@ -18,6 +18,11 @@ type PostgresContainer struct {
 // NewPostgresContainer creates a new postgres container with
 // default adapter and connection. The params.URL is overwritten.
 func NewPostgresContainer(ctx context.Context, params *core.ConnectionParams) (*PostgresContainer, error) {
+	seedFile, err := GetTestDataFile("postgres_seed.sql")
+	if err != nil {
+		return nil, err
+	}
+
 	ctr, err := tcpsql.Run(
 		ctx,
 		"postgres:16-alpine",
@@ -25,6 +30,7 @@ func NewPostgresContainer(ctx context.Context, params *core.ConnectionParams) (*
 		tc.CustomizeRequest(tc.GenericContainerRequest{
 			ProviderType: GetContainerProvider(),
 		}),
+		tcpsql.WithInitScripts(seedFile.Name()),
 		tcpsql.WithDatabase("dev"),
 	)
 	if err != nil {

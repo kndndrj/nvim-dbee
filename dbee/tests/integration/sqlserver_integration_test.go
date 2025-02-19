@@ -175,5 +175,5 @@ func (suite *MSSQLServerTestSuite) TestShouldFailSwitchDatabase() {
 
 	err = driver.SelectDatabase(want)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), want)
+	assert.ErrorContains(t, err, want)
 }
