@@ -328,7 +328,7 @@ The above sources are just built-ins. Here is a short description of them:
     export DBEE_CONNECTIONS='[
         {
             "name": "DB from env",
-            "url": "mysql://...",
+            "url": "username:password@tcp(host)/database-name",
             "type": "mysql"
         }
     ]'
