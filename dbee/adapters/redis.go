@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"encoding/gob"
+	"fmt"
 
 	"github.com/redis/go-redis/v9"
 
@@ -23,11 +24,11 @@ var _ core.Adapter = (*Redis)(nil)
 type Redis struct{}
 
 func (r *Redis) Connect(url string) (core.Driver, error) {
-	c := redis.NewClient(&redis.Options{
-		Addr:     url,
-		Password: "",
-		DB:       0,
-	})
+	opt, err := redis.ParseURL(url)
+	if err != nil {
+		return nil, fmt.Errorf("unable to connect to redis database: %v", err)
+	}
+	c := redis.NewClient(opt)
 
 	return &redisDriver{
 		redis: c,
