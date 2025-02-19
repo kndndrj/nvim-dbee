@@ -127,9 +127,8 @@ func (r *snowflakeDriver) ListDatabases() (current string, available []string, e
 		SELECT
 			DATABASE_NAME AS database_name
 		FROM INFORMATION_SCHEMA.databases
-		WHERE DATABASE_NAME != CURRENT_DATABASE()
-		  AND IS_TRANSIENT = 'NO';
-`
+    WHERE DATABASE_NAME != CURRENT_DATABASE();
+  `
 
 	rows, err := r.Query(context.Background(), query)
 	if err != nil {
