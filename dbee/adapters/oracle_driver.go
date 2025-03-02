@@ -14,7 +14,7 @@ type oracleDriver struct {
 	c *builders.Client
 }
 
-func (c *oracleDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
+func (d *oracleDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	// Remove the trailing semicolon from the query - for some reason it isn't supported in go_ora
 	query = strings.TrimSuffix(query, ";")
 
@@ -22,14 +22,14 @@ func (c *oracleDriver) Query(ctx context.Context, query string) (core.ResultStre
 	action := strings.ToLower(strings.Split(query, " ")[0])
 	hasReturnValues := strings.Contains(strings.ToLower(query), " returning ")
 	if (action == "update" || action == "delete" || action == "insert") && !hasReturnValues {
-		return c.c.Exec(ctx, query)
+		return d.c.Exec(ctx, query)
 	}
 
-	return c.c.QueryUntilNotEmpty(ctx, query)
+	return d.c.QueryUntilNotEmpty(ctx, query)
 }
 
-func (c *oracleDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	return c.c.ColumnsFromQuery(`
+func (d *oracleDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
+	return d.c.ColumnsFromQuery(`
 		SELECT
 			col.column_name,
 			col.data_type
@@ -45,59 +45,45 @@ func (c *oracleDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) 
 		opts.Table)
 }
 
-func (c *oracleDriver) Structure() ([]*core.Structure, error) {
+func (d *oracleDriver) Structure() ([]*core.Structure, error) {
 	query := `
-		SELECT T.owner, T.table_name
+		SELECT owner, object_name, type
 		FROM (
-			SELECT owner, table_name
+			SELECT owner, table_name as object_name, 'TABLE' as type
 			FROM all_tables
-			UNION SELECT owner, view_name AS "table_name"
+			UNION ALL
+			SELECT owner, table_name as object_name, 'EXTERNAL TABLE' as type
+			FROM all_external_tables
+			UNION ALL
+			SELECT owner, view_name as object_name, 'VIEW' as type
 			FROM all_views
-		) T
-		JOIN all_users U ON T.owner = U.username
-		WHERE U.common = 'NO'
-		ORDER BY T.table_name
+			UNION ALL
+			SELECT owner, mview_name as object_name, 'MATERIALIZED VIEW' as type
+			FROM all_mviews
+		)
+		WHERE owner IN (SELECT username FROM all_users WHERE common = 'NO')
+		ORDER BY owner, object_name
 	`
 
-	rows, err := c.Query(context.TODO(), query)
+	rows, err := d.Query(context.TODO(), query)
 	if err != nil {
 		return nil, err
 	}
 
-	children := make(map[string][]*core.Structure)
-
-	for rows.HasNext() {
-		row, err := rows.Next()
-		if err != nil {
-			return nil, err
+	decodeStructureType := func(s string) core.StructureType {
+		switch s {
+		case "TABLE", "EXTERNAL TABLE":
+			return core.StructureTypeTable
+		case "VIEW":
+			return core.StructureTypeView
+		case "MATERIALIZED VIEW":
+			return core.StructureTypeMaterializedView
+		default:
+			return core.StructureTypeNone
 		}
-
-		// We know for a fact there are 2 string fields (see query above)
-		schema := row[0].(string)
-		table := row[1].(string)
-
-		children[schema] = append(children[schema], &core.Structure{
-			Name:   table,
-			Schema: schema,
-			Type:   core.StructureTypeTable,
-		})
-
 	}
 
-	var structure []*core.Structure
-
-	for k, v := range children {
-		structure = append(structure, &core.Structure{
-			Name:     k,
-			Schema:   k,
-			Type:     core.StructureTypeNone,
-			Children: v,
-		})
-	}
-
-	return structure, nil
+	return core.GetGenericStructure(rows, decodeStructureType)
 }
 
-func (c *oracleDriver) Close() {
-	c.c.Close()
-}
+func (d *oracleDriver) Close() { d.c.Close() }
