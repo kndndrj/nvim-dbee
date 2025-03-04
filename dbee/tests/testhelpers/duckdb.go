@@ -1,6 +1,9 @@
 package testhelpers
 
 import (
+	"io"
+	"log"
+
 	"github.com/kndndrj/nvim-dbee/dbee/adapters"
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 )
@@ -12,6 +15,17 @@ type DuckDBContainer struct {
 
 // NewDuckDBContainer creates a new in-memory DuckDB instance.
 func NewDuckDBContainer(params *core.ConnectionParams) (*DuckDBContainer, error) {
+	seedFile, err := GetTestDataFile("duckdb_seed.sql")
+	if err != nil {
+		return nil, err
+	}
+	// Read the file contents into a string
+	content, err := io.ReadAll(seedFile)
+	if err != nil {
+		return nil, err
+	}
+	seedQuery := string(content)
+
 	if params.Type == "" {
 		params.Type = "duckdb"
 	}
@@ -22,6 +36,15 @@ func NewDuckDBContainer(params *core.ConnectionParams) (*DuckDBContainer, error)
 	driver, err := adapters.NewConnection(params)
 	if err != nil {
 		return nil, err
+	}
+
+	call := driver.Execute(seedQuery, nil)
+	select {
+	case <-call.Done():
+		err := call.Err()
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	return &DuckDBContainer{
