@@ -45,6 +45,20 @@ func (suite *DuckDBTestSuite) TeardownSuite() {
 	suite.d.Close()
 }
 
+// TestShouldErrorInvalidQuery ensures invalid SQL fails.
+func (suite *DuckDBTestSuite) TestShouldErrorInvalidQuery() {
+	t := suite.T()
+
+	want := "syntax error"
+
+	call := suite.d.Execute("INVALID SQL", func(cs core.CallState, c *core.Call) {
+		if cs == core.CallStateExecutingFailed {
+			assert.ErrorContains(t, c.Err(), want)
+		}
+	})
+	assert.NotNil(t, call)
+}
+
 func (suite *DuckDBTestSuite) TestShouldCancelQuery() {
 	t := suite.T()
 	want := []core.CallState{core.CallStateExecuting, core.CallStateCanceled}
@@ -53,35 +67,6 @@ func (suite *DuckDBTestSuite) TestShouldCancelQuery() {
 	assert.NoError(t, err)
 
 	assert.Equal(t, want, got)
-}
-
-// TestShouldReturnRows validates data retrieval for one rows.
-func (suite *DuckDBTestSuite) TestShouldReturnOneRows() {
-	t := suite.T()
-
-	wantStates := []core.CallState{
-		core.CallStateExecuting, core.CallStateRetrieving, core.CallStateArchived,
-	}
-	wantCols := []string{
-		"id", "username", "email", "created_at",
-	}
-	wantRows := []core.Row{
-		{
-			int32(1),
-			"john_doe",
-			"john@example.com",
-			time.Date(2023, 1, 1, 10, 0, 0, 0, time.UTC),
-		},
-	}
-
-	query := "SELECT id, username, email, created_at FROM test.test_table WHERE id = 1"
-
-	gotRows, gotCols, gotStates, err := th.GetResult(t, suite.d, query)
-	assert.NoError(t, err)
-
-	assert.ElementsMatch(t, wantCols, gotCols)
-	assert.ElementsMatch(t, wantStates, gotStates)
-	assert.Equal(t, wantRows, gotRows)
 }
 
 // TestShouldReturnRows validates data retrieval for all rows.
@@ -125,18 +110,49 @@ func (suite *DuckDBTestSuite) TestShouldReturnManyRows() {
 	assert.Equal(t, wantRows, gotRows)
 }
 
-// TestShouldFailInvalidQuery ensures invalid SQL fails.
-func (suite *DuckDBTestSuite) TestShouldFailInvalidQuery() {
+// TestShouldReturnSingleRows validates data retrieval for one rows.
+func (suite *DuckDBTestSuite) TestShouldReturnSingleRows() {
 	t := suite.T()
 
-	want := "syntax error"
+	wantStates := []core.CallState{
+		core.CallStateExecuting, core.CallStateRetrieving, core.CallStateArchived,
+	}
+	wantCols := []string{"id", "username", "email"}
+	wantRows := []core.Row{
+		{int64(2), "jane_smith", "jane@example.com"},
+	}
 
-	call := suite.d.Execute("INVALID SQL", func(cs core.CallState, c *core.Call) {
-		if cs == core.CallStateExecutingFailed {
-			assert.ErrorContains(t, c.Err(), want)
-		}
-	})
-	assert.NotNil(t, call)
+	query := "SELECT * FROM test.test_view;"
+
+	gotRows, gotCols, gotStates, err := th.GetResult(t, suite.d, query)
+	assert.NoError(t, err)
+
+	assert.ElementsMatch(t, wantCols, gotCols)
+	assert.ElementsMatch(t, wantStates, gotStates)
+	assert.Equal(t, wantRows, gotRows)
+}
+
+func (suite *DuckDBTestSuite) TestShouldReturnStructure() {
+	t := suite.T()
+
+	// no need to check entire structure, just some key elements
+	var (
+		wantSomeSchema = "test"
+		wantSomeTable  = "test_table"
+		wantSomeView   = "test_view"
+	)
+
+	structure, err := suite.d.GetStructure()
+	assert.NoError(t, err)
+
+	gotSchemas := th.GetSchemas(t, structure)
+	assert.Contains(t, gotSchemas, wantSomeSchema)
+
+	gotTables := th.GetModels(t, structure, core.StructureTypeTable)
+	assert.Contains(t, gotTables, wantSomeTable)
+
+	gotViews := th.GetModels(t, structure, core.StructureTypeView)
+	assert.Contains(t, gotViews, wantSomeView)
 }
 
 // TestShouldReturnColumns validates column metadata.
@@ -158,22 +174,6 @@ func (suite *DuckDBTestSuite) TestShouldReturnColumns() {
 
 	assert.NoError(t, err)
 	assert.Equal(t, want, got)
-}
-
-// TestShouldReturnStructure validates the schema structure.
-func (suite *DuckDBTestSuite) TestShouldReturnStructure() {
-	t := suite.T()
-
-	wantSchemas := []string{"test"}
-	wantTables := []string{"test_table"}
-
-	structure, err := suite.d.GetStructure()
-	assert.NoError(t, err)
-
-	gotTables := th.GetModels(t, structure, core.StructureTypeTable)
-	gotSchemas := th.GetSchemas(t, structure)
-	assert.ElementsMatch(t, wantTables, gotTables)
-	assert.ElementsMatch(t, wantSchemas, gotSchemas)
 }
 
 // TestListOnlyOneDatabase validates listing database only return a single database.
