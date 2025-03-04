@@ -38,26 +38,6 @@ func (suite *DuckDBTestSuite) SetupSuite() {
 
 	suite.ctr = ctr
 	suite.d = ctr.Driver // easier access to driver
-
-	// Create test table and insert random data
-	setupSQL := `
-		CREATE SCHEMA test;
-		CREATE TABLE test.users (
-			id INTEGER PRIMARY KEY,
-			name TEXT NOT NULL,
-			created_at TIMESTAMP NOT NULL
-		);
-		INSERT INTO test.users (id, name, created_at) VALUES
-		(1, 'john', '2025-01-21 00:00:00'),
-		(2, 'bob', '2025-01-21 00:01:00');
-	`
-
-	call := suite.d.Execute(setupSQL, nil)
-	// TODO: (ph) not sure on thi
-	err = call.Err()
-	if err != nil {
-		log.Fatal(err)
-	}
 }
 
 // TeardownSuite cleans up after tests.
@@ -83,17 +63,18 @@ func (suite *DuckDBTestSuite) TestShouldReturnOneRows() {
 		core.CallStateExecuting, core.CallStateRetrieving, core.CallStateArchived,
 	}
 	wantCols := []string{
-		"id", "name", "created_at",
+		"id", "username", "email", "created_at",
 	}
 	wantRows := []core.Row{
 		{
 			int32(1),
-			"john",
-			time.Date(2025, 1, 21, 0, 0, 0, 0, time.UTC),
+			"john_doe",
+			"john@example.com",
+			time.Date(2023, 1, 1, 10, 0, 0, 0, time.UTC),
 		},
 	}
 
-	query := "SELECT id, name, created_at FROM test.users WHERE id = 1"
+	query := "SELECT id, username, email, created_at FROM test.test_table WHERE id = 1"
 
 	gotRows, gotCols, gotStates, err := th.GetResult(t, suite.d, query)
 	assert.NoError(t, err)
@@ -111,22 +92,30 @@ func (suite *DuckDBTestSuite) TestShouldReturnManyRows() {
 		core.CallStateExecuting, core.CallStateRetrieving, core.CallStateArchived,
 	}
 	wantCols := []string{
-		"id", "name", "created_at",
+		"id", "username", "email", "created_at",
 	}
 	wantRows := []core.Row{
 		{
 			int32(1),
-			"john",
-			time.Date(2025, 1, 21, 0, 0, 0, 0, time.UTC),
+			"john_doe",
+			"john@example.com",
+			time.Date(2023, 1, 1, 10, 0, 0, 0, time.UTC),
 		},
 		{
 			int32(2),
-			"bob",
-			time.Date(2025, 1, 21, 0, 1, 0, 0, time.UTC),
+			"jane_smith",
+			"jane@example.com",
+			time.Date(2023, 1, 2, 11, 30, 0, 0, time.UTC),
+		},
+		{
+			int32(3),
+			"bob_wilson",
+			"bob@example.com",
+			time.Date(2023, 1, 3, 9, 15, 0, 0, time.UTC),
 		},
 	}
 
-	query := "SELECT id, name, created_at FROM test.users"
+	query := "SELECT id, username, email, created_at FROM test.test_table"
 
 	gotRows, gotCols, gotStates, err := th.GetResult(t, suite.d, query)
 	assert.NoError(t, err)
@@ -156,12 +145,13 @@ func (suite *DuckDBTestSuite) TestShouldReturnColumns() {
 
 	want := []*core.Column{
 		{Name: "id", Type: "INTEGER"},
-		{Name: "name", Type: "VARCHAR"},
+		{Name: "username", Type: "VARCHAR"},
+		{Name: "email", Type: "VARCHAR"},
 		{Name: "created_at", Type: "TIMESTAMP"},
 	}
 
 	got, err := suite.d.GetColumns(&core.TableOptions{
-		Table:           "users",
+		Table:           "test_table",
 		Schema:          "test",
 		Materialization: core.StructureTypeTable,
 	})
@@ -175,7 +165,7 @@ func (suite *DuckDBTestSuite) TestShouldReturnStructure() {
 	t := suite.T()
 
 	wantSchemas := []string{"test"}
-	wantTables := []string{"users"}
+	wantTables := []string{"test_table"}
 
 	structure, err := suite.d.GetStructure()
 	assert.NoError(t, err)
