@@ -227,6 +227,8 @@ CallDetails                                                        *CallDetails*
     Fields: ~
         {id}             (call_id)
         {time_taken_us}  (integer)     duration (time period) in microseconds
+        {callers_winid}  (integer)     the winid the curser was on when the
+	call was made
         {query}          (string)
         {state}          (call_state)
         {timestamp_us}   (integer)     time in microseconds

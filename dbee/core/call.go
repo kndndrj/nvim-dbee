@@ -14,11 +14,12 @@ type (
 	CallID string
 
 	Call struct {
-		id        CallID
-		query     string
-		state     CallState
-		timeTaken time.Duration
-		timestamp time.Time
+		id            CallID
+		query         string
+		calliersWinID uint64
+		state         CallState
+		timeTaken     time.Duration
+		timestamp     time.Time
 
 		result     *Result
 		archive    *archive
@@ -32,12 +33,13 @@ type (
 
 // callPersistent is used for marshaling and unmarshaling the call
 type callPersistent struct {
-	ID        string `json:"id"`
-	Query     string `json:"query"`
-	State     string `json:"state"`
-	TimeTaken int64  `json:"time_taken_us"`
-	Timestamp int64  `json:"timestamp_us"`
-	Error     string `json:"error,omitempty"`
+	ID           string `json:"id"`
+	Query        string `json:"query"`
+	CallersWinID uint64 `json:"callers_winid"`
+	State        string `json:"state"`
+	TimeTaken    int64  `json:"time_taken_us"`
+	Timestamp    int64  `json:"timestamp_us"`
+	Error        string `json:"error,omitempty"`
 }
 
 func (c *Call) toPersistent() *callPersistent {
@@ -47,12 +49,13 @@ func (c *Call) toPersistent() *callPersistent {
 	}
 
 	return &callPersistent{
-		ID:        string(c.id),
-		Query:     c.query,
-		State:     c.state.String(),
-		TimeTaken: c.timeTaken.Microseconds(),
-		Timestamp: c.timestamp.UnixMicro(),
-		Error:     errMsg,
+		ID:           string(c.id),
+		Query:        c.query,
+		State:        c.state.String(),
+		CallersWinID: c.calliersWinID,
+		TimeTaken:    c.timeTaken.Microseconds(),
+		Timestamp:    c.timestamp.UnixMicro(),
+		Error:        errMsg,
 	}
 }
 
@@ -186,6 +189,14 @@ func (c *Call) GetID() CallID {
 
 func (c *Call) GetQuery() string {
 	return c.query
+}
+
+func (c *Call) SetCallersWinID(winID uint64) {
+	c.calliersWinID = winID
+}
+
+func (c *Call) GetCallersWinID() uint64 {
+	return c.calliersWinID
 }
 
 func (c *Call) GetState() CallState {

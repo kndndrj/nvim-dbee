@@ -31,6 +31,7 @@ func (eb *eventBus) CallStateChanged(call *core.Call) {
 		call = {
 			id = %q,
 			query = %q,
+			callers_winid = %d,
 			state = %q,
 			time_taken_us = %d,
 			timestamp_us = %d,
@@ -38,6 +39,7 @@ func (eb *eventBus) CallStateChanged(call *core.Call) {
 		},
 	}`, call.GetID(),
 		call.GetQuery(),
+		call.GetCallersWinID(),
 		call.GetState().String(),
 		call.GetTimeTaken().Microseconds(),
 		call.GetTimestamp().UnixMicro(),

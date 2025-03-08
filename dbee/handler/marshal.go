@@ -40,19 +40,21 @@ func (cw *callWrap) MarshalMsgPack(enc *msgpack.Encoder) error {
 	}
 
 	return enc.Encode(&struct {
-		ID        string `msgpack:"id"`
-		Query     string `msgpack:"query"`
-		State     string `msgpack:"state"`
-		TimeTaken int64  `msgpack:"time_taken_us"`
-		Timestamp int64  `msgpack:"timestamp_us"`
-		Error     string `msgpack:"error,omitempty"`
+		ID           string `msgpack:"id"`
+		Query        string `msgpack:"query"`
+		CallersWinID uint64 `msgpack:"callers_winid"`
+		State        string `msgpack:"state"`
+		TimeTaken    int64  `msgpack:"time_taken_us"`
+		Timestamp    int64  `msgpack:"timestamp_us"`
+		Error        string `msgpack:"error,omitempty"`
 	}{
-		ID:        string(cw.call.GetID()),
-		Query:     cw.call.GetQuery(),
-		State:     cw.call.GetState().String(),
-		TimeTaken: cw.call.GetTimeTaken().Microseconds(),
-		Timestamp: cw.call.GetTimestamp().UnixMicro(),
-		Error:     errMsg,
+		ID:           string(cw.call.GetID()),
+		Query:        cw.call.GetQuery(),
+		State:        cw.call.GetState().String(),
+		CallersWinID: cw.call.GetCallersWinID(),
+		TimeTaken:    cw.call.GetTimeTaken().Microseconds(),
+		Timestamp:    cw.call.GetTimestamp().UnixMicro(),
+		Error:        errMsg,
 	})
 }
 

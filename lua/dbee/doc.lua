@@ -53,6 +53,7 @@
 ---@field id call_id
 ---@field time_taken_us integer duration (time period) in microseconds
 ---@field query string
+---@field callers_windid integer time in microseconds
 ---@field state call_state
 ---@field timestamp_us integer time in microseconds
 ---@field error? string error message in case of error

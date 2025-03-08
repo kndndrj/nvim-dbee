@@ -140,7 +140,8 @@ function EditorUI:get_actions()
       if not conn then
         return
       end
-      local call = self.handler:connection_execute(conn.id, query)
+      local current_winid = vim.api.nvim_get_current_win()
+      local call = self.handler:connection_execute(conn.id, query, current_winid)
       self.result:set_call(call)
     end,
     run_selection = function()
@@ -153,7 +154,8 @@ function EditorUI:get_actions()
       if not conn then
         return
       end
-      local call = self.handler:connection_execute(conn.id, query)
+      local current_winid = vim.api.nvim_get_current_win()
+      local call = self.handler:connection_execute(conn.id, query, current_winid)
       self.result:set_call(call)
     end,
   }

@@ -156,7 +156,7 @@ func (h *Handler) SetCurrentConnection(connID core.ConnectionID) error {
 	return nil
 }
 
-func (h *Handler) ConnectionExecute(connID core.ConnectionID, query string) (*core.Call, error) {
+func (h *Handler) ConnectionExecute(connID core.ConnectionID, query string, callersWinID uint64) (*core.Call, error) {
 	c, ok := h.lookupConnection[connID]
 	if !ok {
 		return nil, fmt.Errorf("unknown connection with id: %q", connID)
@@ -170,6 +170,7 @@ func (h *Handler) ConnectionExecute(connID core.ConnectionID, query string) (*co
 		h.events.CallStateChanged(c)
 	})
 
+	call.SetCallersWinID(callersWinID)
 	id := call.GetID()
 
 	// add to lookup

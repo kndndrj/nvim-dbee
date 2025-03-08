@@ -116,9 +116,10 @@ end
 ---Execute a query on a connection.
 ---@param id connection_id
 ---@param query string
+---@param winID integer
 ---@return CallDetails
-function core.connection_execute(id, query)
-  return state.handler():connection_execute(id, query)
+function core.connection_execute(id, query, winID)
+  return state.handler():connection_execute(id, query, winID)
 end
 
 ---Get database structure of a connection.

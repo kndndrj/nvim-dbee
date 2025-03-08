@@ -213,8 +213,8 @@ end
 ---@param id connection_id
 ---@param query string
 ---@return CallDetails
-function Handler:connection_execute(id, query)
-  return vim.fn.DbeeConnectionExecute(id, query)
+function Handler:connection_execute(id, query, winID)
+  return vim.fn.DbeeConnectionExecute(id, query, winID)
 end
 
 ---@param id connection_id

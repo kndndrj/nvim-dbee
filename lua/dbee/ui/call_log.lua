@@ -283,6 +283,7 @@ function CallLogUI:configure_preview(bufnr)
       local call_summary = {
         { key = "id", value = call.id },
         { key = "query", value = string.gsub(call.query, "\n", " ") },
+        { key = "callers_winid", value = call.callers_windid},
         { key = "state", value = call.state },
         { key = "time_taken", value = string.format("%.3f seconds", (call.time_taken_us or 0) / 1000000) },
         { key = "timestamp", value = tostring(os.date("%c", (call.timestamp_us or 0) / 1000000)) },

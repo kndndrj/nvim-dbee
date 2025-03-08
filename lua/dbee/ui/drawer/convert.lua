@@ -67,7 +67,7 @@ local function connection_nodes(handler, conn, result)
             title = "Select a Query",
             items = items,
             on_confirm = function(selection)
-              local call = handler:connection_execute(conn.id, helpers[selection])
+              local call = handler:connection_execute(conn.id, helpers[selection], 0)
               result:set_call(call)
               cb()
             end,
