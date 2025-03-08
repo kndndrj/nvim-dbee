@@ -74,7 +74,6 @@ end
 ---@private
 ---@param data { call: CallDetails }
 function ResultUI:on_call_state_changed(data)
-  vim.notify(vim.inspect({ "data", data }))
   local call = data.call
 
   -- we only care about the current call
@@ -292,27 +291,22 @@ function ResultUI:get_call()
 end
 
 function ResultUI:page_current()
-  vim.notify("1")
   self.page_index = self:display_result(self.page_index)
 end
 
 function ResultUI:page_next()
-  vim.notify("2")
   self.page_index = self:display_result(self.page_index + 1)
 end
 
 function ResultUI:page_prev()
-  vim.notify("3")
   self.page_index = self:display_result(self.page_index - 1)
 end
 
 function ResultUI:page_last()
-  vim.notify("4")
   self.page_index = self:display_result(self.page_ammount)
 end
 
 function ResultUI:page_first()
-  vim.notify("5")
   self.page_index = self:display_result(self.page_ammount)
   self.page_index = self:display_result(0)
 end
@@ -452,7 +446,6 @@ end
 
 ---@param winid integer
 function ResultUI:show(winid)
-  vim.notify("show")
   self.winid = self.focus_result and winid or 0
 
   -- configure window highlights
