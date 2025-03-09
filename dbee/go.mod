@@ -9,6 +9,7 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.20.0
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/databricks/databricks-sql-go v1.5.3
+	github.com/docker/docker v27.1.1+incompatible
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/google/uuid v1.6.0
 	github.com/jedib0t/go-pretty/v6 v6.5.8
@@ -59,7 +60,6 @@ require (
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/dnephin/pflag v1.0.7 // indirect
-	github.com/docker/docker v27.1.1+incompatible // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
