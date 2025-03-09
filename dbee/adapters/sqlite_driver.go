@@ -13,42 +13,35 @@ type sqliteDriver struct {
 	c *builders.Client
 }
 
-func (c *sqliteDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
+func (d *sqliteDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	// run query, fallback to affected rows
-	return c.c.QueryUntilNotEmpty(ctx, query, "select changes() as 'Rows Affected'")
+	return d.c.QueryUntilNotEmpty(ctx, query, "select changes() as 'Rows Affected'")
 }
 
-func (c *sqliteDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	return c.c.ColumnsFromQuery("SELECT name, type FROM pragma_table_info('%s')", opts.Table)
+func (d *sqliteDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
+	return d.c.ColumnsFromQuery("SELECT name, type FROM pragma_table_info('%s')", opts.Table)
 }
 
-func (c *sqliteDriver) Structure() ([]*core.Structure, error) {
-	query := `SELECT name FROM sqlite_schema WHERE type ='table'`
+func (d *sqliteDriver) Structure() ([]*core.Structure, error) {
+	// sqlite is single schema structure, so we hardcode the name of it.
+	query := "SELECT 'sqlite_schema' as schema, name, type FROM sqlite_schema"
 
-	rows, err := c.Query(context.TODO(), query)
+	rows, err := d.Query(context.Background(), query)
 	if err != nil {
 		return nil, err
 	}
 
-	var schema []*core.Structure
-	for rows.HasNext() {
-		row, err := rows.Next()
-		if err != nil {
-			return nil, err
+	decodeStructureType := func(typ string) core.StructureType {
+		switch typ {
+		case "table":
+			return core.StructureTypeTable
+		case "view":
+			return core.StructureTypeView
+		default:
+			return core.StructureTypeNone
 		}
-
-		// We know for a fact there is only one string field (see query above)
-		table := row[0].(string)
-		schema = append(schema, &core.Structure{
-			Name:   table,
-			Schema: "",
-			Type:   core.StructureTypeTable,
-		})
 	}
-
-	return schema, nil
+	return core.GetGenericStructure(rows, decodeStructureType)
 }
 
-func (c *sqliteDriver) Close() {
-	c.c.Close()
-}
+func (d *sqliteDriver) Close() { d.c.Close() }
