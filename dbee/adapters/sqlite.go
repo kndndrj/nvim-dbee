@@ -51,7 +51,8 @@ func (s *SQLite) Connect(url string) (core.Driver, error) {
 	}
 
 	return &sqliteDriver{
-		c: builders.NewClient(db),
+		c:               builders.NewClient(db),
+		currentDatabase: path,
 	}, nil
 }
 
