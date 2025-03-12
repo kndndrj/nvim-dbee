@@ -7,10 +7,14 @@ import (
 	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 )
 
-var _ core.Driver = (*sqliteDriver)(nil)
+var (
+	_ core.Driver           = (*sqliteDriver)(nil)
+	_ core.DatabaseSwitcher = (*sqliteDriver)(nil)
+)
 
 type sqliteDriver struct {
-	c *builders.Client
+	c               *builders.Client
+	currentDatabase string
 }
 
 func (d *sqliteDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
@@ -45,3 +49,10 @@ func (d *sqliteDriver) Structure() ([]*core.Structure, error) {
 }
 
 func (d *sqliteDriver) Close() { d.c.Close() }
+
+func (d *sqliteDriver) ListDatabases() (string, []string, error) {
+	return d.currentDatabase, []string{"not supported yet"}, nil
+}
+
+// SelectDatabase is a no-op, added to make the UI more pleasent.
+func (d *sqliteDriver) SelectDatabase(name string) error { return nil }
