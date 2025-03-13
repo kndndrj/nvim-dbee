@@ -60,13 +60,12 @@ func getDuckDBStructureType(typ string) core.StructureType {
 // current will be shown
 func (d *duckDriver) ListDatabases() (current string, available []string, err error) {
 	// no-op
-	return d.currentDB, []string{d.currentDB}, nil
+	return d.currentDB, []string{"not supported yet"}, nil
 }
 
 // SelectDatabase switches the current database/catalog to the selected one.
-// NOTE: (phdah) As of now, swapping catalogs is not enabled
 func (d *duckDriver) SelectDatabase(name string) error {
-	return fmt.Errorf("SelectDabase method not implemented yet")
+	return nil
 }
 
 // Close closes the connection to the database.

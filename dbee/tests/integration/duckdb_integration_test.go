@@ -28,10 +28,10 @@ func TestDuckDBTestSuite(t *testing.T) {
 // SetupSuite initializes an in-memory DuckDB instance.
 func (suite *DuckDBTestSuite) SetupSuite() {
 	suite.ctx = context.Background()
-	ctr, err := th.NewDuckDBContainer(&core.ConnectionParams{
-		ID:   "test-duckdb",
-		Name: "test-duckdb",
-	})
+	tempDir := suite.T().TempDir()
+
+	params := &core.ConnectionParams{ID: "test-duckdb", Name: "test-duckdb"}
+	ctr, err := th.NewDuckDBContainer(suite.ctx, params, tempDir)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func (suite *DuckDBTestSuite) TestShouldReturnManyRows() {
 		},
 	}
 
-	query := "SELECT id, username, email, created_at FROM test.test_table"
+	query := "SELECT id, username, email, created_at FROM test_container.test_schema.test_table"
 
 	gotRows, gotCols, gotStates, err := th.GetResult(t, suite.d, query)
 	assert.NoError(t, err)
@@ -119,10 +119,10 @@ func (suite *DuckDBTestSuite) TestShouldReturnSingleRows() {
 	}
 	wantCols := []string{"id", "username", "email"}
 	wantRows := []core.Row{
-		{int64(2), "jane_smith", "jane@example.com"},
+		{int32(2), "jane_smith", "jane@example.com"},
 	}
 
-	query := "SELECT * FROM test.test_view;"
+	query := "SELECT * FROM test_container.test_schema.test_view;"
 
 	gotRows, gotCols, gotStates, err := th.GetResult(t, suite.d, query)
 	assert.NoError(t, err)
@@ -137,7 +137,7 @@ func (suite *DuckDBTestSuite) TestShouldReturnStructure() {
 
 	// no need to check entire structure, just some key elements
 	var (
-		wantSomeSchema = "test"
+		wantSomeSchema = "test_schema"
 		wantSomeTable  = "test_table"
 		wantSomeView   = "test_view"
 	)
@@ -168,7 +168,7 @@ func (suite *DuckDBTestSuite) TestShouldReturnColumns() {
 
 	got, err := suite.d.GetColumns(&core.TableOptions{
 		Table:           "test_table",
-		Schema:          "test",
+		Schema:          "test_schema",
 		Materialization: core.StructureTypeTable,
 	})
 
@@ -177,14 +177,27 @@ func (suite *DuckDBTestSuite) TestShouldReturnColumns() {
 }
 
 // TestListOnlyOneDatabase validates listing database only return a single database.
-// NOTE: (phdah) As of now, swapping catalogs is not enabled
 func (suite *DuckDBTestSuite) TestListOnlyOneDatabase() {
 	t := suite.T()
 
-	wantCurrent := "memory"
-	wantAvailable := []string{"memory"}
+	wantCurrent := "test_container"
+	wantAvailable := []string{"not supported yet"}
 	gotCurrent, gotAvailable, err := suite.d.ListDatabases()
 	assert.NoError(t, err)
 	assert.Equal(t, wantCurrent, gotCurrent)
 	assert.Equal(t, wantAvailable, gotAvailable)
+}
+
+// TestShouldNoOperationSwitchDatabase validates selecting new database, which is a no-op.
+func (suite *DuckDBTestSuite) TestShouldNoOperationSwitchDatabase() {
+	t := suite.T()
+
+	driver, err := suite.ctr.NewDriver(&core.ConnectionParams{
+		ID:   "test-duckdb-2",
+		Name: "test-duckdb-2",
+	})
+	assert.NoError(t, err)
+
+	err = driver.SelectDatabase("no-op")
+	assert.Nil(t, err)
 }
