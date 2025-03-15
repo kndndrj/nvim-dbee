@@ -105,6 +105,11 @@ function DrawerUI:new(handler, editor, result, opts)
     o:on_current_note_changed(data)
   end)
 
+  editor:register_event_listener("note_created",
+  function (data)
+    o:on_note_created(data)
+  end)
+
   return o
 end
 
@@ -127,6 +132,12 @@ function DrawerUI:on_current_note_changed(data)
     return
   end
   self.current_note_id = data.note_id
+  self:refresh()
+end
+
+-- event listener for new note created
+---@private
+function DrawerUI:on_note_created(_)
   self:refresh()
 end
 
