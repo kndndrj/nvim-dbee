@@ -43,9 +43,9 @@ func (m *MySQL) Connect(url string) (core.Driver, error) {
 
 func (*MySQL) GetHelpers(opts *core.TableOptions) map[string]string {
 	return map[string]string{
-		"List":         fmt.Sprintf("SELECT * FROM `%s` LIMIT 500", opts.Table),
-		"Columns":      fmt.Sprintf("DESCRIBE `%s`", opts.Table),
-		"Indexes":      fmt.Sprintf("SHOW INDEXES FROM `%s`", opts.Table),
+		"List":         fmt.Sprintf("SELECT * FROM `%s`.`%s` LIMIT 500", opts.Schema, opts.Table),
+		"Columns":      fmt.Sprintf("DESCRIBE `%s`.`%s`", opts.Schema, opts.Table),
+		"Indexes":      fmt.Sprintf("SHOW INDEXES FROM `%s`.`%s`", opts.Schema, opts.Table),
 		"Foreign Keys": fmt.Sprintf("SELECT * FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s' AND CONSTRAINT_TYPE = 'FOREIGN KEY'", opts.Schema, opts.Table),
 		"Primary Keys": fmt.Sprintf("SELECT * FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s' AND CONSTRAINT_TYPE = 'PRIMARY KEY'", opts.Schema, opts.Table),
 	}
