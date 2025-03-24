@@ -119,11 +119,18 @@ function ResultUI:has_window()
 end
 
 ---@private
+function ResultUI:focus_result_window()
+  if self.focus_result then
+    return vim.api.nvim_set_current_win(self.winid)
+  end
+end
+
+---@private
 function ResultUI:display_progress()
   self.stop_progress = progress.display(self.bufnr, self.progress_opts)
 
   if self:has_window() then
-    vim.api.nvim_set_current_win(self.winid)
+    self:focus_result_window()
   end
 end
 
@@ -163,7 +170,7 @@ function ResultUI:display_status()
   -- set winbar and set focus
   if self:has_window() then
     vim.api.nvim_win_set_option(self.winid, "winbar", "Results")
-    vim.api.nvim_set_current_win(self.winid)
+    self:focus_result_window()
   end
 
   -- reset modified flag
@@ -209,7 +216,7 @@ function ResultUI:display_result(page)
     )
 
     -- set focus if window exists
-    vim.api.nvim_set_current_win(self.winid)
+    self:focus_result_window()
   end
 
   -- reset modified flag
@@ -444,7 +451,7 @@ end
 
 ---@param winid integer
 function ResultUI:show(winid)
-  self.winid = self.focus_result and winid or 0
+  self.winid = winid
 
   -- configure window highlights
   self:apply_highlight(self.winid)
