@@ -120,7 +120,7 @@ end
 
 ---@private
 function ResultUI:focus_result_window()
-  if self.focus_result then
+  if self.focus_result and self:has_window() then
     return vim.api.nvim_set_current_win(self.winid)
   end
 end
@@ -128,10 +128,6 @@ end
 ---@private
 function ResultUI:display_progress()
   self.stop_progress = progress.display(self.bufnr, self.progress_opts)
-
-  if self:has_window() then
-    self:focus_result_window()
-  end
 end
 
 ---@private
@@ -167,10 +163,9 @@ function ResultUI:display_status()
 
   vim.api.nvim_buf_set_option(self.bufnr, "modifiable", false)
 
-  -- set winbar and set focus
+  -- set winbar
   if self:has_window() then
     vim.api.nvim_win_set_option(self.winid, "winbar", "Results")
-    self:focus_result_window()
   end
 
   -- reset modified flag
@@ -214,10 +209,9 @@ function ResultUI:display_result(page)
       "winbar",
       string.format("%d/%d (%d)%%=Took %.3fs", page + 1, self.page_ammount + 1, length, seconds)
     )
-
-    -- set focus if window exists
-    self:focus_result_window()
   end
+  -- set focus if window exists
+  self:focus_result_window()
 
   -- reset modified flag
   vim.api.nvim_buf_set_option(self.bufnr, "modified", false)
