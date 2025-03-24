@@ -126,6 +126,13 @@ function ResultUI:focus_result_window()
 end
 
 ---@private
+function ResultUI:set_default_result_window()
+  if self:has_window() then
+    vim.api.nvim_win_set_option(self.winid, "winbar", "Results")
+  end
+end
+
+---@private
 function ResultUI:display_progress()
   self.stop_progress = progress.display(self.bufnr, self.progress_opts)
 end
@@ -164,9 +171,7 @@ function ResultUI:display_status()
   vim.api.nvim_buf_set_option(self.bufnr, "modifiable", false)
 
   -- set winbar
-  if self:has_window() then
-    vim.api.nvim_win_set_option(self.winid, "winbar", "Results")
-  end
+  self:set_default_result_window()
 
   -- reset modified flag
   vim.api.nvim_buf_set_option(self.bufnr, "modified", false)
@@ -461,7 +466,7 @@ function ResultUI:show(winid)
   -- display the current result
   local ok = pcall(self.page_current, self)
   if not ok then
-    vim.api.nvim_win_set_option(self.winid, "winbar", "Results")
+    self:set_default_result_window()
   end
 end
 
