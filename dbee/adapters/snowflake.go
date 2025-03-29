@@ -1,8 +1,10 @@
 package adapters
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
@@ -33,14 +35,15 @@ func (r *Snowflake) Connect(rawURL string) (core.Driver, error) {
 	}
 	connector := gosnowflake.NewConnector(gosnowflake.SnowflakeDriver{}, *config)
 	db := sql.OpenDB(connector)
-	err = db.Ping()
-	if err != nil {
-		return nil, err
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		return nil, fmt.Errorf("unable to ping snowflake: %w", err)
 	}
 
 	return &snowflakeDriver{
 		c:      builders.NewClient(db),
-		config: config,
+		config: *config,
 	}, nil
 }
 

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/snowflakedb/gosnowflake"
 
@@ -20,7 +21,7 @@ var (
 // snowflakeDriver is a sql client for snowflakeDriver.
 type snowflakeDriver struct {
 	c      *builders.Client
-	config *gosnowflake.Config
+	config gosnowflake.Config
 }
 
 // Query executes a query and returns the result as an IterResult.
@@ -115,15 +116,16 @@ func (r *snowflakeDriver) ListDatabases() (current string, available []string, e
 }
 
 func (r *snowflakeDriver) SelectDatabase(name string) error {
-	config := *r.config
+	config := r.config
 	config.Database = name
 	connector := gosnowflake.NewConnector(gosnowflake.SnowflakeDriver{}, config)
 	db := sql.OpenDB(connector)
-	err := db.Ping()
-	if err != nil {
-		return fmt.Errorf("unable to switch databases: %w", err)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		return fmt.Errorf("unable to ping snowflake: %w", err)
 	}
 	r.c.Swap(db)
-	r.config = &config
+	r.config = config
 	return nil
 }
