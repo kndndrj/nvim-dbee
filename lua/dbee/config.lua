@@ -269,6 +269,8 @@ config.default = {
       { key = "BB", mode = "v", action = "run_selection" },
       -- run the whole file on the active connection
       { key = "BB", mode = "n", action = "run_file" },
+      -- run what's under the cursor to the next newline
+      { key = "<CR>", mode = "n", action = "run_under_cursor" },
     },
   },
 
