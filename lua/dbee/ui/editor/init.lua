@@ -156,6 +156,34 @@ function EditorUI:get_actions()
       local call = self.handler:connection_execute(conn.id, query)
       self.result:set_call(call)
     end,
+    run_under_cursor = function()
+      local bufnr = vim.api.nvim_get_current_buf()
+      local query, srow, erow = utils.query_under_cursor(bufnr)
+
+      if query ~= "" then
+        -- highlight the statement that will be executed
+        local ns_id = vim.api.nvim_create_namespace("dbee_query_highlight")
+        vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
+        vim.api.nvim_buf_set_extmark(bufnr, ns_id, srow, 0, {
+          end_row = erow + 1,
+          end_col = 0,
+          hl_group = "DiffText",
+          priority = 100,
+        })
+
+        -- run the query
+        local conn = self.handler:get_current_connection()
+        if conn then
+          self.result:set_call(self.handler:connection_execute(conn.id, query))
+        end
+
+        -- remove highlighting after delay
+        -- TODO: make the 750ms configureable?
+        vim.defer_fn(function()
+          vim.api.nvim_buf_clear_namespace(bufnr, ns_id, 0, -1)
+        end, 750)
+      end
+    end,
   }
 end
 

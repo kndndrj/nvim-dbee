@@ -159,4 +159,50 @@ function M.random_string()
   return r(10)
 end
 
+--- Get the SQL statement under the cursor and its range (using treesitter).
+--- query is either empty string or the query.
+---@param bufnr integer buffer containing the SQL queries.
+---@return string query, integer start_row, integer end_row
+function M.query_under_cursor(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  local cursor_row = vim.api.nvim_win_get_cursor(0)[1] - 1
+  local query = ""
+  local start_row, end_row = 0, 0
+
+  -- tmp_buf is a temporary buffer for treesitter to parse the SQL statements
+  local tmp_buf = vim.api.nvim_create_buf(false, true)
+
+  -- replace empty lines with semicolons to make sure treesitter parse them
+  -- as statement (still supports newlines between CTEs)
+  local content = vim.tbl_map(function(line)
+    return line ~= "" and line or ";"
+  end, lines)
+
+  vim.api.nvim_buf_set_lines(tmp_buf, 0, -1, false, content)
+
+  local parser = vim.treesitter.get_parser(tmp_buf, "sql", {})
+  if not parser then
+    vim.api.nvim_buf_delete(tmp_buf, { force = true })
+    return query, start_row, end_row
+  end
+
+  local root = parser:parse()[1]:root()
+
+  for node in root:iter_children() do
+    if node:type() == "statement" then
+      local node_start_row, _, node_end_row, _ = node:range()
+      if cursor_row >= node_start_row and cursor_row <= node_end_row then
+        query = vim.treesitter.get_node_text(node, tmp_buf)
+        start_row, end_row = node_start_row, node_end_row
+        break
+      end
+    end
+  end
+
+  -- clean up the tmp_buf
+  vim.api.nvim_buf_delete(tmp_buf, { force = true })
+  return query:gsub(";", ""), start_row, end_row
+end
+
 return M
