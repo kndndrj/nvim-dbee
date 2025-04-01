@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/arangodb/go-driver/v2/arangodb"
 
@@ -26,11 +25,6 @@ type arangoDriver struct {
 }
 
 func (a *arangoDriver) ListDatabases() (current string, available []string, err error) {
-	if a == nil || a.c == nil {
-		return "", nil, errors.New("arangoDriver is not initialized")
-	}
-
-	log.Print("Fetching list of databases")
 	databases, err := a.c.AccessibleDatabases(context.Background())
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to list databases: %w", err)
@@ -45,17 +39,11 @@ func (a *arangoDriver) ListDatabases() (current string, available []string, err 
 }
 
 func (a *arangoDriver) SelectDatabase(name string) error {
-	if a == nil {
-		return errors.New("arangoDriver is not initialized")
-	}
-	log.Printf("Selecting database: %s", name)
 	a.dbName = name
 	return nil
 }
 
-func (a *arangoDriver) Close() {
-	log.Print("Closing connection (not yet implemented)")
-}
+func (a *arangoDriver) Close() {}
 
 func (a *arangoDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
 	db, err := a.c.GetDatabase(context.Background(), a.dbName, nil)
@@ -70,7 +58,7 @@ func (a *arangoDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) 
 		COLLECT attribute = a WITH COUNT INTO len
 		SORT len DESC
 		LIMIT 10
-		sort attribute
+		SORT attribute
 		RETURN {attribute}`
 
 	bindVars := map[string]any{"@col": opts.Table}
@@ -89,7 +77,7 @@ func (a *arangoDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) 
 		}
 		column, ok := doc["attribute"].(string)
 		if !ok {
-			column = ""
+			return nil, fmt.Errorf("failed to read document: %w", err)
 		}
 		columns = append(columns, &core.Column{Type: "collection", Name: column})
 	}
@@ -131,14 +119,20 @@ func (a *arangoDriver) Query(ctx context.Context, query string) (core.ResultStre
 }
 
 func (a *arangoDriver) Structure() ([]*core.Structure, error) {
-	if a == nil || a.c == nil {
-		return nil, errors.New("arangoDriver is not initialized")
-	}
-
 	ctx := context.Background()
-	databases, err := a.c.Databases(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list databases: %w", err)
+	databases := []arangodb.Database{}
+	err := errors.New("database not selected")
+	if a.dbName == "_system" { // if the database is _system, we'll walk all databases
+		databases, err = a.c.Databases(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("failed to list databases: %w", err)
+		}
+	} else {
+		database, err := a.c.GetDatabase(ctx, a.dbName, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get database: %w", err)
+		}
+		databases = []arangodb.Database{database}
 	}
 
 	structures := make([]*core.Structure, len(databases))

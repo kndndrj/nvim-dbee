@@ -21,25 +21,40 @@ type ArangoDBContainer struct {
 	Driver  *core.Connection
 }
 
+type ArangoDBContainerParams struct {
+	Passwordless bool
+	DatabaseName string
+}
+
 // NewArangoDBContainer creates a new ArangoDB container with
 // default adapter and connection. The params.URL is overwritten.
-func NewArangoDBContainer(ctx context.Context, params *core.ConnectionParams) (*ArangoDBContainer, error) {
+func NewArangoDBContainer(ctx context.Context, params *core.ConnectionParams, containerParams *ArangoDBContainerParams) (*ArangoDBContainer, error) {
 	seedFile, err := GetTestDataFile("arangodb_seed.json")
 	if err != nil {
 		return nil, err
 	}
+
+	passwordless := false
+	if containerParams != nil {
+		passwordless = containerParams.Passwordless
+	}
+
+	env := make(map[string]string, 0)
+	if passwordless {
+		env["ARANGO_ROOT_PASSWORD"] = "rootpassword"
+	} else {
+		env["ARANGO_NO_AUTH"] = "1"
+	}
+
 	log.Printf("%s", seedFile.Name())
 	req := tc.ContainerRequest{
 		Image:        "arangodb:3.12",
 		ExposedPorts: []string{"8529:8529/tcp"},
 		WaitingFor:   wait.ForLog("ArangoDB (version 3.12.4 [linux]) is ready for business. Have fun!").WithStartupTimeout(1 * time.Minute),
-		Env: map[string]string{
-			"ARANGO_ROOT_PASSWORD": "rootpassword",
-		},
+		Env:          env,
 		Files: []tc.ContainerFile{
 			{
-				HostFilePath: "../testdata/arangodb_seed.json",
-				// Reader:            seedFile,
+				HostFilePath:      "../testdata/arangodb_seed.json",
 				ContainerFilePath: "/docker-entrypoint-initdb.d/arangodb_seed.json",
 				FileMode:          0o755,
 			},
@@ -54,14 +69,25 @@ func NewArangoDBContainer(ctx context.Context, params *core.ConnectionParams) (*
 		return nil, err
 	}
 
-	exitCode, output, err := ctr.Exec(ctx, []string{
+	args := []string{
 		"arangoimport",
-		"--server.password", "rootpassword",
 		"--file", "/docker-entrypoint-initdb.d/arangodb_seed.json",
 		"--type", "json",
 		"--collection", "testcollection",
 		"--create-collection",
-	})
+	}
+	if !passwordless {
+		args = append(args, "--server.password", "rootpassword")
+	}
+
+	if containerParams != nil {
+		if containerParams.DatabaseName != "" && containerParams.DatabaseName != "_system" {
+			args = append(args, "--server.database", containerParams.DatabaseName)
+			args = append(args, "--create-database")
+		}
+	}
+
+	exitCode, output, err := ctr.Exec(ctx, args)
 	if err != nil {
 		return nil, err
 	}
@@ -78,6 +104,9 @@ func NewArangoDBContainer(ctx context.Context, params *core.ConnectionParams) (*
 	}
 
 	connURL := "http://root:rootpassword@localhost:8529"
+	if passwordless {
+		connURL = "http://root@localhost:8529"
+	}
 	if params.Type == "" {
 		params.Type = "arangodb"
 	}

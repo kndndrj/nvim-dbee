@@ -15,11 +15,23 @@ import (
 )
 
 // ArangoDBTestSuite is the test suite for the ArangoDB adapter.
-type ArangoDBTestSuite struct {
+type BaseArangoDBTestSuite struct {
 	tsuite.Suite
 	ctr *th.ArangoDBContainer
 	ctx context.Context
 	d   *core.Connection
+}
+
+type ArangoDBTestSuite struct {
+	BaseArangoDBTestSuite
+}
+
+type NonSystemArangoDBTestSuite struct {
+	BaseArangoDBTestSuite
+}
+
+type PasswordlessArangoDBTestSuite struct {
+	BaseArangoDBTestSuite
 }
 
 // TestArangoDBTestSuite is the entrypoint for go test.
@@ -27,11 +39,56 @@ func TestArangoDBTestSuite(t *testing.T) {
 	tsuite.Run(t, new(ArangoDBTestSuite))
 }
 
-func (suite *ArangoDBTestSuite) SetupSuite() {
+func TestNonSystemArangoDBTestSuite(t *testing.T) {
+	tsuite.Run(t, new(NonSystemArangoDBTestSuite))
+}
+
+func TestPasswordlessArangoDBTestSuite(t *testing.T) {
+	tsuite.Run(t, new(PasswordlessArangoDBTestSuite))
+}
+
+func (suite *BaseArangoDBTestSuite) SetupSuite() {
 	suite.ctx = context.Background()
 	ctr, err := th.NewArangoDBContainer(suite.ctx, &core.ConnectionParams{
 		ID:   "test-arangodb",
 		Name: "test-arangodb",
+	}, &th.ArangoDBContainerParams{
+		Passwordless: false,
+		DatabaseName: "_system",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	suite.ctr = ctr
+	suite.d = ctr.Driver
+}
+
+func (suite *NonSystemArangoDBTestSuite) SetupSuite() {
+	suite.ctx = context.Background()
+	ctr, err := th.NewArangoDBContainer(suite.ctx, &core.ConnectionParams{
+		ID:   "test-arangodb",
+		Name: "test-arangodb",
+	}, &th.ArangoDBContainerParams{
+		Passwordless: false,
+		DatabaseName: "non-system",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	suite.ctr = ctr
+	suite.d = ctr.Driver
+}
+
+func (suite *PasswordlessArangoDBTestSuite) SetupSuite() {
+	suite.ctx = context.Background()
+	ctr, err := th.NewArangoDBContainer(suite.ctx, &core.ConnectionParams{
+		ID:   "test-arangodb",
+		Name: "test-arangodb",
+	}, &th.ArangoDBContainerParams{
+		Passwordless: true,
+		DatabaseName: "_system",
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -166,4 +223,3 @@ func (suite *ArangoDBTestSuite) TestShouldReturnColumns() {
 	assert.NoError(t, err)
 	assert.Equal(t, want, got)
 }
-
