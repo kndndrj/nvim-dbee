@@ -58,15 +58,6 @@ func (a *arangoDriver) Close() {
 }
 
 func (a *arangoDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
-	if a == nil || a.c == nil {
-		return nil, errors.New("arangoDriver is not initialized")
-	}
-	if a.dbName == "" {
-		return nil, errors.New("database not selected")
-	}
-
-	log.Printf("Fetching columns for table: %s", opts.Table)
-
 	db, err := a.c.GetDatabase(context.Background(), a.dbName, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database: %w", err)
@@ -82,22 +73,24 @@ func (a *arangoDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) 
 		sort attribute
 		RETURN {attribute}`
 
-	bindVars := map[string]interface{}{"@col": opts.Table}
+	bindVars := map[string]any{"@col": opts.Table}
 	cursor, err := db.Query(context.Background(), aql, &arangodb.QueryOptions{BindVars: bindVars})
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
 	defer cursor.Close()
 
-	columns := []*core.Column{}
-	var doc map[string]any
+	columns := make([]*core.Column, 0)
+	doc := make(map[string]any)
 
 	for cursor.HasMore() {
-		_, err := cursor.ReadDocument(context.Background(), &doc)
-		if err != nil {
+		if _, err := cursor.ReadDocument(context.Background(), &doc); err != nil {
 			return nil, fmt.Errorf("failed to read document: %w", err)
 		}
-		column := fmt.Sprintf("%s", doc["attribute"])
+		column, ok := doc["attribute"].(string)
+		if !ok {
+			column = ""
+		}
 		columns = append(columns, &core.Column{Type: "collection", Name: column})
 	}
 
@@ -105,14 +98,6 @@ func (a *arangoDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) 
 }
 
 func (a *arangoDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
-	if a == nil || a.c == nil {
-		return nil, errors.New("arangoDriver is not initialized")
-	}
-	if a.dbName == "" {
-		return nil, errors.New("database not selected")
-	}
-
-	log.Printf("Executing query: %s", query)
 	db, err := a.c.GetDatabase(ctx, a.dbName, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get database: %w", err)
@@ -123,21 +108,12 @@ func (a *arangoDriver) Query(ctx context.Context, query string) (core.ResultStre
 		return nil, fmt.Errorf("query execution failed: %w", err)
 	}
 	defer cursor.Close()
-	next, hasNext := builders.NextNil()
 
-	next, hasNext = builders.NextYield(func(yield func(...any)) error {
-		if !cursor.HasMore() {
-			next, hasNext = builders.NextNil()
-		}
+	next, hasNext := builders.NextYield(func(yield func(...any)) error {
+		for cursor.HasMore() {
+			var doc any
 
-		for {
-			if !cursor.HasMore() {
-				break
-			}
-			var doc interface{}
-
-			_, err = cursor.ReadDocument(ctx, &doc)
-			if err != nil {
+			if _, err := cursor.ReadDocument(ctx, &doc); err != nil {
 				return err
 			}
 
@@ -211,23 +187,16 @@ func (ar *arangoResponse) MarshalJSON() ([]byte, error) {
 }
 
 func (ar *arangoResponse) GobEncode() ([]byte, error) {
-	var err error
 	w := new(bytes.Buffer)
 	encoder := gob.NewEncoder(w)
-	err = encoder.Encode(ar.Value)
-	if err != nil {
+	if err := encoder.Encode(ar.Value); err != nil {
 		return nil, err
 	}
-	return w.Bytes(), err
+	return w.Bytes(), nil
 }
 
 func (ar *arangoResponse) GobDecode(buf []byte) error {
-	var err error
 	r := bytes.NewBuffer(buf)
 	decoder := gob.NewDecoder(r)
-	err = decoder.Decode(&ar.Value)
-	if err != nil {
-		return err
-	}
-	return err
+	return decoder.Decode(&ar.Value)
 }
