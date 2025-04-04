@@ -19,7 +19,7 @@ local api_ui = require("dbee.api.ui")
 ---exclusive to dbee. When closing windows, make sure to not reuse any windows dbee left over.
 ---@class Layout
 ---@field is_open fun(self: Layout):boolean function that returns the state of ui.
----@field open fun(self: Layout) function to open ui.
+---@field open fun(self: Layout, opts: { reset: boolean}) function to open ui.
 ---@field close fun(self: Layout) function to close ui.
 
 local layouts = {}
@@ -34,7 +34,7 @@ local layouts = {}
 ---@field private result_height integer
 ---@field private call_log_height integer
 ---@field private egg? layout_egg
----@field private windows integer[]
+---@field private windows table<string, integer>
 ---@field private on_switch "immutable"|"close"
 ---@field private is_opened boolean
 layouts.Default = {}
@@ -127,7 +127,27 @@ function layouts.Default:is_open()
 end
 
 ---@package
-function layouts.Default:open()
+---@param name string
+---@param win integer
+function layouts.Default:reset_window_size(name, win)
+  if name == "result" then
+    vim.api.nvim_win_set_height(win, self.result_height)
+  elseif name == "drawer" then
+    vim.api.nvim_win_set_width(win, self.drawer_width)
+  elseif name == "call_log" then
+    vim.api.nvim_win_set_height(win, self.call_log_height)
+  end
+end
+
+---@package
+---@param opts { reset : boolean }
+function layouts.Default:open(opts)
+  if opts.reset then
+    for win in pairs(self.windows) do
+      self:reset_window_size(win, self.windows[win])
+    end
+    return
+  end
   -- save layout before opening ui
   self.egg = tools.save()
 
@@ -136,7 +156,7 @@ function layouts.Default:open()
   -- editor
   tools.make_only(0)
   local editor_win = vim.api.nvim_get_current_win()
-  table.insert(self.windows, editor_win)
+  self.windows["editor"] = editor_win
   api_ui.editor_show(editor_win)
   self:configure_window_on_switch(self.on_switch, editor_win, api_ui.editor_show, true)
   self:configure_window_on_quit(editor_win)
@@ -144,7 +164,7 @@ function layouts.Default:open()
   -- result
   vim.cmd("bo" .. self.result_height .. "split")
   local win = vim.api.nvim_get_current_win()
-  table.insert(self.windows, win)
+  self.windows["result"] = win
   api_ui.result_show(win)
   self:configure_window_on_switch(self.on_switch, win, api_ui.result_show)
   self:configure_window_on_quit(win)
@@ -152,7 +172,7 @@ function layouts.Default:open()
   -- drawer
   vim.cmd("to" .. self.drawer_width .. "vsplit")
   win = vim.api.nvim_get_current_win()
-  table.insert(self.windows, win)
+  self.windows["drawer"] = win
   api_ui.drawer_show(win)
   self:configure_window_on_switch(self.on_switch, win, api_ui.drawer_show)
   self:configure_window_on_quit(win)
@@ -160,7 +180,7 @@ function layouts.Default:open()
   -- call log
   vim.cmd("belowright " .. self.call_log_height .. "split")
   win = vim.api.nvim_get_current_win()
-  table.insert(self.windows, win)
+  self.windows["call_log"] = win
   api_ui.call_log_show(win)
   self:configure_window_on_switch(self.on_switch, win, api_ui.call_log_show)
   self:configure_window_on_quit(win)
@@ -174,7 +194,7 @@ end
 ---@package
 function layouts.Default:close()
   -- close all windows
-  for _, win in ipairs(self.windows) do
+  for _, win in pairs(self.windows) do
     pcall(vim.api.nvim_win_close, win, false)
   end
 

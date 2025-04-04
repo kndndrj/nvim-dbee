@@ -38,12 +38,12 @@ function dbee.toggle()
   end
 end
 
----Open dbee UI.
+---Open dbee UI. If already opened, reset window layout
 function dbee.open()
-  if api.current_config().window_layout:is_open() then
-    return
+  if not api.current_config().window_layout:is_open() then
+    return api.current_config().window_layout:open { reset = false }
   end
-  api.current_config().window_layout:open()
+  api.current_config().window_layout:open { reset = true }
 end
 
 ---Close dbee UI.
