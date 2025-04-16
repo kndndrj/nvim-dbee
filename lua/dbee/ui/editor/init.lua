@@ -15,6 +15,7 @@ local welcome = require("dbee.ui.editor.welcome")
 ---@field private notes table<namespace_id, table<note_id, note_details>> namespace: { id: note_details } mapping
 ---@field private current_note_id? note_id
 ---@field private directory string directory where notes are stored
+---@field private open_note_on_start boolean open notes on dbee start
 ---@field private event_callbacks table<editor_event_name, event_listener[]> callbacks for events
 ---@field private window_options table<string, any> a table of window options.
 ---@field private buffer_options table<string, any> a table of buffer options for all notes.
@@ -42,10 +43,10 @@ function EditorUI:new(handler, result, opts)
     notes = {},
     event_callbacks = {},
     directory = opts.directory or vim.fn.stdpath("state") .. "/dbee/notes",
+    open_note_on_start = opts.open_note_on_start,
     mappings = opts.mappings,
     window_options = vim.tbl_extend("force", {}, opts.window_options or {}),
     buffer_options = vim.tbl_extend("force", {
-      buflisted = false,
       swapfile = false,
       filetype = "sql",
     }, opts.buffer_options or {}),
@@ -436,8 +437,10 @@ end
 function EditorUI:show(winid)
   self.winid = winid
 
-  -- open current note
-  self:display_note(self.current_note_id)
+  if self.open_note_on_start then
+    -- open current note
+    self:display_note(self.current_note_id)
+  end
 
   -- configure window options (needs to be set after setting the buffer to window)
   common.configure_window_options(winid, self.window_options)
