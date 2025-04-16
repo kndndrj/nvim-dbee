@@ -138,7 +138,6 @@ function layouts.Default:open()
   local editor_win = vim.api.nvim_get_current_win()
   table.insert(self.windows, editor_win)
   api_ui.editor_show(editor_win)
-  self:configure_window_on_switch(self.on_switch, editor_win, api_ui.editor_show, true)
   self:configure_window_on_quit(editor_win)
 
   -- result
