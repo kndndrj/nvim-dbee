@@ -34,7 +34,7 @@ func NewSQLiteContainer(ctx context.Context, params *core.ConnectionParams, tmpD
 
 	dbName, containerDBPath := "test.db", "/container/db"
 	entrypointCmd := []string{
-		"apk add sqlite=3.48.0-r0",
+		"apk add sqlite=3.48.0-r1",
 		fmt.Sprintf("sqlite3 %s/%s < %s", containerDBPath, dbName, seedFile.Name()),
 		"echo 'ready'",
 		"tail -f /dev/null", // hack to keep the container running indefinitely
