@@ -52,42 +52,16 @@ function EditorUI:new(handler, result, opts)
   setmetatable(o, self)
   self.__index = self
 
-  -- search for existing notes
-  o:search_existing_namespaces()
-
   -- set the current note as first note from global namespace
-  local notes = o:namespace_get_notes("global")
-  if not vim.tbl_isempty(notes) then
-    o.current_note_id = notes[1].id
+  local global_notes = o:namespace_get_notes("global")
+  if not vim.tbl_isempty(global_notes) then
+    o.current_note_id = global_notes[1].id
   else
     -- otherwise create a welcome note in global namespace
     o.current_note_id = o:create_welcome_note()
   end
 
   return o
-end
-
--- Look for existing namespaces and their notes on disk.
----@private
-function EditorUI:search_existing_namespaces()
-  -- search all directories (namespaces) and their notes
-  for _, dir in pairs(vim.split(vim.fn.glob(self.directory .. "/*"), "\n")) do
-    if vim.fn.isdirectory(dir) == 1 then
-      for _, file in pairs(vim.split(vim.fn.glob(dir .. "/*"), "\n")) do
-        if vim.fn.filereadable(file) == 1 then
-          local namespace = vim.fs.basename(dir)
-          local id = file .. utils.random_string()
-
-          self.notes[namespace] = self.notes[namespace] or {}
-          self.notes[namespace][id] = {
-            id = id,
-            name = vim.fs.basename(file),
-            file = file,
-          }
-        end
-      end
-    end
-  end
 end
 
 ---@private
@@ -300,12 +274,35 @@ function EditorUI:namespace_get_notes(id)
     error("invalid namespace id")
   end
 
-  local notes = vim.tbl_values(self.notes[namespace] or {})
+  if not self.notes[namespace] then
+    self.notes[namespace] = self:load_notes_from_disk(namespace)
+  end
+  local notes_list = vim.tbl_values(self.notes[namespace])
 
-  table.sort(notes, function(k1, k2)
+  table.sort(notes_list, function(k1, k2)
     return k1.name < k2.name
   end)
-  return notes
+  return notes_list
+end
+
+-- If no notes were found, return an empty table.
+---@private
+---@param namespace_id namespace_id
+---@return table<note_id, note_details>
+function EditorUI:load_notes_from_disk(namespace_id)
+  local full_dir = self.directory .. "/" .. namespace_id
+  local ret = {}
+  for _, file in pairs(vim.split(vim.fn.glob(full_dir .. "/*"), "\n")) do
+    if vim.fn.filereadable(file) == 1 then
+      local id = file .. utils.random_string()
+      ret[id] = {
+        id = id,
+        name = vim.fs.basename(file),
+        file = file,
+      }
+    end
+  end
+  return ret
 end
 
 -- Removes an existing note.
