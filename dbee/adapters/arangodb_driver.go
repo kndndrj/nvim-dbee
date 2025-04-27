@@ -5,10 +5,10 @@ import (
 	"context"
 	"encoding/gob"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/arangodb/go-driver/v2/arangodb"
+	"github.com/arangodb/go-driver/v2/log"
 
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
@@ -91,11 +91,12 @@ func (a *arangoDriver) Query(ctx context.Context, query string) (core.ResultStre
 		return nil, fmt.Errorf("failed to get database: %w", err)
 	}
 
-	cursor, err := db.Query(ctx, query, nil)
+	cursor, err := db.Query(ctx, query, &arangodb.QueryOptions{
+		BatchSize: 1000,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("query execution failed: %w", err)
 	}
-	defer cursor.Close()
 
 	next, hasNext := builders.NextYield(func(yield func(...any)) error {
 		for cursor.HasMore() {
@@ -107,6 +108,7 @@ func (a *arangoDriver) Query(ctx context.Context, query string) (core.ResultStre
 
 			yield(NewArangoResponse(doc))
 		}
+		cursor.Close()
 
 		return nil
 	})
@@ -120,8 +122,8 @@ func (a *arangoDriver) Query(ctx context.Context, query string) (core.ResultStre
 
 func (a *arangoDriver) Structure() ([]*core.Structure, error) {
 	ctx := context.Background()
-	databases := []arangodb.Database{}
-	err := errors.New("database not selected")
+	var databases []arangodb.Database
+	var err error
 	if a.dbName == "_system" { // if the database is _system, we'll walk all databases
 		databases, err = a.c.Databases(ctx)
 		if err != nil {
