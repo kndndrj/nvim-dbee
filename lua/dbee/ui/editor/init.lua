@@ -47,6 +47,7 @@ function EditorUI:new(handler, result, opts)
     buffer_options = vim.tbl_extend("force", {
       buflisted = false,
       swapfile = false,
+      filetype = "sql",
     }, opts.buffer_options or {}),
   }
   setmetatable(o, self)
