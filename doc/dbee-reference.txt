@@ -27,7 +27,7 @@ dbee.toggle()                                                      *dbee.toggle*
 
 
 dbee.open()                                                          *dbee.open*
-    Open dbee UI.
+    Open dbee UI. If already opened, reset window layout.
 
 
 dbee.close()                                                        *dbee.close*
@@ -415,6 +415,7 @@ Layout                                                                  *Layout*
     Fields: ~
         {is_open}  (fun(self:Layout):boolean)  function that returns the state of ui.
         {open}     (fun(self:Layout))          function to open ui.
+        {reset}    (fun(self:Layout))          function to reset ui.
         {close}    (fun(self:Layout))          function to close ui.
 
 
