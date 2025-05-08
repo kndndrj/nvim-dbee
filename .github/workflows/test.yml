@@ -66,4 +66,4 @@ jobs:
           check-latest: true
           cache-dependency-path: ./dbee/go.sum
       - name: Run Integration Tests
-        run: go test ./tests/integration/${{ matrix.adapter }}_integration_test.go -v
+        run: sudo go test ./tests/integration/${{ matrix.adapter }}_integration_test.go -v
