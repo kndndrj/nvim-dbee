@@ -13,18 +13,32 @@ func mountEndpoints(p *plugin.Plugin, h *handler.Handler) {
 		"DbeeCreateConnection",
 		func(args *struct {
 			Opts *struct {
-				ID   string `msgpack:"id"`
-				URL  string `msgpack:"url"`
-				Type string `msgpack:"type"`
-				Name string `msgpack:"name"`
+				ID   string          `msgpack:"id"`
+				URL  string          `msgpack:"url"`
+				Type string          `msgpack:"type"`
+				Name string          `msgpack:"name"`
+				SSH  *core.SSHConfig `msgpack:"ssh"`
 			} `msgpack:",array"`
 		},
 		) (core.ConnectionID, error) {
+			var sshConfig *core.SSHConfig
+			if args.Opts.SSH != nil {
+				sshConfig = &core.SSHConfig{
+					Host:       args.Opts.SSH.Host,
+					User:       args.Opts.SSH.User,
+					Password:   args.Opts.SSH.Password,
+					SSHFile:    args.Opts.SSH.SSHFile,
+					LocalPort:  args.Opts.SSH.LocalPort,
+					RemotePort: args.Opts.SSH.RemotePort,
+					Options:    args.Opts.SSH.Options,
+				}
+			}
 			return h.CreateConnection(&core.ConnectionParams{
 				ID:   core.ConnectionID(args.Opts.ID),
 				Name: args.Opts.Name,
 				Type: args.Opts.Type,
 				URL:  args.Opts.URL,
+				SSH:  sshConfig,
 			})
 		})
 
@@ -43,7 +57,8 @@ func mountEndpoints(p *plugin.Plugin, h *handler.Handler) {
 			IDs []core.ConnectionID `msgpack:",array"`
 		},
 		) (any, error) {
-			return handler.WrapConnections(h.GetConnections(args.IDs)), nil
+			connections := h.GetConnections(args.IDs)
+			return handler.WrapConnections(connections), nil
 		})
 
 	p.RegisterEndpoint(

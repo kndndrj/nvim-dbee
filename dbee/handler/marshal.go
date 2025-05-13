@@ -84,15 +84,17 @@ func (cw *connectionWrap) MarshalMsgPack(enc *msgpack.Encoder) error {
 		return enc.Encode(nil)
 	}
 	return enc.Encode(&struct {
-		ID   string `msgpack:"id"`
-		Name string `msgpack:"name"`
-		Type string `msgpack:"type"`
-		URL  string `msgpack:"url"`
+		ID   string          `msgpack:"id"`
+		Name string          `msgpack:"name"`
+		Type string          `msgpack:"type"`
+		URL  string          `msgpack:"url"`
+		SSH  *core.SSHConfig `msgpack:"ssh,omitempty"`
 	}{
 		ID:   string(cw.connection.GetID()),
 		Name: cw.connection.GetName(),
 		Type: cw.connection.GetType(),
 		URL:  cw.connection.GetURL(),
+		SSH:  cw.connection.GetParams().SSH,
 	})
 }
 
@@ -112,15 +114,17 @@ func (cw *connectionParamsWrap) MarshalMsgPack(enc *msgpack.Encoder) error {
 		return enc.Encode(nil)
 	}
 	return enc.Encode(&struct {
-		ID   string `msgpack:"id"`
-		Name string `msgpack:"name"`
-		Type string `msgpack:"type"`
-		URL  string `msgpack:"url"`
+		ID   string          `msgpack:"id"`
+		Name string          `msgpack:"name"`
+		Type string          `msgpack:"type"`
+		URL  string          `msgpack:"url"`
+		SSH  *core.SSHConfig `msgpack:"ssh,omitempty"`
 	}{
 		ID:   string(cw.params.ID),
 		Name: cw.params.Name,
 		Type: cw.params.Type,
 		URL:  cw.params.URL,
+		SSH:  cw.params.SSH,
 	})
 }
 
