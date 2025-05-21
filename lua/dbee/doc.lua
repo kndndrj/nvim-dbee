@@ -3,6 +3,16 @@
 ---Overview of types used in DBee API.
 ---@brief ]]
 
+---SSH tunnel configuration.
+---@class SSHConfig
+---@field host string SSH host
+---@field user string SSH user
+---@field password? string Optional SSH password
+---@field ssh_file? string Optional SSH file
+---@field local_port integer Local port for the tunnel
+---@field remote_port integer Remote port for the tunnel
+---@field options? string[] Optional SSH options
+
 ---@divider -
 ---@tag dbee.ref.types.table
 ---@brief [[
@@ -72,6 +82,7 @@
 ---@field name string
 ---@field type string
 ---@field url string
+---@field ssh SSHConfig? SSH tunnel configuration (optional)
 
 ---@divider -
 ---@tag dbee.ref.types.structure

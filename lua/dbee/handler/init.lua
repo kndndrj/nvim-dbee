@@ -1,5 +1,25 @@
 local event_bus = require("dbee.handler.__events")
 local utils = require("dbee.utils")
+local ssh_tunnel = require("dbee.ssh.tunnel")
+
+-- Stores active SSH tunnels by connection_id
+local active_tunnels = {}
+
+-- Closes all SSH tunnels
+local function close_all_ssh_tunnels()
+  for conn_id, handle in pairs(active_tunnels) do
+    utils.log("info", "Closing SSH tunnel for connection: " .. conn_id, "ssh")
+    ssh_tunnel.stop_tunnel(handle)
+  end
+  active_tunnels = {}
+end
+
+-- Register a function to close all SSH tunnels when Neovim exits
+vim.api.nvim_create_autocmd("VimLeavePre", {
+  callback = function()
+    close_all_ssh_tunnels()
+  end,
+})
 
 -- Handler is an aggregator of connections
 ---@class Handler
@@ -58,6 +78,76 @@ end
 
 ---Closes old connections of that source
 ---and loads new ones.
+-- Setup SSH tunnel for a connection
+---@class ConnectionParams
+---@field use_tunnel_in_connection boolean? Whether to use the SSH tunnel in the connection
+---@param spec ConnectionParams Connection specification
+---@return boolean success
+---@return string? error_message
+---@return table? handle Tunnel handle if successful
+local function setup_ssh_tunnel(spec)
+  if not spec.ssh then
+    return true, nil, nil
+  end
+
+  local ssh_config = spec.ssh
+
+  -- Ensure required SSH fields are present
+  if not ssh_config or not ssh_config.host or not ssh_config.user then
+    return false, "SSH configuration requires host and user", nil
+  end
+
+  -- Ensure SSH port is provided
+  if not ssh_config.local_port or not ssh_config.remote_port then
+    return false, "SSH configuration requires both local_port and remote_port to be specified", nil
+  end
+
+  -- Start the SSH tunnel
+  local handle, err = ssh_tunnel.start_tunnel(ssh_config)
+  if not handle then
+    return false, error_message, nil
+  end
+  active_tunnels[spec.id] = handle
+
+  -- If we need to modify the connection spec to use the local tunnel port
+  -- For example, changing the host to localhost and port to the local_port
+  if ssh_config and ssh_config.use_tunnel_in_connection then
+    -- Save original host and port
+    if spec then
+      spec._original_host = spec.host
+      spec._original_port = spec.port
+    end
+
+    -- Modify connection to use tunnel
+    if spec then
+      spec.host = "127.0.0.1"
+      spec.port = ssh_config.local_port
+    end
+
+    -- Adjust URL if it exists
+    if spec.url then
+      -- Patterns to replace host and port in various URL formats
+      -- This is a simple approach and might need adjustments for complex URLs
+      spec.url = spec.url:gsub("([^@]+@)[^:/]+", "%1127.0.0.1") -- Replace host
+      spec.url = spec.url:gsub(":(%d+)", ":" .. ssh_config.local_port) -- Replace port
+    end
+  end
+
+  return true, nil, handle
+end
+
+-- Close SSH tunnel
+---@param conn_id connection_id
+---@param handle table SSH tunnel handle
+local function close_ssh_tunnel(conn_id, handle)
+  if not handle then
+    return
+  end
+
+  ssh_tunnel.stop_tunnel(handle)
+  active_tunnels[conn_id] = nil
+end
+
 ---@param id source_id
 function Handler:source_reload(id)
   local source = self.sources[id]
@@ -65,8 +155,12 @@ function Handler:source_reload(id)
     error("no source with id: " .. id)
   end
 
-  -- close old connections
+  -- close old connections and their SSH tunnels
   for _, c in ipairs(self:source_get_connections(id)) do
+    -- Close SSH tunnel if it exists
+    if active_tunnels[c.id] then
+      close_ssh_tunnel(c.id, active_tunnels[c.id])
+    end
     pcall(vim.fn.DbeeDeleteConnection, c.id)
   end
 
@@ -214,12 +308,34 @@ end
 ---@param query string
 ---@return CallDetails
 function Handler:connection_execute(id, query)
+  -- Check and initialize SSH tunnel if needed
+  local conn_params = self:connection_get_params(id)
+  if conn_params and conn_params.ssh and not active_tunnels[id] then
+    local success, err, tunnel_handle = setup_ssh_tunnel(conn_params)
+    if not success then
+      error("SSH tunnel setup failed for connection " .. id .. ": " .. err)
+    elseif tunnel_handle then
+      active_tunnels[id] = tunnel_handle
+    end
+  end
+
   return vim.fn.DbeeConnectionExecute(id, query)
 end
 
 ---@param id connection_id
 ---@return DBStructure[]
 function Handler:connection_get_structure(id)
+  -- Check and initialize SSH tunnel if needed
+  local conn_params = self:connection_get_params(id)
+  if conn_params and conn_params.ssh and not active_tunnels[id] then
+    local success, err, tunnel_handle = setup_ssh_tunnel(conn_params)
+    if not success then
+      error("SSH tunnel setup failed for connection " .. id .. ": " .. err)
+    elseif tunnel_handle then
+      active_tunnels[id] = tunnel_handle
+    end
+  end
+
   local ret = vim.fn.DbeeConnectionGetStructure(id)
   if not ret or ret == vim.NIL then
     return {}
@@ -243,6 +359,7 @@ end
 ---@return ConnectionParams?
 function Handler:connection_get_params(id)
   local ret = vim.fn.DbeeConnectionGetParams(id)
+  -- Debugging: Log connection parameters to check for SSH settings
   if not ret or ret == vim.NIL then
     return
   end
@@ -313,6 +430,20 @@ function Handler:call_store_result(id, format, output, opts)
     to = to,
     extra_arg = opts.extra_arg,
   })
+end
+
+-- Reset all state: close connections and SSH tunnels
+function Handler:reset_state()
+  -- Close all SSH tunnels
+  close_all_ssh_tunnels()
+
+  -- Go through all sources and close all connections
+  for source_id, _ in pairs(self.sources) do
+    for _, c in ipairs(self:source_get_connections(source_id)) do
+      pcall(vim.fn.DbeeDeleteConnection, c.id)
+    end
+    self.source_conn_lookup[source_id] = {}
+  end
 end
 
 return Handler

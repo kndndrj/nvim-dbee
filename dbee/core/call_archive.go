@@ -9,12 +9,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/sync/errgroup"
 )
 
 func init() {
 	// gob doesn't know how to encode/decode time otherwise
 	gob.Register(time.Time{})
+	gob.Register(primitive.DateTime(0))
 }
 
 const archiveBasePath = "/tmp/dbee-history/"
