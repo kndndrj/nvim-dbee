@@ -5,6 +5,23 @@ vim.g.loaded_dbee = 1
 
 local COMMAND_NAME = "Dbee"
 
+local commands = {
+  open = require("dbee").open,
+  close = require("dbee").close,
+  toggle = require("dbee").toggle,
+  execute = function(args)
+    require("dbee").execute(table.concat(args, " "))
+  end,
+  store = function(args)
+    -- args are "format", "output" and "extra_arg"
+    if #args < 3 then
+      error("not enough arguments, got " .. #args .. " want 3")
+    end
+
+    require("dbee").store(args[1], args[2], { extra_arg = args[3] })
+  end,
+}
+
 ---@param args string args in form of Dbee arg1 arg2 ...
 ---@return string[]
 local function split_args(args)
@@ -30,23 +47,6 @@ end
 
 -- Create user command for dbee
 vim.api.nvim_create_user_command(COMMAND_NAME, function(opts)
-  local commands = {
-    open = require("dbee").open,
-    close = require("dbee").close,
-    toggle = require("dbee").toggle,
-    execute = function(args)
-      require("dbee").execute(table.concat(args, " "))
-    end,
-    store = function(args)
-      -- args are "format", "output" and "extra_arg"
-      if #args < 3 then
-        error("not enough arguments, got " .. #args .. " want 3")
-      end
-
-      require("dbee").store(args[1], args[2], { extra_arg = args[3] })
-    end,
-  }
-
   local args = split_args(opts.args)
   if #args < 1 then
     -- default is toggle
