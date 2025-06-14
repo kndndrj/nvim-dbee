@@ -1,3 +1,4 @@
+local utils = require("dbee.utils")
 local install = require("dbee.install")
 local api = require("dbee.api")
 local config = require("dbee.config")
@@ -74,6 +75,18 @@ function dbee.execute(query)
   api.ui.result_set_call(call)
 
   dbee.open()
+end
+
+---Execute visual selection query on current connection.
+---Convenience wrapper around some api functions that executes a query on
+---current connection and pipes the output to result UI.
+function dbee.run_selection()
+  local srow, scol, erow, ecol = utils.visual_selection()
+
+  local selection = vim.api.nvim_buf_get_text(0, srow, scol, erow, ecol, {})
+  local query = table.concat(selection, "\n")
+
+  dbee.execute(query)
 end
 
 ---Store currently displayed result.
