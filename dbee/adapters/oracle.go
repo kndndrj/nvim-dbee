@@ -123,5 +123,23 @@ func (*Oracle) GetHelpers(opts *core.TableOptions) map[string]string {
 			opts.Schema,
 			opts.Table,
 		),
+		"Declaration": fmt.Sprintf(`
+			SELECT DBMS_METADATA.GET_DDL('%s', '%s', '%s') as declaration FROM DUAL`,
+
+			func(materialization core.StructureType) string {
+				switch materialization {
+				case core.StructureTypeTable:
+					return "TABLE"
+				case core.StructureTypeView:
+					return "VIEW"
+				case core.StructureTypeMaterializedView:
+					return "MATERIALIZED_VIEW"
+				default:
+					return "UNKNOWN"
+				}
+			}(opts.Materialization),
+			opts.Table,
+			opts.Schema,
+		),
 	}
 }
