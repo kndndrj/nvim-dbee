@@ -294,6 +294,28 @@ function EditorUI:namespace_create_note(id, name)
   return note_id
 end
 
+-- Creates a new note in namespace.
+-- Errors if id or name is nil or there is a note with the same
+-- name in namespace already.
+---@param file string
+---@return note_id
+function EditorUI:open_file_as_note(file)
+  ---@type note_details
+  local s = {
+    id = file,
+    name = file,
+    file = file,
+  }
+
+  -- a bit shitty
+  self.notes["global"] = self.notes["global"] or {}
+  self.notes["global"][file] = s
+
+  self:trigger_event("note_created", { note = s })
+
+  return file
+end
+
 ---@param id namespace_id
 ---@return note_details[]
 function EditorUI:namespace_get_notes(id)
