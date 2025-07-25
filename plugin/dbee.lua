@@ -9,6 +9,7 @@ local commands = {
   open = require("dbee").open,
   close = require("dbee").close,
   toggle = require("dbee").toggle,
+  sidebarToggle = require("dbee").sidebar_toggle,
   execute = function(args)
     require("dbee").execute(table.concat(args, " "))
   end,

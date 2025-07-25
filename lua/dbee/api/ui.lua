@@ -161,6 +161,11 @@ function ui.drawer_show(winid)
   state.drawer():show(winid)
 end
 
+--- Toggle the sidebar UI (drawer and call_log).
+function ui.sidebar_toggle()
+  state.config().window_layout:sidebar_toggle()
+end
+
 --- Trigger an action in drawer.
 ---@param action string
 function ui.drawer_do_action(action)

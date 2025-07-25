@@ -54,6 +54,13 @@ function dbee.close()
   api.current_config().window_layout:close()
 end
 
+--Toggle dbee sidebar (drawer and call_log windows).
+function dbee.sidebar_toggle()
+  if api.current_config().window_layout:is_open() then
+    api.current_config().window_layout:sidebar_toggle()
+  end
+end
+
 ---Check if dbee UI is open or not.
 ---@return boolean
 function dbee.is_open()
