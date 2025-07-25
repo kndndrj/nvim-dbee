@@ -25,7 +25,7 @@ local config = {}
 ---@divider -
 
 ---Configuration for result UI tile.
----@alias result_config { focus_result: boolean, mappings: key_mapping[], page_size: integer, progress: progress_config, window_options: table<string, any>, buffer_options: table<string, any> }
+---@alias result_config { focus_result: boolean, mappings: key_mapping[], page_size: integer, lock_header: boolean, progress: progress_config, window_options: table<string, any>, buffer_options: table<string, any> }
 
 ---Configuration for editor UI tile.
 ---@alias editor_config { directory: string, mappings: key_mapping[], window_options: table<string, any>, buffer_options: table<string, any> }
@@ -225,6 +225,9 @@ config.default = {
 
     -- whether to focus the result window after a query
     focus_result = true,
+
+    -- whether to lock header row of table when scrolling vertically
+    lock_header = false,
 
     -- progress (loading) screen options
     progress = {
