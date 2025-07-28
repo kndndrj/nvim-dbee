@@ -263,6 +263,9 @@ config.default = {
     -- directory where to store the scratchpads.
     --directory = "path/to/scratchpad/dir",
 
+    -- open notes on Dbee start
+    open_note_on_start = true,
+
     -- mappings for the buffer
     mappings = {
       -- run what's currently selected on the active connection
