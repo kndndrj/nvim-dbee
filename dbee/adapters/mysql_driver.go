@@ -2,20 +2,65 @@ package adapters
 
 import (
 	"context"
+	"database/sql"
+	"fmt"
 
+	"github.com/go-sql-driver/mysql"
 	"github.com/kndndrj/nvim-dbee/dbee/core"
 	"github.com/kndndrj/nvim-dbee/dbee/core/builders"
 )
 
-var _ core.Driver = (*mySQLDriver)(nil)
+var (
+	_ core.Driver           = (*mySQLDriver)(nil)
+	_ core.DatabaseSwitcher = (*mySQLDriver)(nil)
+)
 
 type mySQLDriver struct {
-	c *builders.Client
+	c   *builders.Client
+	cfg *mysql.Config
 }
 
 func (c *mySQLDriver) Query(ctx context.Context, query string) (core.ResultStream, error) {
 	// run query, fallback to affected rows
 	return c.c.QueryUntilNotEmpty(ctx, query, "select ROW_COUNT() as 'Rows Affected'")
+}
+
+func (c *mySQLDriver) ListDatabases() (current string, available []string, err error) {
+	query := `
+		SELECT IFNULL(DATABASE(), 'mysql') as current_database, SCHEMA_NAME as available_databases
+    FROM information_schema.SCHEMATA
+    WHERE SCHEMA_NAME <> IFNULL(DATABASE(), '');
+	`
+
+	rows, err := c.Query(context.TODO(), query)
+	if err != nil {
+		return "", nil, err
+	}
+
+	for rows.HasNext() {
+		row, err := rows.Next()
+		if err != nil {
+			return "", nil, err
+		}
+
+		// We know for a fact there are 2 string fields (see query above)
+		current = row[0].(string)
+		available = append(available, row[1].(string))
+	}
+
+	return current, available, nil
+}
+
+func (c *mySQLDriver) SelectDatabase(name string) error {
+	c.cfg.DBName = name
+	db, err := sql.Open("mysql", c.cfg.FormatDSN())
+	if err != nil {
+		return fmt.Errorf("unable to switch databases: %w", err)
+	}
+
+	c.c.Swap(db)
+
+	return nil
 }
 
 func (c *mySQLDriver) Columns(opts *core.TableOptions) ([]*core.Column, error) {
