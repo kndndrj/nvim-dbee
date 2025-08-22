@@ -101,7 +101,9 @@ function sources.FileSource:create(conn)
   -- read from file
   local existing = self:load()
 
-  conn.id = "file_source_/" .. utils.random_string()
+  if conn.id == nil or conn.id == "" then
+    conn.id = "file_source_/" .. utils.random_string()
+  end
   table.insert(existing, conn)
 
   -- write back to file
