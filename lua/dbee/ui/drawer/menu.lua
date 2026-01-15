@@ -1,5 +1,6 @@
 local NuiMenu = require("nui.menu")
 local NuiInput = require("nui.input")
+local event = require("nui.utils.autocmd").event
 
 local M = {}
 
@@ -15,7 +16,9 @@ function M.select(opts)
   end
 
   local width = vim.api.nvim_win_get_width(opts.relative_winid)
-  local row, _ = unpack(vim.api.nvim_win_get_cursor(opts.relative_winid))
+  local cursor_row, _ = unpack(vim.api.nvim_win_get_cursor(opts.relative_winid))
+  local first_visible_row = vim.fn.line("w0", opts.relative_winid)
+  local row = cursor_row - first_visible_row + 1
 
   local popup_options = {
     relative = {
@@ -83,6 +86,10 @@ function M.select(opts)
   end
 
   menu:mount()
+
+  menu:on(event.BufLeave, function()
+    menu:unmount()
+  end)
 end
 
 -- Ask for input.
@@ -93,7 +100,9 @@ function M.input(opts)
   end
 
   local width = vim.api.nvim_win_get_width(opts.relative_winid)
-  local row, _ = unpack(vim.api.nvim_win_get_cursor(opts.relative_winid))
+  local cursor_row, _ = unpack(vim.api.nvim_win_get_cursor(opts.relative_winid))
+  local first_visible_row = vim.fn.line("w0", opts.relative_winid)
+  local row = cursor_row - first_visible_row + 1
 
   local popup_options = {
     relative = {
@@ -146,6 +155,10 @@ function M.input(opts)
   end
 
   input:mount()
+
+  input:on(event.BufLeave, function()
+    input:unmount()
+  end)
 end
 
 return M
