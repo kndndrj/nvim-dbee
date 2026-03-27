@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"bufio"
 	"bytes"
 
 	"github.com/neovim/go-client/nvim"
@@ -20,10 +19,9 @@ type Buffer struct {
 }
 
 func (b *Buffer) Write(p []byte) (int, error) {
-	scanner := bufio.NewScanner(bytes.NewReader(p))
-	var lines [][]byte
-	for scanner.Scan() {
-		lines = append(lines, []byte(scanner.Text()))
+	lines := bytes.Split(bytes.TrimRight(p, "\r\n"), []byte("\n"))
+	for i, line := range lines {
+		lines[i] = bytes.TrimRight(line, "\r")
 	}
 
 	const modifiableOptionName = "modifiable"
