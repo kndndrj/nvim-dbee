@@ -181,9 +181,10 @@ end
 ---@param bufnr integer
 ---@param from integer
 ---@param to integer
+---@param max_column_width? integer maximum character width of a column; 0 disables clipping
 ---@return integer total number of rows
-function core.call_display_result(id, bufnr, from, to)
-  return state.handler():call_display_result(id, bufnr, from, to)
+function core.call_display_result(id, bufnr, from, to, max_column_width)
+  return state.handler():call_display_result(id, bufnr, from, to, max_column_width)
 end
 
 ---Store the result of a call.

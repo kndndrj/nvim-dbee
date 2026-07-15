@@ -9,6 +9,7 @@ local common = require("dbee.ui.common")
 ---@field private bufnr integer
 ---@field private current_call? CallDetails
 ---@field private page_size integer
+---@field private max_column_width integer
 ---@field private focus_result boolean
 ---@field private mappings key_mapping[]
 ---@field private page_index integer index of the current page
@@ -33,6 +34,7 @@ function ResultUI:new(handler, opts)
   local o = {
     handler = handler,
     page_size = opts.page_size or 100,
+    max_column_width = opts.max_column_width or 0,
     page_index = 0,
     page_ammount = 0,
     focus_result = opts.focus_result,
@@ -196,7 +198,7 @@ function ResultUI:display_result(page)
   local to = self.page_size * (page + 1)
 
   -- call go function
-  local length = self.handler:call_display_result(self.current_call.id, self.bufnr, from, to)
+  local length = self.handler:call_display_result(self.current_call.id, self.bufnr, from, to, self.max_column_width)
 
   -- adjust page ammount
   self.page_ammount = math.floor(length / self.page_size)
