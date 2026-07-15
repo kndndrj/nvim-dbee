@@ -25,7 +25,7 @@ local config = {}
 ---@divider -
 
 ---Configuration for result UI tile.
----@alias result_config { focus_result: boolean, mappings: key_mapping[], page_size: integer, progress: progress_config, window_options: table<string, any>, buffer_options: table<string, any> }
+---@alias result_config { focus_result: boolean, mappings: key_mapping[], page_size: integer, max_column_width: integer, progress: progress_config, window_options: table<string, any>, buffer_options: table<string, any> }
 
 ---Configuration for editor UI tile.
 ---@alias editor_config { directory: string, mappings: key_mapping[], window_options: table<string, any>, buffer_options: table<string, any> }
@@ -223,6 +223,9 @@ config.default = {
     -- number of rows in the results set to display per page
     page_size = 100,
 
+    -- maximum character width of a single column; 0 (default) renders cells in full
+    max_column_width = 0,
+
     -- whether to focus the result window after a query
     focus_result = true,
 
@@ -354,6 +357,7 @@ function config.validate(cfg)
     drawer_candies = { cfg.drawer.candies, "table" },
     drawer_mappings = { cfg.drawer.mappings, "table" },
     result_page_size = { cfg.result.page_size, "number" },
+    result_max_column_width = { cfg.result.max_column_width, "number" },
     result_progress = { cfg.result.progress, "table" },
     result_mappings = { cfg.result.mappings, "table" },
     editor_mappings = { cfg.editor.mappings, "table" },

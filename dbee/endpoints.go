@@ -185,13 +185,14 @@ func mountEndpoints(p *plugin.Plugin, h *handler.Handler) {
 		func(args *struct {
 			ID   core.CallID `msgpack:",array"`
 			Opts *struct {
-				Buffer int `msgpack:"buffer"`
-				From   int `msgpack:"from"`
-				To     int `msgpack:"to"`
+				Buffer         int `msgpack:"buffer"`
+				From           int `msgpack:"from"`
+				To             int `msgpack:"to"`
+				MaxColumnWidth int `msgpack:"max_column_width"`
 			}
 		},
 		) (any, error) {
-			return h.CallDisplayResult(args.ID, nvim.Buffer(args.Opts.Buffer), args.Opts.From, args.Opts.To)
+			return h.CallDisplayResult(args.ID, nvim.Buffer(args.Opts.Buffer), args.Opts.From, args.Opts.To, args.Opts.MaxColumnWidth)
 		})
 
 	p.RegisterEndpoint(

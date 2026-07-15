@@ -286,9 +286,11 @@ end
 ---@param bufnr integer
 ---@param from integer
 ---@param to integer
+---@param max_column_width? integer maximum character width of a column; 0 disables clipping
 ---@return integer # total number of rows
-function Handler:call_display_result(id, bufnr, from, to)
-  local length = vim.fn.DbeeCallDisplayResult(id, { buffer = bufnr, from = from, to = to })
+function Handler:call_display_result(id, bufnr, from, to, max_column_width)
+  local length =
+    vim.fn.DbeeCallDisplayResult(id, { buffer = bufnr, from = from, to = to, max_column_width = max_column_width or 0 })
   if not length or length == vim.NIL then
     return 0
   end

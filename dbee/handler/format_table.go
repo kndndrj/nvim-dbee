@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strings"
+
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 
@@ -9,10 +11,16 @@ import (
 
 var _ core.Formatter = (*Table)(nil)
 
-type Table struct{}
+type Table struct {
+	maxColumnWidth int
+}
 
-func newTable() *Table {
-	return &Table{}
+func newTable(maxColumnWidth int) *Table {
+	return &Table{maxColumnWidth: maxColumnWidth}
+}
+
+func clipCell(col string, maxLen int) string {
+	return text.Trim(strings.Join(strings.Fields(col), " "), maxLen)
 }
 
 func (tf *Table) Format(header core.Header, rows []core.Row, opts *core.FormatterOptions) ([]byte, error) {
@@ -41,6 +49,19 @@ func (tf *Table) Format(header core.Header, rows []core.Row, opts *core.Formatte
 	}
 	t.Style().Options.DrawBorder = false
 	t.SuppressTrailingSpaces()
+
+	if tf.maxColumnWidth > 0 {
+		columnConfigs := make([]table.ColumnConfig, 0, len(tableHeaders))
+		for i := range tableHeaders {
+			columnConfigs = append(columnConfigs, table.ColumnConfig{
+				Number:           i + 1,
+				WidthMax:         tf.maxColumnWidth,
+				WidthMaxEnforcer: clipCell,
+			})
+		}
+		t.SetColumnConfigs(columnConfigs)
+	}
+
 	render := t.Render()
 
 	return []byte(render), nil
