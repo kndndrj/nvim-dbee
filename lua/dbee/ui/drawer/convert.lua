@@ -364,10 +364,17 @@ local function modified_suffix(bufnr, refresh)
     suffix = " ●"
   end
 
-  utils.create_singleton_autocmd({ "BufModifiedSet" }, {
-    buffer = bufnr,
-    callback = refresh,
-  })
+  if vim.fn.has("nvim-0.13") == 1 then
+    utils.create_singleton_autocmd({ "OptionSet" }, {
+      pattern = "modified",
+      callback = refresh,
+    })
+  else
+    utils.create_singleton_autocmd({ "BufModifiedSet" }, {
+      buffer = bufnr,
+      callback = refresh,
+    })
+  end
 
   return suffix
 end
