@@ -24,7 +24,7 @@ func (eb *eventBus) callLua(event string, data string) {
 func (eb *eventBus) CallStateChanged(call *core.Call) {
 	errMsg := "nil"
 	if err := call.Err(); err != nil {
-		errMsg = fmt.Sprintf("[[%s]]", err.Error())
+		errMsg = fmt.Sprintf("%q", err.Error())
 	}
 
 	data := fmt.Sprintf(`{
